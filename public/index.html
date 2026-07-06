@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>在线聊天室</title>
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#5b8def" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="聊天室" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="icon" href="/icon-192.png" />
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #262b36;
+    --text: #e6e8ec;
+    --muted: #8a92a3;
+    --accent: #5b8def;
+    --accent-dark: #3f6fd6;
+    --bubble-me: #2b5fd9;
+    --bubble-other: #232733;
+    --system: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  #login {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #login .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    width: 320px;
+    text-align: center;
+  }
+  #login h1 { margin: 0 0 8px; font-size: 20px; }
+  #login p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0f1115;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    padding: 10px 16px;
+    transition: background .15s;
+  }
+  button:hover { background: var(--accent-dark); }
+  #login button { width: 100%; margin-top: 12px; }
+
+  #app {
+    display: none;
+    height: 100%;
+    max-width: 1140px;
+    margin: 0 auto;
+    overflow: hidden;
+    grid-template-columns: 200px 1fr 220px;
+  }
+  #app.active { display: grid; }
+
+  #chat-col { display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+  header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h2 { margin: 0; font-size: 16px; }
+  header .status { font-size: 12px; color: var(--muted); }
+  #messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .msg { display: flex; flex-direction: column; max-width: 70%; }
+  .msg.me { align-self: flex-end; align-items: flex-end; }
+  .msg.other { align-self: flex-start; align-items: flex-start; }
+  .msg .name { font-size: 11px; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
+  .msg .bubble {
+    padding: 8px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.45;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .msg.me .bubble { background: var(--bubble-me); color: white; border-bottom-right-radius: 4px; }
+  .msg.other .bubble { background: var(--bubble-other); color: var(--text); border-bottom-left-radius: 4px; }
+  .msg .time { font-size: 10px; color: var(--muted); margin-top: 3px; padding: 0 4px; }
+  .system-msg { text-align: center; color: var(--system); font-size: 12px; margin: 6px 0; }
+  #typing { font-size: 12px; color: var(--muted); min-height: 16px; padding: 0 18px; }
+
+  /* 置顶公告 */
+  #pinned-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: #1c2233;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  #pinned-bar .pin-icon { flex-shrink: 0; }
+  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; }
+  #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
+  #pinned-bar .pin-edit-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #pinned-edit-row {
+    display: none;
+    gap: 8px;
+    padding: 10px 18px;
+    background: #1c2233;
+    border-bottom: 1px solid var(--border);
+  }
+  #pinned-edit-row.active { display: flex; }
+  #pinned-edit-row input { flex: 1; font-size: 13px; }
+  #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
+
+  /* @ 提及高亮 */
+  .mention { color: var(--accent); font-weight: 600; }
+  .msg.mentioned-me .bubble { outline: 2px solid #f0a94e; outline-offset: 1px; }
+
+  @keyframes mention-flash {
+    0%   { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0.85); }
+    50%  { box-shadow: 0 0 0 10px rgba(240, 169, 78, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0); }
+  }
+  .msg.mentioned-me.flash .bubble {
+    animation: mention-flash 0.7s ease-out 2;
+  }
+
+  /* @ 自动补全下拉 */
+  #mention-menu {
+    display: none;
+    position: absolute;
+    bottom: 56px;
+    left: 16px;
+    right: 16px;
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    z-index: 10;
+  }
+  #mention-menu.active { display: block; }
+  #mention-menu .mention-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #mention-menu .mention-item:hover,
+  #mention-menu .mention-item.active { background: var(--bubble-other); }
+
+  #input-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+  #input-row input { flex: 1; }
+
+  /* 引用回复 */
+  .msg .reply-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    cursor: pointer;
+  }
+  .msg .reply-btn:hover { color: var(--accent); background: transparent; }
+  .msg .meta-row { display: flex; align-items: center; gap: 6px; }
+  .msg.me .meta-row { flex-direction: row-reverse; }
+
+  .quote-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-left: 3px solid var(--accent);
+    background: rgba(91, 141, 239, 0.1);
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 100%;
+  }
+  .quote-block .quote-name { color: var(--accent); font-weight: 600; }
+  .quote-block .quote-text {
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #reply-preview-bar {
+    display: none;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #1c2233;
+    border-top: 1px solid var(--border);
+  }
+  #reply-preview-bar.active { display: flex; }
+  #reply-preview-bar .quote-block { flex: 1; margin-bottom: 0; }
+  #reply-preview-bar .reply-cancel-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  #reply-preview-bar .reply-cancel-btn:hover { color: var(--text); background: transparent; }
+
+  #sidebar { padding: 16px; overflow-y: auto; min-height: 0; }
+  #sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  #online-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  #online-list li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
+
+  /* 常用文本栏 */
+  #quick-sidebar { padding: 16px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+  #quick-sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  #quick-list { list-style: none; margin: 0 0 10px; padding: 0; flex: 1; overflow-y: auto; }
+  #quick-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  #quick-list .quick-text-btn {
+    flex: 1;
+    text-align: left;
+    background: var(--bubble-other);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  #quick-list .quick-text-btn:hover { border-color: var(--accent); background: var(--bubble-other); }
+  #quick-list .quick-del-btn {
+    flex-shrink: 0;
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 4px 6px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  #quick-list .quick-del-btn:hover { color: var(--danger, #e5534b); background: transparent; }
+  #quick-add-btn {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    padding: 8px;
+  }
+  #quick-add-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #quick-add-row { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
+  #quick-add-row.active { display: flex; }
+  #quick-add-row input { font-size: 13px; padding: 8px 10px; }
+  #quick-add-row .quick-add-actions { display: flex; gap: 6px; }
+  #quick-add-row .quick-add-actions button { flex: 1; font-size: 12px; padding: 6px; margin-top: 0; }
+  #quick-add-row .quick-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  #quick-add-row .quick-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 900px) {
+    #quick-sidebar { display: none; }
+    #app { grid-template-columns: 200px 1fr; }
+  }
+  @media (max-width: 640px) {
+    #app { grid-template-columns: 1fr; }
+    #sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="card">
+    <h1>💬 在线聊天室</h1>
+    <p>输入昵称加入聊天</p>
+    <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
+    <button id="join-btn">加入聊天室</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <h3>在线用户 (<span id="online-count">0</span>)</h3>
+    <ul id="online-list"></ul>
+  </div>
+  <div id="chat-col">
+    <header>
+      <h2>💬 聊天室</h2>
+      <span class="status" id="conn-status">连接中...</span>
+    </header>
+    <div id="pinned-bar">
+      <span class="pin-icon">📌</span>
+      <span class="pin-text" id="pinned-text"></span>
+      <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
+    </div>
+    <div id="pinned-edit-row">
+      <input id="pinned-input" type="text" placeholder="设置置顶公告，留空则清除..." maxlength="200" />
+      <button id="pin-save-btn">保存</button>
+      <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
+    </div>
+    <div id="messages"></div>
+    <div id="typing"></div>
+    <div id="mention-menu"></div>
+    <div id="reply-preview-bar">
+      <div class="quote-block">
+        <span class="quote-name" id="reply-preview-name"></span>
+        <span class="quote-text" id="reply-preview-text"></span>
+      </div>
+      <button class="reply-cancel-btn" id="reply-cancel-btn">✕</button>
+    </div>
+    <div id="input-row">
+      <input id="text-input" type="text" placeholder="输入消息，输入 @ 可提醒某人，回车发送..." maxlength="2000" autocomplete="off" />
+      <button id="send-btn">发送</button>
+    </div>
+  </div>
+  <div id="quick-sidebar">
+    <h3>常用文本</h3>
+    <ul id="quick-list"></ul>
+    <button id="quick-add-btn">+ 添加常用语</button>
+    <div id="quick-add-row">
+      <input id="quick-add-input" type="text" placeholder="输入常用语内容..." maxlength="200" />
+      <div class="quick-add-actions">
+        <button id="quick-save-btn">保存</button>
+        <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let username = '';
+  let typingTimeout = null;
+
+  const loginEl = document.getElementById('login');
+  const appEl = document.getElementById('app');
+  const usernameInput = document.getElementById('username-input');
+  const joinBtn = document.getElementById('join-btn');
+  const messagesEl = document.getElementById('messages');
+  const textInput = document.getElementById('text-input');
+  const sendBtn = document.getElementById('send-btn');
+  const connStatus = document.getElementById('conn-status');
+  const onlineList = document.getElementById('online-list');
+  const onlineCount = document.getElementById('online-count');
+  const typingEl = document.getElementById('typing');
+  const pinnedTextEl = document.getElementById('pinned-text');
+  const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
+  const pinnedEditRow = document.getElementById('pinned-edit-row');
+  const pinnedInput = document.getElementById('pinned-input');
+  const pinSaveBtn = document.getElementById('pin-save-btn');
+  const pinCancelBtn = document.getElementById('pin-cancel-btn');
+  const mentionMenu = document.getElementById('mention-menu');
+  const quickList = document.getElementById('quick-list');
+  const quickAddBtn = document.getElementById('quick-add-btn');
+  const quickAddRow = document.getElementById('quick-add-row');
+  const quickAddInput = document.getElementById('quick-add-input');
+  const quickSaveBtn = document.getElementById('quick-save-btn');
+  const quickCancelBtn = document.getElementById('quick-cancel-btn');
+  const replyPreviewBar = document.getElementById('reply-preview-bar');
+  const replyPreviewName = document.getElementById('reply-preview-name');
+  const replyPreviewText = document.getElementById('reply-preview-text');
+  const replyCancelBtn = document.getElementById('reply-cancel-btn');
+
+  let onlineUsers = [];
+  let currentPinnedText = '';
+  const originalTitle = document.title;
+  let titleFlashTimer = null;
+  let audioCtx = null;
+  let replyingTo = null; // { username, text }
+
+  const QUICK_STORAGE_KEY = 'chatQuickPhrases';
+  const DEFAULT_QUICK_PHRASES = ['收到', '好的，谢谢', '稍等一下', '在的'];
+
+  function connect() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(`${protocol}//${location.host}`);
+
+    ws.onopen = () => {
+      connStatus.textContent = '已连接';
+      ws.send(JSON.stringify({ type: 'join', username }));
+    };
+
+    ws.onclose = () => {
+      connStatus.textContent = '连接已断开，正在重连...';
+      setTimeout(connect, 2000);
+    };
+
+    ws.onerror = () => { connStatus.textContent = '连接错误'; };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'history') {
+        messagesEl.innerHTML = '';
+        data.messages.forEach((m) => renderMessage(m, { live: false }));
+        scrollToBottom();
+      } else if (data.type === 'message') {
+        renderMessage(data, { live: true });
+        scrollToBottom();
+        notifyIfMentioned(data);
+      } else if (data.type === 'system') {
+        renderMessage(data, { live: true });
+        scrollToBottom();
+      } else if (data.type === 'online') {
+        renderOnlineList(data.users);
+      } else if (data.type === 'pinned') {
+        setPinnedText(data.text || '');
+      } else if (data.type === 'typing') {
+        typingEl.textContent = `${data.username} 正在输入...`;
+        clearTimeout(typingEl._t);
+        typingEl._t = setTimeout(() => { typingEl.textContent = ''; }, 1500);
+      }
+    };
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderTextWithMentions(text) {
+    const escaped = escapeHtml(text);
+    // 高亮 @用户名（用户名后需跟空白/标点/结尾）
+    return escaped.replace(/@([^\s，,。.!！?？@]{1,20})(?=\s|[，,。.!！?？]|$)/g, (match, name) => {
+      return `<span class="mention">@${name}</span>`;
+    });
+  }
+
+  function renderMessage(data, opts) {
+    const isLive = !!(opts && opts.live);
+    if (data.type === 'system') {
+      const div = document.createElement('div');
+      div.className = 'system-msg';
+      div.textContent = data.text;
+      messagesEl.appendChild(div);
+      return;
+    }
+    const wrap = document.createElement('div');
+    const isMe = data.username === username;
+    const iAmMentioned = Array.isArray(data.mentions) && data.mentions.includes(username) && !isMe;
+    wrap.className = 'msg ' + (isMe ? 'me' : 'other') + (iAmMentioned ? ' mentioned-me' : '') + (iAmMentioned && isLive ? ' flash' : '');
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = data.username;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+
+    if (data.quote) {
+      const quoteBlock = document.createElement('div');
+      quoteBlock.className = 'quote-block';
+      const qName = document.createElement('span');
+      qName.className = 'quote-name';
+      qName.textContent = data.quote.username;
+      const qText = document.createElement('span');
+      qText.className = 'quote-text';
+      qText.textContent = data.quote.text;
+      quoteBlock.appendChild(qName);
+      quoteBlock.appendChild(qText);
+      bubble.appendChild(quoteBlock);
+    }
+
+    const textSpan = document.createElement('div');
+    textSpan.innerHTML = renderTextWithMentions(data.text);
+    bubble.appendChild(textSpan);
+
+    const metaRow = document.createElement('div');
+    metaRow.className = 'meta-row';
+
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    const replyBtn = document.createElement('button');
+    replyBtn.className = 'reply-btn';
+    replyBtn.textContent = '↩ 回复';
+    replyBtn.addEventListener('click', () => startReply(data.username, data.text));
+
+    metaRow.appendChild(time);
+    metaRow.appendChild(replyBtn);
+
+    wrap.appendChild(name);
+    wrap.appendChild(bubble);
+    wrap.appendChild(metaRow);
+    messagesEl.appendChild(wrap);
+  }
+
+  function startReply(replyUsername, replyText) {
+    replyingTo = { username: replyUsername, text: replyText };
+    replyPreviewName.textContent = replyUsername;
+    replyPreviewText.textContent = replyText;
+    replyPreviewBar.classList.add('active');
+    textInput.focus();
+  }
+
+  function cancelReply() {
+    replyingTo = null;
+    replyPreviewBar.classList.remove('active');
+  }
+
+  replyCancelBtn.addEventListener('click', cancelReply);
+
+  function playMentionSound() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const now = audioCtx.currentTime;
+      // 两个音符的轻快"叮咚"提示音
+      [[880, now], [1160, now + 0.14]].forEach(([freq, startAt]) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.25, startAt + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.28);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(startAt);
+        osc.stop(startAt + 0.3);
+      });
+    } catch (e) {
+      // 静默失败（比如浏览器阻止了自动播放），不影响其他功能
+    }
+  }
+
+  function notifyIfMentioned(data) {
+    if (!Array.isArray(data.mentions) || !data.mentions.includes(username) || data.username === username) return;
+    playMentionSound();
+    // 标签页标题闪烁提醒
+    if (document.hidden) {
+      clearInterval(titleFlashTimer);
+      let toggled = false;
+      titleFlashTimer = setInterval(() => {
+        document.title = toggled ? originalTitle : `💬 有人@你了`;
+        toggled = !toggled;
+      }, 1000);
+      document.addEventListener('visibilitychange', function onVisible() {
+        if (!document.hidden) {
+          clearInterval(titleFlashTimer);
+          document.title = originalTitle;
+          document.removeEventListener('visibilitychange', onVisible);
+        }
+      });
+    }
+  }
+
+  function renderOnlineList(users) {
+    onlineUsers = users;
+    onlineList.innerHTML = '';
+    onlineCount.textContent = users.length;
+    users.forEach((u) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="dot"></span>${escapeHtml(u)}`;
+      onlineList.appendChild(li);
+    });
+  }
+
+  function setPinnedText(text) {
+    currentPinnedText = text || '';
+    if (currentPinnedText) {
+      pinnedTextEl.textContent = currentPinnedText;
+      pinnedTextEl.classList.remove('empty');
+    } else {
+      pinnedTextEl.textContent = '暂无公告，点击"编辑"设置一条';
+      pinnedTextEl.classList.add('empty');
+    }
+  }
+
+  function openPinEdit() {
+    pinnedInput.value = currentPinnedText;
+    pinnedEditRow.classList.add('active');
+    pinnedInput.focus();
+  }
+
+  function closePinEdit() {
+    pinnedEditRow.classList.remove('active');
+  }
+
+  function savePinnedText() {
+    const text = pinnedInput.value.trim();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'pin', text }));
+    }
+    closePinEdit();
+  }
+
+  pinEditOpenBtn.addEventListener('click', openPinEdit);
+  pinCancelBtn.addEventListener('click', closePinEdit);
+  pinSaveBtn.addEventListener('click', savePinnedText);
+  pinnedInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') savePinnedText();
+    if (e.key === 'Escape') closePinEdit();
+  });
+
+  // ===== 常用文本（本地保存，仅自己可见）=====
+  function loadQuickPhrases() {
+    try {
+      const raw = localStorage.getItem(QUICK_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return DEFAULT_QUICK_PHRASES.slice();
+  }
+
+  function saveQuickPhrases(list) {
+    try {
+      localStorage.setItem(QUICK_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) { /* ignore（比如隐私模式下localStorage不可用） */ }
+  }
+
+  let quickPhrases = loadQuickPhrases();
+
+  function renderQuickList() {
+    quickList.innerHTML = '';
+    quickPhrases.forEach((phrase, index) => {
+      const li = document.createElement('li');
+
+      const btn = document.createElement('button');
+      btn.className = 'quick-text-btn';
+      btn.textContent = phrase;
+      btn.title = phrase;
+      btn.addEventListener('click', () => {
+        textInput.value = phrase;
+        textInput.focus();
+        const len = textInput.value.length;
+        textInput.setSelectionRange(len, len);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'quick-del-btn';
+      delBtn.textContent = '×';
+      delBtn.title = '删除';
+      delBtn.addEventListener('click', () => {
+        quickPhrases.splice(index, 1);
+        saveQuickPhrases(quickPhrases);
+        renderQuickList();
+      });
+
+      li.appendChild(btn);
+      li.appendChild(delBtn);
+      quickList.appendChild(li);
+    });
+  }
+
+  function openQuickAdd() {
+    quickAddRow.classList.add('active');
+    quickAddInput.value = '';
+    quickAddInput.focus();
+  }
+
+  function closeQuickAdd() {
+    quickAddRow.classList.remove('active');
+  }
+
+  function saveQuickAdd() {
+    const text = quickAddInput.value.trim();
+    if (text) {
+      quickPhrases.push(text);
+      saveQuickPhrases(quickPhrases);
+      renderQuickList();
+    }
+    closeQuickAdd();
+  }
+
+  quickAddBtn.addEventListener('click', openQuickAdd);
+  quickCancelBtn.addEventListener('click', closeQuickAdd);
+  quickSaveBtn.addEventListener('click', saveQuickAdd);
+  quickAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveQuickAdd();
+    if (e.key === 'Escape') closeQuickAdd();
+  });
+
+  renderQuickList();
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function joinChat() {
+    const val = usernameInput.value.trim();
+    if (!val) { usernameInput.focus(); return; }
+    username = val;
+    loginEl.style.display = 'none';
+    appEl.classList.add('active');
+    setPinnedText('');
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { /* 部分环境不支持 Web Audio，忽略 */ }
+    connect();
+  }
+
+  function sendMessage() {
+    const text = textInput.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const payload = { type: 'message', text };
+    if (replyingTo) payload.quote = replyingTo;
+    ws.send(JSON.stringify(payload));
+    textInput.value = '';
+    closeMentionMenu();
+    cancelReply();
+  }
+
+  // ===== @ 提及自动补全 =====
+  let mentionActive = false;
+  let mentionStartIndex = -1;
+  let mentionCandidates = [];
+  let mentionSelectedIndex = 0;
+
+  function updateMentionMenu() {
+    const cursor = textInput.selectionStart;
+    const value = textInput.value;
+    const uptoCursor = value.slice(0, cursor);
+    const atIndex = uptoCursor.lastIndexOf('@');
+
+    if (atIndex === -1) { closeMentionMenu(); return; }
+    const fragment = uptoCursor.slice(atIndex + 1);
+    // 如果 @ 和光标之间出现空格/换行，说明已经不在@输入状态
+    if (/\s/.test(fragment)) { closeMentionMenu(); return; }
+
+    const others = onlineUsers.filter((u) => u !== username);
+    const filtered = fragment
+      ? others.filter((u) => u.toLowerCase().includes(fragment.toLowerCase()))
+      : others;
+
+    if (filtered.length === 0) { closeMentionMenu(); return; }
+
+    mentionActive = true;
+    mentionStartIndex = atIndex;
+    mentionCandidates = filtered;
+    mentionSelectedIndex = 0;
+    renderMentionMenu();
+  }
+
+  function renderMentionMenu() {
+    mentionMenu.innerHTML = '';
+    mentionCandidates.forEach((name, i) => {
+      const item = document.createElement('div');
+      item.className = 'mention-item' + (i === mentionSelectedIndex ? ' active' : '');
+      item.innerHTML = `<span class="dot"></span>${escapeHtml(name)}`;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectMention(name);
+      });
+      mentionMenu.appendChild(item);
+    });
+    mentionMenu.classList.add('active');
+  }
+
+  function closeMentionMenu() {
+    mentionActive = false;
+    mentionStartIndex = -1;
+    mentionCandidates = [];
+    mentionMenu.classList.remove('active');
+    mentionMenu.innerHTML = '';
+  }
+
+  function selectMention(name) {
+    const value = textInput.value;
+    const cursor = textInput.selectionStart;
+    const before = value.slice(0, mentionStartIndex);
+    const after = value.slice(cursor);
+    const insertion = `@${name} `;
+    textInput.value = before + insertion + after;
+    const newCursor = (before + insertion).length;
+    textInput.focus();
+    textInput.setSelectionRange(newCursor, newCursor);
+    closeMentionMenu();
+  }
+
+  textInput.addEventListener('input', updateMentionMenu);
+  textInput.addEventListener('click', updateMentionMenu);
+
+  document.addEventListener('click', (e) => {
+    if (!mentionMenu.contains(e.target) && e.target !== textInput) closeMentionMenu();
+  });
+
+  joinBtn.addEventListener('click', joinChat);
+  usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinChat(); });
+
+
+  sendBtn.addEventListener('click', sendMessage);
+  textInput.addEventListener('keydown', (e) => {
+    if (mentionActive) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        mentionSelectedIndex = (mentionSelectedIndex + 1) % mentionCandidates.length;
+        renderMentionMenu();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        mentionSelectedIndex = (mentionSelectedIndex - 1 + mentionCandidates.length) % mentionCandidates.length;
+        renderMentionMenu();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectMention(mentionCandidates[mentionSelectedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        closeMentionMenu();
+        return;
+      }
+    }
+
+    if (e.key === 'Enter') {
+      sendMessage();
+    } else {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+          ws.send(JSON.stringify({ type: 'typing' }));
+        }, 200);
+      }
+    }
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    });
+  }
+
+</script>
+</body>
+</html>

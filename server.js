@@ -16,8 +16,11 @@ const clients = new Map();
 // 最近消息历史（内存中，重启后清空）
 const MAX_HISTORY = 100;
 let history = [];
-// 置顶公告（内存中，重启后清空）
-let pinnedText = '';
+// 置顶公告（内存中，重启后清空，但会用下面这个默认值重新初始化）
+const DEFAULT_PINNED_TEXT = '您好，本订单包裹已到库，xx商品xx（描述下实际情况）【可在代购订单列表该订单详情中查看截图】（如有提供图），现需要您确认：  ①是否可以直接为您入库？ ②请您于中国时间xx月xx日xx点前回复，如未收到您的回复将默认为您入库并在平台完成签收，签收后再出现任何问题卖家将无法再进行对应，所有问题损失需您自行承担，敬请了解。';
+let pinnedText = DEFAULT_PINNED_TEXT;
+// 置顶公告最大长度（原来是200，模板较长，放宽一些）
+const PINNED_MAX_LENGTH = 600;
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
 
@@ -115,7 +118,7 @@ wss.on('connection', (ws) => {
     if (data.type === 'pin') {
       const client = clients.get(ws);
       if (!client) return;
-      pinnedText = String(data.text || '').slice(0, 200);
+      pinnedText = String(data.text || '').slice(0, PINNED_MAX_LENGTH);
       const pinMsg = { type: 'pinned', text: pinnedText, by: client.username };
       broadcast(pinMsg); // 包括操作者自己，保证所有端一致
       if (pinnedText) {

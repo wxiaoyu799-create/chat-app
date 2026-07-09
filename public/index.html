@@ -161,12 +161,12 @@
   .msg.mentioned-me .bubble { outline: 2px solid #f0a94e; outline-offset: 1px; }
 
   @keyframes mention-flash {
-    0%   { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0.85); }
-    50%  { box-shadow: 0 0 0 10px rgba(240, 169, 78, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0.9); background-color: rgba(240, 169, 78, 0.35); }
+    60%  { box-shadow: 0 0 0 14px rgba(240, 169, 78, 0); background-color: rgba(240, 169, 78, 0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0); background-color: transparent; }
   }
   .msg.mentioned-me.flash .bubble {
-    animation: mention-flash 0.7s ease-out 2;
+    animation: mention-flash 0.9s ease-out 3;
   }
 
   /* @ 自动补全下拉 */
@@ -590,19 +590,19 @@
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
       const now = audioCtx.currentTime;
-      // 两个音符的轻快"叮咚"提示音
-      [[880, now], [1160, now + 0.14]].forEach(([freq, startAt]) => {
+      // 两个音符的"叮咚"提示音，音量调大一些，确保能被注意到
+      [[880, now], [1160, now + 0.16]].forEach(([freq, startAt]) => {
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.type = 'sine';
         osc.frequency.value = freq;
         gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.25, startAt + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.28);
+        gain.gain.exponentialRampToValueAtTime(0.55, startAt + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.4);
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.start(startAt);
-        osc.stop(startAt + 0.3);
+        osc.stop(startAt + 0.42);
       });
     } catch (e) {
       // 静默失败（比如浏览器阻止了自动播放），不影响其他功能

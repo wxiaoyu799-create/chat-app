@@ -710,6 +710,10 @@
     void appEl.offsetWidth;
     appEl.classList.add('window-flashing');
     buildAlertFaviconAndApply();
+    // 如果是在桌面客户端（Electron壳）里打开的，额外触发任务栏图标闪烁+红点角标
+    if (window.electronAPI && typeof window.electronAPI.notifyMention === 'function') {
+      window.electronAPI.notifyMention();
+    }
     clearTimeout(windowFlashTimeout);
     windowFlashTimeout = setTimeout(() => {
       appEl.classList.remove('window-flashing');

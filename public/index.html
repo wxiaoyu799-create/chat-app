@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="聊天室" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
-<link rel="icon" href="/icon-192.png" />
+<link rel="icon" id="favicon" href="/icon-192.png" />
 <style>
   :root {
     --bg: #0f1115;
@@ -423,6 +423,7 @@
 
   const loginEl = document.getElementById('login');
   const appEl = document.getElementById('app');
+  const faviconEl = document.getElementById('favicon');
   const usernameInput = document.getElementById('username-input');
   const joinBtn = document.getElementById('join-btn');
   const messagesEl = document.getElementById('messages');
@@ -660,14 +661,55 @@
     }
   }
 
-  // 整个窗口的@提醒：先闪几下，闪完"定住"停留在提醒态（橙色边框常亮），
+  // 整个窗口的@提醒：先闪几下，闪完"定住"停留在提醒态（橙色边框常亮 + 标签页图标带红点角标），
   // 直到用户点一下页面任意位置才解除，确保就算错过了闪烁瞬间，回头看一眼也知道有人@过自己
   let windowFlashTimeout = null;
+  const ORIGINAL_FAVICON_HREF = faviconEl ? faviconEl.getAttribute('href') : '';
+  let alertFaviconDataUrl = null; // 生成一次后缓存，避免每次@都重新绘制
+
+  function buildAlertFaviconAndApply() {
+    if (!faviconEl) return;
+    if (alertFaviconDataUrl) {
+      faviconEl.href = alertFaviconDataUrl;
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      // 右上角画一个醒目的红色圆点角标，模拟"未读提醒"
+      const r = size * 0.22;
+      const cx = size - r - 2;
+      const cy = r + 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff3b30';
+      ctx.fill();
+      ctx.lineWidth = size * 0.05;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      alertFaviconDataUrl = canvas.toDataURL('image/png');
+      faviconEl.href = alertFaviconDataUrl;
+    };
+    img.onerror = () => { /* 图标加载失败就放弃，静默降级，不影响其他提醒方式 */ };
+    img.src = ORIGINAL_FAVICON_HREF;
+  }
+
+  function resetFavicon() {
+    if (faviconEl && ORIGINAL_FAVICON_HREF) faviconEl.href = ORIGINAL_FAVICON_HREF;
+  }
+
   function triggerWindowMentionFlash() {
     appEl.classList.remove('window-flashing');
     // 强制重排，确保重新触发闪烁动画（哪怕上一次的还没播完）
     void appEl.offsetWidth;
     appEl.classList.add('window-flashing');
+    buildAlertFaviconAndApply();
     clearTimeout(windowFlashTimeout);
     windowFlashTimeout = setTimeout(() => {
       appEl.classList.remove('window-flashing');
@@ -677,6 +719,7 @@
 
   function clearWindowMentionSettled() {
     appEl.classList.remove('window-settled');
+    resetFavicon();
   }
   document.addEventListener('click', clearWindowMentionSettled);
   document.addEventListener('keydown', clearWindowMentionSettled);

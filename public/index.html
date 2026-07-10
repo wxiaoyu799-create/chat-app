@@ -94,6 +94,16 @@
   }
   header h2 { margin: 0; font-size: 16px; }
   header .status { font-size: 12px; color: var(--muted); }
+  .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .my-username {
+    font-size: 20px;
+    font-weight: 700;
+    color: #f0a94e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
   #messages {
     flex: 1;
     min-height: 0;
@@ -346,7 +356,10 @@
   </div>
   <div id="chat-col">
     <header>
-      <h2>💬 聊天室</h2>
+      <div class="header-left">
+        <span class="my-username" id="my-username"></span>
+        <h2>💬 聊天室</h2>
+      </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
     <div id="pinned-bar">
@@ -401,6 +414,7 @@
   const textInput = document.getElementById('text-input');
   const sendBtn = document.getElementById('send-btn');
   const connStatus = document.getElementById('conn-status');
+  const myUsernameEl = document.getElementById('my-username');
   const onlineList = document.getElementById('online-list');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
@@ -768,6 +782,8 @@
     loginEl.style.display = 'none';
     appEl.classList.add('active');
     setPinnedText('');
+    myUsernameEl.textContent = username;
+    myUsernameEl.title = `当前登录：${username}`;
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (e) { /* 部分环境不支持 Web Audio，忽略 */ }

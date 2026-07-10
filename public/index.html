@@ -81,8 +81,23 @@
     margin: 0 auto;
     overflow: hidden;
     grid-template-columns: 200px 1fr 220px;
+    border: 3px solid transparent;
+    box-sizing: border-box;
   }
   #app.active { display: grid; }
+
+  /* 整个窗口的@提醒：先闪几下，再"定住"停留在提醒态，直到用户点一下才恢复 */
+  @keyframes window-mention-flash {
+    0%, 100% { border-color: transparent; background-color: transparent; }
+    50% { border-color: #f0a94e; background-color: rgba(240, 169, 78, 0.08); }
+  }
+  #app.window-flashing {
+    animation: window-mention-flash 0.5s ease-in-out 4;
+  }
+  #app.window-settled {
+    border-color: #f0a94e;
+    box-shadow: 0 0 0 2px rgba(240, 169, 78, 0.35) inset;
+  }
 
   #chat-col { display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-width: 0; min-height: 0; overflow: hidden; position: relative; }
   header {
@@ -626,6 +641,7 @@
   function notifyIfMentioned(data) {
     if (!Array.isArray(data.mentions) || !data.mentions.includes(username) || data.username === username) return;
     playMentionSound();
+    triggerWindowMentionFlash();
     // 标签页标题闪烁提醒
     if (document.hidden) {
       clearInterval(titleFlashTimer);
@@ -643,6 +659,27 @@
       });
     }
   }
+
+  // 整个窗口的@提醒：先闪几下，闪完"定住"停留在提醒态（橙色边框常亮），
+  // 直到用户点一下页面任意位置才解除，确保就算错过了闪烁瞬间，回头看一眼也知道有人@过自己
+  let windowFlashTimeout = null;
+  function triggerWindowMentionFlash() {
+    appEl.classList.remove('window-flashing');
+    // 强制重排，确保重新触发闪烁动画（哪怕上一次的还没播完）
+    void appEl.offsetWidth;
+    appEl.classList.add('window-flashing');
+    clearTimeout(windowFlashTimeout);
+    windowFlashTimeout = setTimeout(() => {
+      appEl.classList.remove('window-flashing');
+      appEl.classList.add('window-settled');
+    }, 2000); // 4次 × 0.5s ≈ 2s动画时长，播完后转入"定住"状态
+  }
+
+  function clearWindowMentionSettled() {
+    appEl.classList.remove('window-settled');
+  }
+  document.addEventListener('click', clearWindowMentionSettled);
+  document.addEventListener('keydown', clearWindowMentionSettled);
 
   function renderOnlineList(users) {
     onlineUsers = users;

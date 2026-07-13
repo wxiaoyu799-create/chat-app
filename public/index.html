@@ -698,7 +698,8 @@
     }
     const wrap = document.createElement('div');
     const isMe = data.username === username;
-    const iAmMentioned = Array.isArray(data.mentions) && data.mentions.includes(username) && !isMe;
+    const iAmQuoted = !!(data.quote && data.quote.username === username);
+    const iAmMentioned = (Array.isArray(data.mentions) && data.mentions.includes(username) || iAmQuoted) && !isMe;
     wrap.className = 'msg ' + (isMe ? 'me' : 'other') + (iAmMentioned ? ' mentioned-me' : '') + (iAmMentioned && isLive ? ' flash' : '');
     if (typeof data.id === 'number') wrap.dataset.messageId = String(data.id);
 
@@ -912,15 +913,20 @@
   }
 
   function notifyIfMentioned(data) {
-    if (!Array.isArray(data.mentions) || !data.mentions.includes(username) || data.username === username) return;
+    if (data.username === username) return; // 自己发的消息不用提醒自己
+    const iAmMentionedInText = Array.isArray(data.mentions) && data.mentions.includes(username);
+    const iAmQuoted = !!(data.quote && data.quote.username === username);
+    if (!iAmMentionedInText && !iAmQuoted) return;
+
     playMentionSound();
     triggerWindowMentionFlash();
-    // 标签页标题闪烁提醒
+    // 标签页标题闪烁提醒（被@和被引用回复用不同的文案，方便区分是哪种情况）
+    const flashLabel = iAmMentionedInText ? '💬 有人@你了' : '💬 有人回复了你';
     if (document.hidden) {
       clearInterval(titleFlashTimer);
       let toggled = false;
       titleFlashTimer = setInterval(() => {
-        document.title = toggled ? originalTitle : `💬 有人@你了`;
+        document.title = toggled ? originalTitle : flashLabel;
         toggled = !toggled;
       }, 1000);
       document.addEventListener('visibilitychange', function onVisible() {

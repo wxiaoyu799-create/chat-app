@@ -242,6 +242,22 @@
   .msg .meta-row { display: flex; align-items: center; gap: 6px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
+  /* 消息表情回应（点赞/疑问） */
+  .msg .reaction-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 2px 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .msg .reaction-btn:hover { color: var(--accent); background: transparent; }
+  .msg .reaction-btn.reacted { color: #f0a94e; font-weight: 600; }
+  .msg .reaction-btn .reaction-count { min-width: 8px; }
+
   .quote-block {
     display: flex;
     flex-direction: column;
@@ -283,6 +299,46 @@
   }
   #reply-preview-bar .reply-cancel-btn:hover { color: var(--text); background: transparent; }
 
+  /* 图片预览条 */
+  #image-preview-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: #1c2233;
+    border-top: 1px solid var(--border);
+  }
+  #image-preview-bar.active { display: flex; }
+  #image-preview-bar img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  #image-preview-status { flex: 1; font-size: 12px; color: var(--muted); }
+
+  /* 图片上传按钮 */
+  #image-pick-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0 12px;
+  }
+  #image-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
+  /* 消息里的图片 */
+  .msg .bubble .msg-image {
+    max-width: 220px;
+    max-height: 220px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: block;
+  }
+  .msg .bubble .msg-image + div { margin-top: 6px; }
+
   #sidebar { padding: 16px; overflow-y: auto; min-height: 0; }
   #sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
   #online-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
@@ -323,6 +379,44 @@
     line-height: 1;
   }
   #quick-list .quick-del-btn:hover { color: var(--danger, #e5534b); background: transparent; }
+
+  /* 常用文本分类（二级菜单） */
+  #quick-categories { flex: 1; overflow-y: auto; margin-bottom: 10px; }
+  .quick-category { margin-bottom: 8px; }
+  .quick-category-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .quick-category-header:hover { border-color: var(--accent); background: transparent; }
+  .quick-category-header .quick-category-count { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .quick-category-header .quick-category-arrow { transition: transform 0.15s; color: var(--muted); }
+  .quick-category.expanded .quick-category-header .quick-category-arrow { transform: rotate(90deg); }
+  .quick-category-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0 0 0 4px;
+    display: none;
+  }
+  .quick-category.expanded .quick-category-list { display: block; }
+  .quick-category-empty {
+    display: none;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 4px;
+    font-style: italic;
+  }
+  .quick-category.expanded .quick-category-empty.active { display: block; }
+
   #quick-add-btn {
     width: 100%;
     background: transparent;
@@ -397,17 +491,24 @@
       </div>
       <button class="reply-cancel-btn" id="reply-cancel-btn">✕</button>
     </div>
+    <div id="image-preview-bar">
+      <img id="image-preview-thumb" alt="预览图" />
+      <span id="image-preview-status">已选择图片</span>
+      <button class="reply-cancel-btn" id="image-cancel-btn">✕</button>
+    </div>
     <div id="input-row">
+      <button id="image-pick-btn" type="button" title="发送图片">🖼️</button>
+      <input id="image-file-input" type="file" accept="image/*" style="display:none" />
       <input id="text-input" type="text" placeholder="输入消息，输入 @ 可提醒某人，回车发送..." maxlength="2000" autocomplete="off" />
       <button id="send-btn">发送</button>
     </div>
   </div>
   <div id="quick-sidebar">
     <h3>常用文本</h3>
-    <ul id="quick-list"></ul>
+    <div id="quick-categories"></div>
     <button id="quick-add-btn">+ 添加常用语</button>
     <div id="quick-add-row">
-      <input id="quick-add-input" type="text" placeholder="输入常用语内容..." maxlength="200" />
+      <input id="quick-add-input" type="text" placeholder="输入常用语内容...（含&quot;代拍/代购/煤炉&quot;会自动归类）" maxlength="200" />
       <div class="quick-add-actions">
         <button id="quick-save-btn">保存</button>
         <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
@@ -441,7 +542,7 @@
   const pinSaveBtn = document.getElementById('pin-save-btn');
   const pinCancelBtn = document.getElementById('pin-cancel-btn');
   const mentionMenu = document.getElementById('mention-menu');
-  const quickList = document.getElementById('quick-list');
+  const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
   const quickAddRow = document.getElementById('quick-add-row');
   const quickAddInput = document.getElementById('quick-add-input');
@@ -451,6 +552,12 @@
   const replyPreviewName = document.getElementById('reply-preview-name');
   const replyPreviewText = document.getElementById('reply-preview-text');
   const replyCancelBtn = document.getElementById('reply-cancel-btn');
+  const imagePreviewBar = document.getElementById('image-preview-bar');
+  const imagePreviewThumb = document.getElementById('image-preview-thumb');
+  const imagePreviewStatus = document.getElementById('image-preview-status');
+  const imageCancelBtn = document.getElementById('image-cancel-btn');
+  const imagePickBtn = document.getElementById('image-pick-btn');
+  const imageFileInput = document.getElementById('image-file-input');
 
   let onlineUsers = [];
   let currentPinnedText = '';
@@ -458,13 +565,20 @@
   let titleFlashTimer = null;
   let audioCtx = null;
   let replyingTo = null; // { username, text }
+  let pendingImageUrl = null; // 上传成功后的图片URL，发送消息时带上
+  let pendingImageObjectUrl = null; // 本地预览用的blob URL，发送/取消后要释放掉
+  const MAX_IMAGE_SIZE = 8 * 1024 * 1024; // 跟服务端限制保持一致：8MB
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
   const QUICK_STORAGE_KEY = 'chatQuickPhrases';
+  const REACTION_EMOJIS = ['👍', '❓'];
   const DEFAULT_QUICK_PHRASES = [
     '代拍 运费到付 运单号：',
     '煤炉运费更新 ID  运单号',
     '代购订单ID：帮忙确认下工单内容',
     '代拍ID：18禁',
+    '代拍运费或者手续费变更，ID：',
+    '代拍运费和手续变更 ID：',
   ];
 
   function connect() {
@@ -500,6 +614,12 @@
         renderOnlineList(data.users);
       } else if (data.type === 'pinned') {
         setPinnedText(data.text || '');
+      } else if (data.type === 'reaction_update') {
+        const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
+        if (targetWrap) {
+          const reactionBtn = targetWrap.querySelector(`.reaction-btn[data-emoji="${data.emoji}"]`);
+          if (reactionBtn) updateReactionButton(reactionBtn, Array.isArray(data.users) ? data.users : []);
+        }
       } else if (data.type === 'typing') {
         typingEl.textContent = `${data.username} 正在输入...`;
         clearTimeout(typingEl._t);
@@ -553,6 +673,7 @@
     const isMe = data.username === username;
     const iAmMentioned = Array.isArray(data.mentions) && data.mentions.includes(username) && !isMe;
     wrap.className = 'msg ' + (isMe ? 'me' : 'other') + (iAmMentioned ? ' mentioned-me' : '') + (iAmMentioned && isLive ? ' flash' : '');
+    if (typeof data.id === 'number') wrap.dataset.messageId = String(data.id);
 
     const name = document.createElement('div');
     name.className = 'name';
@@ -575,9 +696,25 @@
       bubble.appendChild(quoteBlock);
     }
 
-    const textSpan = document.createElement('div');
-    textSpan.innerHTML = renderTextWithMentions(data.text);
-    bubble.appendChild(textSpan);
+    if (data.image) {
+      const imgLink = document.createElement('a');
+      imgLink.href = data.image;
+      imgLink.target = '_blank';
+      imgLink.rel = 'noopener noreferrer';
+      const img = document.createElement('img');
+      img.className = 'msg-image';
+      img.src = data.image;
+      img.alt = '图片消息';
+      img.loading = 'lazy';
+      imgLink.appendChild(img);
+      bubble.appendChild(imgLink);
+    }
+
+    if (data.text && data.text.trim()) {
+      const textSpan = document.createElement('div');
+      textSpan.innerHTML = renderTextWithMentions(data.text);
+      bubble.appendChild(textSpan);
+    }
 
     const metaRow = document.createElement('div');
     metaRow.className = 'meta-row';
@@ -589,15 +726,45 @@
     const replyBtn = document.createElement('button');
     replyBtn.className = 'reply-btn';
     replyBtn.textContent = '↩ 回复';
-    replyBtn.addEventListener('click', () => startReply(data.username, data.text));
+    replyBtn.addEventListener('click', () => {
+      const replyText = (data.text && data.text.trim()) ? data.text : (data.image ? '[图片]' : '');
+      startReply(data.username, replyText);
+    });
 
     metaRow.appendChild(time);
     metaRow.appendChild(replyBtn);
+
+    if (typeof data.id === 'number') {
+      const reactions = data.reactions && typeof data.reactions === 'object' ? data.reactions : {};
+      REACTION_EMOJIS.forEach((emoji) => {
+        const reactionBtn = document.createElement('button');
+        reactionBtn.className = 'reaction-btn';
+        reactionBtn.dataset.emoji = emoji;
+        reactionBtn.innerHTML = `<span class="reaction-icon">${emoji}</span><span class="reaction-count"></span>`;
+        reactionBtn.addEventListener('click', () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'reaction', messageId: data.id, emoji }));
+          }
+        });
+        updateReactionButton(reactionBtn, Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
+        metaRow.appendChild(reactionBtn);
+      });
+    }
 
     wrap.appendChild(name);
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
     messagesEl.appendChild(wrap);
+  }
+
+  function updateReactionButton(reactionBtn, users) {
+    const count = users.length;
+    const iReacted = users.includes(username);
+    const emoji = reactionBtn.dataset.emoji;
+    const label = emoji === '👍' ? '点赞' : '疑问';
+    reactionBtn.classList.toggle('reacted', iReacted);
+    reactionBtn.querySelector('.reaction-count').textContent = count > 0 ? String(count) : '';
+    reactionBtn.title = count > 0 ? `${users.join('、')} ${label === '点赞' ? '点了赞' : '表示疑问'}` : label;
   }
 
   function startReply(replyUsername, replyText) {
@@ -614,6 +781,72 @@
   }
 
   replyCancelBtn.addEventListener('click', cancelReply);
+
+  // ===== 图片发送 =====
+  function resetImagePreview() {
+    pendingImageUrl = null;
+    if (pendingImageObjectUrl) {
+      URL.revokeObjectURL(pendingImageObjectUrl);
+      pendingImageObjectUrl = null;
+    }
+    imagePreviewBar.classList.remove('active');
+    imagePreviewThumb.src = '';
+    imageFileInput.value = '';
+  }
+
+  async function handleImageFile(file) {
+    if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      alert('只支持 jpg / png / gif / webp 格式的图片');
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert('图片太大了，最大支持 8MB');
+      return;
+    }
+
+    pendingImageObjectUrl = URL.createObjectURL(file);
+    imagePreviewThumb.src = pendingImageObjectUrl;
+    imagePreviewStatus.textContent = '上传中...';
+    imagePreviewBar.classList.add('active');
+    pendingImageUrl = null;
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '上传失败');
+      pendingImageUrl = data.url;
+      imagePreviewStatus.textContent = '图片已就绪，回车/点发送 一起发出去';
+    } catch (e) {
+      imagePreviewStatus.textContent = `上传失败：${e.message}`;
+      pendingImageUrl = null;
+    }
+  }
+
+  imagePickBtn.addEventListener('click', () => imageFileInput.click());
+  imageFileInput.addEventListener('change', () => {
+    const file = imageFileInput.files && imageFileInput.files[0];
+    if (file) handleImageFile(file);
+  });
+  imageCancelBtn.addEventListener('click', resetImagePreview);
+
+  // 支持直接在输入框粘贴剪贴板里的图片（截图工具复制的图很常见这么用）
+  textInput.addEventListener('paste', (e) => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleImageFile(file);
+        }
+        break;
+      }
+    }
+  });
 
   function playMentionSound() {
     try {
@@ -776,7 +1009,17 @@
     if (e.key === 'Escape') closePinEdit();
   });
 
-  // ===== 常用文本（本地保存，仅自己可见）=====
+  // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
+  const QUICK_CATEGORIES = ['代拍', '代购', '煤炉', '常用语'];
+
+  function categorizePhrase(phrase) {
+    for (const cat of QUICK_CATEGORIES) {
+      if (cat === '常用语') continue; // 兜底分类放最后判断
+      if (phrase.includes(cat)) return cat;
+    }
+    return '常用语';
+  }
+
   function loadQuickPhrases() {
     try {
       const raw = localStorage.getItem(QUICK_STORAGE_KEY);
@@ -792,36 +1035,75 @@
   }
 
   let quickPhrases = loadQuickPhrases();
+  // 记住每个分类展开/收起的状态，默认全部收起，点了才展开
+  const quickCategoryExpanded = {};
+  QUICK_CATEGORIES.forEach((cat) => { quickCategoryExpanded[cat] = false; });
+
+  function insertPhraseToInput(phrase) {
+    textInput.value = phrase;
+    textInput.focus();
+    const len = textInput.value.length;
+    textInput.setSelectionRange(len, len);
+  }
 
   function renderQuickList() {
-    quickList.innerHTML = '';
+    quickCategoriesEl.innerHTML = '';
+
+    const grouped = {};
+    QUICK_CATEGORIES.forEach((cat) => { grouped[cat] = []; });
     quickPhrases.forEach((phrase, index) => {
-      const li = document.createElement('li');
+      const cat = categorizePhrase(phrase);
+      grouped[cat].push({ phrase, index });
+    });
 
-      const btn = document.createElement('button');
-      btn.className = 'quick-text-btn';
-      btn.textContent = phrase;
-      btn.title = phrase;
-      btn.addEventListener('click', () => {
-        textInput.value = phrase;
-        textInput.focus();
-        const len = textInput.value.length;
-        textInput.setSelectionRange(len, len);
-      });
+    QUICK_CATEGORIES.forEach((cat) => {
+      const items = grouped[cat];
+      const catEl = document.createElement('div');
+      catEl.className = 'quick-category' + (quickCategoryExpanded[cat] ? ' expanded' : '');
 
-      const delBtn = document.createElement('button');
-      delBtn.className = 'quick-del-btn';
-      delBtn.textContent = '×';
-      delBtn.title = '删除';
-      delBtn.addEventListener('click', () => {
-        quickPhrases.splice(index, 1);
-        saveQuickPhrases(quickPhrases);
+      const header = document.createElement('button');
+      header.className = 'quick-category-header';
+      header.innerHTML = `<span>${cat}<span class="quick-category-count">(${items.length})</span></span><span class="quick-category-arrow">▶</span>`;
+      header.addEventListener('click', () => {
+        quickCategoryExpanded[cat] = !quickCategoryExpanded[cat];
         renderQuickList();
       });
+      catEl.appendChild(header);
 
-      li.appendChild(btn);
-      li.appendChild(delBtn);
-      quickList.appendChild(li);
+      const ul = document.createElement('ul');
+      ul.className = 'quick-category-list';
+
+      items.forEach(({ phrase, index }) => {
+        const li = document.createElement('li');
+
+        const btn = document.createElement('button');
+        btn.className = 'quick-text-btn';
+        btn.textContent = phrase;
+        btn.title = phrase;
+        btn.addEventListener('click', () => insertPhraseToInput(phrase));
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'quick-del-btn';
+        delBtn.textContent = '×';
+        delBtn.title = '删除';
+        delBtn.addEventListener('click', () => {
+          quickPhrases.splice(index, 1);
+          saveQuickPhrases(quickPhrases);
+          renderQuickList();
+        });
+
+        li.appendChild(btn);
+        li.appendChild(delBtn);
+        ul.appendChild(li);
+      });
+      catEl.appendChild(ul);
+
+      const emptyHint = document.createElement('div');
+      emptyHint.className = 'quick-category-empty' + (items.length === 0 ? ' active' : '');
+      emptyHint.textContent = '暂无内容，点下方"+ 添加常用语"试试';
+      catEl.appendChild(emptyHint);
+
+      quickCategoriesEl.appendChild(catEl);
     });
   }
 
@@ -840,6 +1122,8 @@
     if (text) {
       quickPhrases.push(text);
       saveQuickPhrases(quickPhrases);
+      // 新加的内容按关键词自动归到对应分类，顺手展开那个分类方便立刻看到
+      quickCategoryExpanded[categorizePhrase(text)] = true;
       renderQuickList();
     }
     closeQuickAdd();
@@ -876,13 +1160,24 @@
 
   function sendMessage() {
     const text = textInput.value.trim();
-    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const hasSelectedImage = imagePreviewBar.classList.contains('active');
+    if (hasSelectedImage && !pendingImageUrl) {
+      // 图片还在上传中，先别发，避免发出一条没有图的消息
+      imagePreviewStatus.textContent = '图片还在上传中，请稍等一下再发送...';
+      return;
+    }
+    if (!text && !pendingImageUrl) return; // 文字和图片都没有，没什么可发的
+
     const payload = { type: 'message', text };
+    if (pendingImageUrl) payload.image = pendingImageUrl;
     if (replyingTo) payload.quote = replyingTo;
     ws.send(JSON.stringify(payload));
     textInput.value = '';
     closeMentionMenu();
     cancelReply();
+    resetImagePreview();
   }
 
   // ===== @ 提及自动补全 =====

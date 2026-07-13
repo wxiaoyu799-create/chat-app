@@ -2,6 +2,9 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -10,6 +13,42 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ==================== 图片上传 ====================
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+      const randomName = crypto.randomBytes(12).toString('hex');
+      cb(null, `${Date.now()}-${randomName}${ext}`);
+    },
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 }, // 单张图片最大 8MB，够用又不会太吃内存/磁盘
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_MIME.includes(file.mimetype)) {
+      return cb(new Error('只支持 jpg / png / gif / webp 格式的图片'));
+    }
+    cb(null, true);
+  },
+});
+
+app.post('/upload', (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || '上传失败' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '没有收到图片文件' });
+    }
+    res.json({ url: `/uploads/${req.file.filename}` });
+  });
+});
 
 // 在线用户: ws -> { username, id }
 const clients = new Map();
@@ -23,6 +62,8 @@ let pinnedText = DEFAULT_PINNED_TEXT;
 const PINNED_MAX_LENGTH = 600;
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
+// 允许的消息表情回应（白名单，避免被塞入任意文本）
+const ALLOWED_REACTIONS = ['👍', '❓'];
 
 function broadcast(data, exclude) {
   const msg = JSON.stringify(data);
@@ -88,7 +129,15 @@ wss.on('connection', (ws) => {
       const client = clients.get(ws);
       if (!client) return;
       const text = String(data.text || '').slice(0, 2000);
-      if (!text.trim()) return;
+
+      // 图片：只接受我们自己 /upload 接口生成的路径，避免被塞入任意外部地址
+      let image = null;
+      if (typeof data.image === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(data.image)) {
+        image = data.image;
+      }
+
+      // 纯文字消息不能是空的；但如果带了图片，文字可以为空（图片本身就是内容）
+      if (!text.trim() && !image) return;
 
       // 引用回复：只保留必要的快照信息（用户名+文本片段），不做原消息查找，
       // 这样即使原消息已经滚出历史记录，引用内容依然完整可显示。
@@ -106,12 +155,38 @@ wss.on('connection', (ws) => {
         id: nextMessageId++,
         username: client.username,
         text,
+        image,
         mentions: extractMentions(text),
         quote,
+        reactions: {},
         time: Date.now(),
       };
       pushHistory(msg);
       broadcast(msg); // 包括发送者自己（用于统一渲染顺序）
+      return;
+    }
+
+    if (data.type === 'reaction') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const messageId = data.messageId;
+      const emoji = String(data.emoji || '').slice(0, 8);
+      // 只允许这两种表情，避免被塞入任意内容
+      if (!ALLOWED_REACTIONS.includes(emoji)) return;
+      if (typeof messageId !== 'number') return;
+      const msg = history.find((m) => m.type === 'message' && m.id === messageId);
+      // 找不到说明这条消息已经被挤出历史记录了（超过 MAX_HISTORY 条），忽略即可
+      if (!msg) return;
+      if (!msg.reactions || typeof msg.reactions !== 'object') msg.reactions = {};
+      if (!Array.isArray(msg.reactions[emoji])) msg.reactions[emoji] = [];
+      const list = msg.reactions[emoji];
+      const idx = list.indexOf(client.username);
+      if (idx === -1) {
+        list.push(client.username);
+      } else {
+        list.splice(idx, 1);
+      }
+      broadcast({ type: 'reaction_update', messageId, emoji, users: list });
       return;
     }
 

@@ -242,21 +242,48 @@
   .msg .meta-row { display: flex; align-items: center; gap: 6px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
-  /* 消息表情回应（点赞/疑问） */
+  /* 消息表情回应（点赞/疑问）—— 卡通胶囊风格 */
   .msg .reaction-btn {
-    background: transparent;
-    border: none;
+    background: var(--bubble-other);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
     color: var(--muted);
-    font-size: 11px;
-    padding: 2px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 11px 4px 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
   }
-  .msg .reaction-btn:hover { color: var(--accent); background: transparent; }
-  .msg .reaction-btn.reacted { color: #f0a94e; font-weight: 600; }
+  .msg .reaction-btn .reaction-icon {
+    font-size: 19px;
+    line-height: 1;
+    transform-origin: center;
+  }
+  .msg .reaction-btn:hover {
+    transform: scale(1.12);
+    border-color: var(--accent);
+    background: var(--bubble-other);
+  }
+  .msg .reaction-btn:active { transform: scale(0.92); }
+  .msg .reaction-btn.reacted {
+    color: #f0a94e;
+    background: rgba(240, 169, 78, 0.16);
+    border-color: #f0a94e;
+  }
   .msg .reaction-btn .reaction-count { min-width: 8px; }
+
+  @keyframes reaction-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.5) rotate(-8deg); }
+    70%  { transform: scale(0.9) rotate(4deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .msg .reaction-btn.pop .reaction-icon {
+    animation: reaction-pop 0.45s ease;
+  }
 
   .quote-block {
     display: flex;
@@ -348,17 +375,10 @@
   /* 常用文本栏 */
   #quick-sidebar { padding: 16px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
   #quick-sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-  #quick-list { list-style: none; margin: 0 0 10px; padding: 0; flex: 1; overflow-y: auto; }
-  #quick-list li {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    margin-bottom: 6px;
-  }
-  #quick-list .quick-text-btn {
+  .quick-category-list .quick-text-btn {
     flex: 1;
     text-align: left;
-    background: var(--bubble-other);
+    background: transparent;
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -368,8 +388,8 @@
     word-break: break-word;
     line-height: 1.4;
   }
-  #quick-list .quick-text-btn:hover { border-color: var(--accent); background: var(--bubble-other); }
-  #quick-list .quick-del-btn {
+  .quick-category-list .quick-text-btn:hover { border-color: var(--accent); background: transparent; color: var(--accent); }
+  .quick-category-list .quick-del-btn {
     flex-shrink: 0;
     background: transparent;
     color: var(--muted);
@@ -378,7 +398,7 @@
     font-size: 14px;
     line-height: 1;
   }
-  #quick-list .quick-del-btn:hover { color: var(--danger, #e5534b); background: transparent; }
+  .quick-category-list .quick-del-btn:hover { color: var(--danger, #e5534b); background: transparent; }
 
   /* 常用文本分类（二级菜单） */
   #quick-categories { flex: 1; overflow-y: auto; margin-bottom: 10px; }
@@ -406,6 +426,12 @@
     margin: 6px 0 0;
     padding: 0 0 0 4px;
     display: none;
+  }
+  .quick-category-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 6px;
   }
   .quick-category.expanded .quick-category-list { display: block; }
   .quick-category-empty {
@@ -617,8 +643,9 @@
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
-          const reactionBtn = targetWrap.querySelector(`.reaction-btn[data-emoji="${data.emoji}"]`);
-          if (reactionBtn) updateReactionButton(reactionBtn, Array.isArray(data.users) ? data.users : []);
+          const reactionBtn = Array.from(targetWrap.querySelectorAll('.reaction-btn'))
+            .find((btn) => btn.dataset.emoji === data.emoji);
+          if (reactionBtn) applyLiveReactionUpdate(reactionBtn, Array.isArray(data.users) ? data.users : []);
         }
       } else if (data.type === 'typing') {
         typingEl.textContent = `${data.username} 正在输入...`;
@@ -765,6 +792,18 @@
     reactionBtn.classList.toggle('reacted', iReacted);
     reactionBtn.querySelector('.reaction-count').textContent = count > 0 ? String(count) : '';
     reactionBtn.title = count > 0 ? `${users.join('、')} ${label === '点赞' ? '点了赞' : '表示疑问'}` : label;
+    reactionBtn.dataset.prevCount = String(count);
+  }
+
+  // 收到实时的表情回应更新（不是初始渲染/历史加载）时调用，会带一个卡通弹跳动画
+  function applyLiveReactionUpdate(reactionBtn, users) {
+    const prevCount = Number(reactionBtn.dataset.prevCount || 0);
+    updateReactionButton(reactionBtn, users);
+    if (users.length !== prevCount) {
+      reactionBtn.classList.remove('pop');
+      void reactionBtn.offsetWidth; // 强制重排，确保能重新触发动画
+      reactionBtn.classList.add('pop');
+    }
   }
 
   function startReply(replyUsername, replyText) {

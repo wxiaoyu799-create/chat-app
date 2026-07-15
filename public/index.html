@@ -50,7 +50,7 @@
   }
   #login h1 { margin: 0 0 8px; font-size: 20px; }
   #login p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-  input {
+  input, textarea {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -60,7 +60,7 @@
     font-size: 14px;
     outline: none;
   }
-  input:focus { border-color: var(--accent); }
+  input:focus, textarea:focus { border-color: var(--accent); }
   button {
     cursor: pointer;
     border: none;
@@ -227,7 +227,17 @@
     padding: 12px 16px;
     border-top: 1px solid var(--border);
   }
-  #input-row input { flex: 1; }
+  #input-row { align-items: flex-end; }
+  #input-row textarea {
+    flex: 1;
+    resize: none;
+    font-family: inherit;
+    line-height: 1.4;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  #input-row button#send-btn { flex-shrink: 0; }
+  #input-row button#image-pick-btn { flex-shrink: 0; align-self: flex-end; }
 
   /* 引用回复 */
   .msg .reply-btn {
@@ -371,6 +381,7 @@
   #online-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
   #online-list li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
+  .mention-all-icon { font-size: 12px; flex-shrink: 0; }
 
   /* 常用文本栏 */
   #quick-sidebar { padding: 16px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
@@ -525,7 +536,7 @@
     <div id="input-row">
       <button id="image-pick-btn" type="button" title="发送图片">🖼️</button>
       <input id="image-file-input" type="file" accept="image/*" style="display:none" />
-      <input id="text-input" type="text" placeholder="输入消息，输入 @ 可提醒某人，回车发送..." maxlength="2000" autocomplete="off" />
+      <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
     </div>
   </div>
@@ -1089,6 +1100,7 @@
     textInput.focus();
     const len = textInput.value.length;
     textInput.setSelectionRange(len, len);
+    autoResizeTextInput();
   }
 
   function renderQuickList() {
@@ -1220,6 +1232,7 @@
     if (replyingTo) payload.quote = replyingTo;
     ws.send(JSON.stringify(payload));
     textInput.value = '';
+    autoResizeTextInput();
     closeMentionMenu();
     cancelReply();
     resetImagePreview();
@@ -1243,9 +1256,10 @@
     if (/\s/.test(fragment)) { closeMentionMenu(); return; }
 
     const others = onlineUsers.filter((u) => u !== username);
+    const candidateSource = ['所有人', ...others];
     const filtered = fragment
-      ? others.filter((u) => u.toLowerCase().includes(fragment.toLowerCase()))
-      : others;
+      ? candidateSource.filter((u) => u.toLowerCase().includes(fragment.toLowerCase()))
+      : candidateSource;
 
     if (filtered.length === 0) { closeMentionMenu(); return; }
 
@@ -1261,7 +1275,8 @@
     mentionCandidates.forEach((name, i) => {
       const item = document.createElement('div');
       item.className = 'mention-item' + (i === mentionSelectedIndex ? ' active' : '');
-      item.innerHTML = `<span class="dot"></span>${escapeHtml(name)}`;
+      const iconHtml = name === '所有人' ? '<span class="mention-all-icon">📢</span>' : '<span class="dot"></span>';
+      item.innerHTML = `${iconHtml}${escapeHtml(name)}`;
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
         selectMention(name);
@@ -1289,10 +1304,19 @@
     const newCursor = (before + insertion).length;
     textInput.focus();
     textInput.setSelectionRange(newCursor, newCursor);
+    autoResizeTextInput();
     closeMentionMenu();
   }
 
-  textInput.addEventListener('input', updateMentionMenu);
+  function autoResizeTextInput() {
+    textInput.style.height = 'auto';
+    textInput.style.height = Math.min(textInput.scrollHeight, 120) + 'px';
+  }
+
+  textInput.addEventListener('input', () => {
+    updateMentionMenu();
+    autoResizeTextInput();
+  });
   textInput.addEventListener('click', updateMentionMenu);
 
   document.addEventListener('click', (e) => {
@@ -1329,7 +1353,8 @@
       }
     }
 
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // 防止textarea默认插入一个换行符
       sendMessage();
     } else {
       if (ws && ws.readyState === WebSocket.OPEN) {

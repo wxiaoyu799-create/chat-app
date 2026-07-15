@@ -87,6 +87,13 @@ function pushHistory(entry) {
 function extractMentions(text) {
   const online = getOnlineUsers();
   const mentioned = new Set();
+
+  // 特殊标记：@所有人，命中就等于@了当前所有在线用户
+  const allRe = /@所有人(?=\s|[，,。.!！?？]|$)/;
+  if (allRe.test(text)) {
+    online.forEach((name) => mentioned.add(name));
+  }
+
   online.forEach((name) => {
     // 按 @用户名 精确匹配（用户名后需跟空白/标点/结尾，避免子串误判）
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

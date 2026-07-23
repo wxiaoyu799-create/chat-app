@@ -159,7 +159,7 @@
     font-size: 13px;
   }
   #pinned-bar .pin-icon { flex-shrink: 0; }
-  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; }
+  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
   #pinned-bar .pin-edit-btn {
     flex-shrink: 0;
@@ -180,7 +180,16 @@
     align-items: center;
   }
   #pinned-edit-row.active { display: flex; }
-  #pinned-edit-row #pinned-input { flex: 1; min-width: 160px; font-size: 13px; }
+  #pinned-edit-row #pinned-input {
+    flex: 1;
+    min-width: 160px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 100px;
+    overflow-y: auto;
+  }
   #pinned-edit-row #pinned-password-input { width: 110px; flex: 0 0 auto; font-size: 13px; }
   #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
   #pin-error-msg {
@@ -594,7 +603,7 @@
       <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
     </div>
     <div id="pinned-edit-row">
-      <input id="pinned-input" type="text" placeholder="设置置顶公告，留空则清除..." maxlength="600" />
+      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
       <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
       <button id="pin-save-btn">保存</button>
       <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
@@ -1056,10 +1065,13 @@
     triggerWindowMentionFlash();
     // 标签页标题闪烁提醒（被@和被引用回复用不同的文案，方便区分是哪种情况）
     const flashLabel = iAmMentionedInText ? '💬 有人@你了' : '💬 有人回复了你';
-    showDesktopNotification(
-      iAmMentionedInText ? `${data.username} @了你` : `${data.username} 回复了你`,
-      data.text || (data.image ? '[图片]' : '')
-    );
+    // @所有人的系统通知统一交给 maybeShowAnnounceOverlay 那边发一次就够了，这里跳过避免弹两条重复通知
+    if (!data.mentionsAll) {
+      showDesktopNotification(
+        iAmMentionedInText ? `${data.username} @了你` : `${data.username} 回复了你`,
+        data.text || (data.image ? '[图片]' : '')
+      );
+    }
     if (document.hidden) {
       clearInterval(titleFlashTimer);
       let toggled = false;
@@ -1189,12 +1201,18 @@
     }
   }
 
+  function autoResizePinnedInput() {
+    pinnedInput.style.height = 'auto';
+    pinnedInput.style.height = Math.min(pinnedInput.scrollHeight, 100) + 'px';
+  }
+
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;
     pinnedPasswordInput.value = '';
     pinErrorMsg.classList.remove('active');
     pinnedEditRow.classList.add('active');
     pinnedInput.focus();
+    autoResizePinnedInput();
   }
 
   function closePinEdit() {
@@ -1224,8 +1242,12 @@
   pinEditOpenBtn.addEventListener('click', openPinEdit);
   pinCancelBtn.addEventListener('click', closePinEdit);
   pinSaveBtn.addEventListener('click', savePinnedText);
+  pinnedInput.addEventListener('input', autoResizePinnedInput);
   pinnedInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') savePinnedText();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      savePinnedText();
+    }
     if (e.key === 'Escape') closePinEdit();
   });
   pinnedPasswordInput.addEventListener('keydown', (e) => {

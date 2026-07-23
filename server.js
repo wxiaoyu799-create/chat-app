@@ -87,13 +87,21 @@ function pushHistory(entry) {
 function extractMentions(text) {
   const online = getOnlineUsers();
   const mentioned = new Set();
+
+  // 特殊标记：@所有人，命中就等于@了当前所有在线用户
+  const allRe = /@所有人(?=\s|[，,。.!！?？]|$)/;
+  const isAll = allRe.test(text);
+  if (isAll) {
+    online.forEach((name) => mentioned.add(name));
+  }
+
   online.forEach((name) => {
     // 按 @用户名 精确匹配（用户名后需跟空白/标点/结尾，避免子串误判）
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const re = new RegExp(`@${escaped}(?=\\s|[，,。.!！?？]|$)`);
     if (re.test(text)) mentioned.add(name);
   });
-  return Array.from(mentioned);
+  return { mentioned: Array.from(mentioned), isAll };
 }
 
 wss.on('connection', (ws) => {
@@ -114,13 +122,8 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'pinned', text: pinnedText }));
 
-      const joinMsg = {
-        type: 'system',
-        text: `${username} 加入了聊天室`,
-        time: Date.now(),
-      };
-      pushHistory(joinMsg);
-      broadcast(joinMsg, ws);
+      // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
+      // 谁在线直接看左侧在线列表就够了
       broadcast({ type: 'online', users: getOnlineUsers() });
       return;
     }
@@ -150,13 +153,15 @@ wss.on('connection', (ws) => {
         }
       }
 
+      const { mentioned, isAll } = extractMentions(text);
       const msg = {
         type: 'message',
         id: nextMessageId++,
         username: client.username,
         text,
         image,
-        mentions: extractMentions(text),
+        mentions: mentioned,
+        mentionsAll: isAll,
         quote,
         reactions: {},
         time: Date.now(),
@@ -220,13 +225,7 @@ wss.on('connection', (ws) => {
     const client = clients.get(ws);
     if (client) {
       clients.delete(ws);
-      const leaveMsg = {
-        type: 'system',
-        text: `${client.username} 离开了聊天室`,
-        time: Date.now(),
-      };
-      pushHistory(leaveMsg);
-      broadcast(leaveMsg);
+      // 同样不再广播"XX离开了聊天室"
       broadcast({ type: 'online', users: getOnlineUsers() });
     }
   });

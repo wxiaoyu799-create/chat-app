@@ -194,6 +194,76 @@
     animation: mention-flash 0.9s ease-out 3;
   }
 
+  /* @所有人 全屏醒目提示 */
+  #announce-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.72);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #announce-overlay.active {
+    display: flex;
+    animation: announce-fade-in 0.2s ease;
+  }
+  @keyframes announce-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  #announce-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 28px 26px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    transform: scale(0.85) translateY(10px);
+    animation: announce-pop 0.35s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  @keyframes announce-pop {
+    to { transform: scale(1) translateY(0); }
+  }
+  #announce-card .announce-icon { font-size: 40px; margin-bottom: 6px; }
+  #announce-card .announce-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #f0a94e;
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+  }
+  #announce-card .announce-from {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  #announce-card .announce-text {
+    font-size: 16px;
+    color: var(--text);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 24px;
+    max-height: 40vh;
+    overflow-y: auto;
+    text-align: left;
+    padding: 0 4px;
+  }
+  #announce-close-btn {
+    background: #f0a94e;
+    color: #1a1a1a;
+    font-weight: 700;
+    border: none;
+    padding: 11px 40px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  #announce-close-btn:hover { background: #e6994a; }
+
   /* @ 自动补全下拉 */
   #mention-menu {
     display: none;
@@ -554,6 +624,16 @@
   </div>
 </div>
 
+<div id="announce-overlay">
+  <div id="announce-card">
+    <div class="announce-icon">📢</div>
+    <div class="announce-label">所有人</div>
+    <div class="announce-from" id="announce-from"></div>
+    <div class="announce-text" id="announce-text"></div>
+    <button id="announce-close-btn">知道了</button>
+  </div>
+</div>
+
 <script>
   let ws = null;
   let username = '';
@@ -569,6 +649,10 @@
   const sendBtn = document.getElementById('send-btn');
   const connStatus = document.getElementById('conn-status');
   const myUsernameEl = document.getElementById('my-username');
+  const announceOverlay = document.getElementById('announce-overlay');
+  const announceFromEl = document.getElementById('announce-from');
+  const announceTextEl = document.getElementById('announce-text');
+  const announceCloseBtn = document.getElementById('announce-close-btn');
   const onlineList = document.getElementById('online-list');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
@@ -644,6 +728,7 @@
         renderMessage(data, { live: true });
         scrollToBottom();
         notifyIfMentioned(data);
+        maybeShowAnnounceOverlay(data);
       } else if (data.type === 'system') {
         renderMessage(data, { live: true });
         scrollToBottom();
@@ -949,6 +1034,28 @@
       });
     }
   }
+
+  // @所有人：全屏醒目弹窗，内容就是那条消息本身，点"知道了"才关闭
+  function maybeShowAnnounceOverlay(data) {
+    if (!data.mentionsAll) return;
+    if (data.username === username) return; // 自己发的@所有人不用弹给自己看
+    if (!Array.isArray(data.mentions) || !data.mentions.includes(username)) return;
+
+    announceFromEl.textContent = `来自 ${data.username}`;
+    announceTextEl.textContent = data.text || (data.image ? '[图片]' : '');
+    announceOverlay.classList.add('active');
+  }
+
+  function closeAnnounceOverlay() {
+    announceOverlay.classList.remove('active');
+  }
+  announceCloseBtn.addEventListener('click', closeAnnounceOverlay);
+  announceOverlay.addEventListener('click', (e) => {
+    if (e.target === announceOverlay) closeAnnounceOverlay(); // 点背景空白处也能关
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && announceOverlay.classList.contains('active')) closeAnnounceOverlay();
+  });
 
   // 整个窗口的@提醒：先闪几下，闪完"定住"停留在提醒态（橙色边框常亮 + 标签页图标带红点角标），
   // 直到用户点一下页面任意位置才解除，确保就算错过了闪烁瞬间，回头看一眼也知道有人@过自己

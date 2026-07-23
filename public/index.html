@@ -176,10 +176,20 @@
     padding: 10px 18px;
     background: #1c2233;
     border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
   }
   #pinned-edit-row.active { display: flex; }
-  #pinned-edit-row input { flex: 1; font-size: 13px; }
+  #pinned-edit-row #pinned-input { flex: 1; min-width: 160px; font-size: 13px; }
+  #pinned-edit-row #pinned-password-input { width: 110px; flex: 0 0 auto; font-size: 13px; }
   #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
+  #pin-error-msg {
+    width: 100%;
+    font-size: 12px;
+    color: #e5534b;
+    display: none;
+  }
+  #pin-error-msg.active { display: block; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
@@ -585,8 +595,10 @@
     </div>
     <div id="pinned-edit-row">
       <input id="pinned-input" type="text" placeholder="设置置顶公告，留空则清除..." maxlength="600" />
+      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
       <button id="pin-save-btn">保存</button>
       <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
+      <span id="pin-error-msg"></span>
     </div>
     <div id="messages"></div>
     <div id="typing"></div>
@@ -660,6 +672,8 @@
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
+  const pinnedPasswordInput = document.getElementById('pinned-password-input');
+  const pinErrorMsg = document.getElementById('pin-error-msg');
   const pinSaveBtn = document.getElementById('pin-save-btn');
   const pinCancelBtn = document.getElementById('pin-cancel-btn');
   const mentionMenu = document.getElementById('mention-menu');
@@ -736,6 +750,12 @@
         renderOnlineList(data.users);
       } else if (data.type === 'pinned') {
         setPinnedText(data.text || '');
+        // 保存成功了（不管是不是自己改的），把编辑框关掉、密码框清空、错误提示清掉
+        closePinEdit();
+      } else if (data.type === 'pin_error') {
+        pinErrorMsg.textContent = data.message || '密码错误';
+        pinErrorMsg.classList.add('active');
+        pinnedPasswordInput.focus();
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
@@ -1171,26 +1191,44 @@
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;
+    pinnedPasswordInput.value = '';
+    pinErrorMsg.classList.remove('active');
     pinnedEditRow.classList.add('active');
     pinnedInput.focus();
   }
 
   function closePinEdit() {
     pinnedEditRow.classList.remove('active');
+    pinnedPasswordInput.value = '';
+    pinErrorMsg.classList.remove('active');
+    pinErrorMsg.textContent = '';
   }
 
   function savePinnedText() {
     const text = pinnedInput.value.trim();
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pin', text }));
+    const password = pinnedPasswordInput.value;
+    if (!password) {
+      pinErrorMsg.textContent = '请输入编辑密码';
+      pinErrorMsg.classList.add('active');
+      pinnedPasswordInput.focus();
+      return;
     }
-    closePinEdit();
+    pinErrorMsg.classList.remove('active');
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'pin', text, password }));
+    }
+    // 不在这里直接关闭编辑框——密码对不对由服务器说了算，
+    // 保存成功后会收到 'pinned' 广播自动关闭，密码错了会收到 'pin_error' 提示重试
   }
 
   pinEditOpenBtn.addEventListener('click', openPinEdit);
   pinCancelBtn.addEventListener('click', closePinEdit);
   pinSaveBtn.addEventListener('click', savePinnedText);
   pinnedInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') savePinnedText();
+    if (e.key === 'Escape') closePinEdit();
+  });
+  pinnedPasswordInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') savePinnedText();
     if (e.key === 'Escape') closePinEdit();
   });

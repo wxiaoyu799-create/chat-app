@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>在线聊天室</title>
+<title>CC</title>
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#5b8def" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="聊天室" />
+<meta name="apple-mobile-web-app-title" content="CC" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <link rel="icon" id="favicon" href="/icon-192.png" />
 <style>
@@ -558,10 +558,10 @@
 
 <div id="login">
   <div class="card">
-    <h1>💬 在线聊天室</h1>
+    <h1>💬 CC</h1>
     <p>输入昵称加入聊天</p>
     <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
-    <button id="join-btn">加入聊天室</button>
+    <button id="join-btn">加入 CC</button>
   </div>
 </div>
 
@@ -574,7 +574,7 @@
     <header>
       <div class="header-left">
         <span class="my-username" id="my-username"></span>
-        <h2>💬 聊天室</h2>
+        <h2>💬 CC</h2>
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
@@ -1008,6 +1008,24 @@
     }
   }
 
+  // 发一条系统级桌面通知——不依赖页面是否可见/是否被最小化，浏览器窗口最小化时也能弹出
+  function showDesktopNotification(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      const notif = new Notification(title, {
+        body,
+        icon: '/icon-192.png',
+        tag: 'chat-app-notify', // 同一个tag会替换掉上一条，避免堆积一堆通知
+      });
+      notif.onclick = () => {
+        window.focus();
+        notif.close();
+      };
+    } catch (e) {
+      // 少数环境（比如部分手机浏览器）不支持从页面直接new Notification，静默忽略
+    }
+  }
+
   function notifyIfMentioned(data) {
     if (data.username === username) return; // 自己发的消息不用提醒自己
     const iAmMentionedInText = Array.isArray(data.mentions) && data.mentions.includes(username);
@@ -1018,6 +1036,10 @@
     triggerWindowMentionFlash();
     // 标签页标题闪烁提醒（被@和被引用回复用不同的文案，方便区分是哪种情况）
     const flashLabel = iAmMentionedInText ? '💬 有人@你了' : '💬 有人回复了你';
+    showDesktopNotification(
+      iAmMentionedInText ? `${data.username} @了你` : `${data.username} 回复了你`,
+      data.text || (data.image ? '[图片]' : '')
+    );
     if (document.hidden) {
       clearInterval(titleFlashTimer);
       let toggled = false;
@@ -1044,6 +1066,7 @@
     announceFromEl.textContent = `来自 ${data.username}`;
     announceTextEl.textContent = data.text || (data.image ? '[图片]' : '');
     announceOverlay.classList.add('active');
+    showDesktopNotification(`📢 ${data.username} @所有人`, data.text || (data.image ? '[图片]' : ''));
   }
 
   function closeAnnounceOverlay() {
@@ -1319,6 +1342,10 @@
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     } catch (e) { /* 部分环境不支持 Web Audio，忽略 */ }
+    // 请求系统桌面通知权限：这样即使浏览器窗口被最小化，@所有人/被@时依然能弹出系统级通知
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
     connect();
   }
 

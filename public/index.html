@@ -374,6 +374,17 @@
   }
   .msg .reaction-btn .reaction-count { min-width: 8px; }
 
+  .reaction-summary {
+    display: none;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    padding: 0 4px;
+    line-height: 1.4;
+  }
+  .reaction-summary.active { display: block; }
+  .msg.me .reaction-summary { text-align: right; }
+
   @keyframes reaction-pop {
     0%   { transform: scale(1); }
     40%  { transform: scale(1.5) rotate(-8deg); }
@@ -887,6 +898,9 @@
     metaRow.appendChild(time);
     metaRow.appendChild(replyBtn);
 
+    const reactionSummary = document.createElement('div');
+    reactionSummary.className = 'reaction-summary';
+
     if (typeof data.id === 'number') {
       const reactions = data.reactions && typeof data.reactions === 'object' ? data.reactions : {};
       REACTION_EMOJIS.forEach((emoji) => {
@@ -907,7 +921,9 @@
     wrap.appendChild(name);
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
+    if (typeof data.id === 'number') wrap.appendChild(reactionSummary);
     messagesEl.appendChild(wrap);
+    updateReactionSummary(wrap);
   }
 
   function updateReactionButton(reactionBtn, users) {
@@ -919,6 +935,7 @@
     reactionBtn.querySelector('.reaction-count').textContent = count > 0 ? String(count) : '';
     reactionBtn.title = count > 0 ? `${users.join('、')} ${label === '点赞' ? '点了赞' : '表示疑问'}` : label;
     reactionBtn.dataset.prevCount = String(count);
+    reactionBtn.dataset.users = JSON.stringify(users);
   }
 
   // 收到实时的表情回应更新（不是初始渲染/历史加载）时调用，会带一个卡通弹跳动画
@@ -930,6 +947,27 @@
       void reactionBtn.offsetWidth; // 强制重排，确保能重新触发动画
       reactionBtn.classList.add('pop');
     }
+    const wrap = reactionBtn.closest('.msg');
+    if (wrap) updateReactionSummary(wrap);
+  }
+
+  // 把"谁点了赞/谁有疑问"直接列出人名，不用像原来那样非要悬停在按钮上才能看到
+  // （手机上根本没有悬停这个操作，必须把名字亮出来）
+  function updateReactionSummary(wrapEl) {
+    const summaryEl = wrapEl.querySelector('.reaction-summary');
+    if (!summaryEl) return;
+    const parts = [];
+    wrapEl.querySelectorAll('.reaction-btn').forEach((btn) => {
+      const emoji = btn.dataset.emoji;
+      let users = [];
+      try {
+        users = JSON.parse(btn.dataset.users || '[]');
+      } catch (e) { /* ignore */ }
+      if (!users.length) return; // 这个表情目前没人点，不显示
+      parts.push(`${emoji} ${users.join('、')}`);
+    });
+    summaryEl.textContent = parts.join('　');
+    summaryEl.classList.toggle('active', parts.length > 0);
   }
 
   function startReply(replyUsername, replyText) {

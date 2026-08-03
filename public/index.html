@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CC</title>
 <link rel="manifest" href="/manifest.json" />
-<meta name="theme-color" content="#5b8def" />
+<meta name="theme-color" content="#f4f5f7" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -14,16 +14,18 @@
 <link rel="icon" id="favicon" href="/icon-192.png" />
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #262b36;
-    --text: #e6e8ec;
-    --muted: #8a92a3;
-    --accent: #5b8def;
-    --accent-dark: #3f6fd6;
-    --bubble-me: #2b5fd9;
-    --bubble-other: #232733;
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --bubble-me: #3f6fd6;
+    --bubble-other: #eef0f3;
     --system: #6b7280;
+    --link-on-bubble: #2952b5;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -55,7 +57,7 @@
     padding: 10px 12px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: #0f1115;
+    background: var(--bg);
     color: var(--text);
     font-size: 14px;
     outline: none;
@@ -110,6 +112,7 @@
   header h2 { margin: 0; font-size: 16px; }
   header .status { font-size: 12px; color: var(--muted); }
   .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .username-block { position: relative; display: flex; flex-direction: column; gap: 2px; }
   .my-username {
     font-size: 20px;
     font-weight: 700;
@@ -119,6 +122,64 @@
     text-overflow: ellipsis;
     max-width: 160px;
   }
+
+  /* 置顶公告修改记录：折叠入口 + 展开面板 */
+  #pin-history-toggle {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+  }
+  #pin-history-toggle:hover { color: var(--accent); background: transparent; }
+  #pin-history-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    width: 320px;
+    max-width: 80vw;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    padding: 12px 14px;
+    z-index: 20;
+  }
+  #pin-history-panel.active { display: block; }
+  .pin-history-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pin-history-entry {
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 12px;
+  }
+  .pin-history-entry:last-child { border-bottom: none; }
+  .pin-history-entry .ph-range {
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .pin-history-entry .ph-by { color: var(--muted); margin-bottom: 4px; }
+  .pin-history-entry .ph-text {
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+  }
+  .pin-history-entry .ph-empty { color: var(--muted); font-style: italic; }
+
   #messages {
     flex: 1;
     min-height: 0;
@@ -133,6 +194,7 @@
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg .name { font-size: 11px; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
   .msg .bubble {
+    position: relative;
     padding: 8px 12px;
     border-radius: 14px;
     font-size: 14px;
@@ -143,7 +205,7 @@
   .msg.me .bubble { background: var(--bubble-me); color: white; border-bottom-right-radius: 4px; }
   .msg.other .bubble { background: var(--bubble-other); color: var(--text); border-bottom-left-radius: 4px; }
   .msg .bubble a { color: inherit; text-decoration: underline; word-break: break-all; }
-  .msg.other .bubble a { color: #8ab4f8; }
+  .msg.other .bubble a { color: var(--link-on-bubble); }
   .msg .time { font-size: 10px; color: var(--muted); margin-top: 3px; padding: 0 4px; }
   .system-msg { text-align: center; color: var(--system); font-size: 12px; margin: 6px 0; }
   #typing { font-size: 12px; color: var(--muted); min-height: 16px; padding: 0 18px; }
@@ -154,7 +216,7 @@
     align-items: center;
     gap: 10px;
     padding: 10px 18px;
-    background: #1c2233;
+    background: var(--panel-alt);
     border-bottom: 1px solid var(--border);
     font-size: 13px;
   }
@@ -174,7 +236,7 @@
     display: none;
     gap: 8px;
     padding: 10px 18px;
-    background: #1c2233;
+    background: var(--panel-alt);
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
     align-items: center;
@@ -338,41 +400,46 @@
     cursor: pointer;
   }
   .msg .reply-btn:hover { color: var(--accent); background: transparent; }
-  .msg .meta-row { display: flex; align-items: center; gap: 6px; }
+  .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
-  /* 消息表情回应（点赞/疑问）—— 卡通胶囊风格 */
-  .msg .reaction-btn {
-    background: var(--bubble-other);
+  /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种 */
+  .reaction-badges {
+    position: absolute;
+    bottom: -11px;
+    right: 8px;
+    display: flex;
+    gap: 3px;
+    z-index: 2;
+  }
+  .msg.me .reaction-badges { right: auto; left: 8px; }
+
+  .reaction-badge {
+    background: var(--panel);
     border: 1.5px solid var(--border);
     border-radius: 999px;
     color: var(--muted);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 11px 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px 2px 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 4px;
-    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    gap: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    opacity: 0.55; /* 没人反应过的时候淡一点，不抢眼，但仍然可以点 */
   }
-  .msg .reaction-btn .reaction-icon {
-    font-size: 19px;
-    line-height: 1;
-    transform-origin: center;
-  }
-  .msg .reaction-btn:hover {
-    transform: scale(1.12);
-    border-color: var(--accent);
-    background: var(--bubble-other);
-  }
-  .msg .reaction-btn:active { transform: scale(0.92); }
-  .msg .reaction-btn.reacted {
+  .reaction-badge .reaction-icon { font-size: 13px; line-height: 1; }
+  .reaction-badge:hover { transform: scale(1.15); border-color: var(--accent); opacity: 1; background: var(--panel); }
+  .reaction-badge:active { transform: scale(0.9); }
+  .reaction-badge.has-count { opacity: 1; padding-right: 7px; }
+  .reaction-badge.reacted {
     color: #f0a94e;
-    background: rgba(240, 169, 78, 0.16);
+    background: rgba(240, 169, 78, 0.18);
     border-color: #f0a94e;
   }
-  .msg .reaction-btn .reaction-count { min-width: 8px; }
+  .reaction-badge .reaction-count { min-width: 6px; }
 
   .reaction-summary {
     display: none;
@@ -391,7 +458,7 @@
     70%  { transform: scale(0.9) rotate(4deg); }
     100% { transform: scale(1) rotate(0); }
   }
-  .msg .reaction-btn.pop .reaction-icon {
+  .reaction-badge.pop .reaction-icon {
     animation: reaction-pop 0.45s ease;
   }
 
@@ -402,7 +469,7 @@
     padding: 6px 10px;
     margin-bottom: 4px;
     border-left: 3px solid var(--accent);
-    background: rgba(91, 141, 239, 0.1);
+    background: rgba(63, 111, 214, 0.1);
     border-radius: 4px;
     font-size: 12px;
     max-width: 100%;
@@ -420,7 +487,7 @@
     align-items: flex-start;
     gap: 10px;
     padding: 10px 16px;
-    background: #1c2233;
+    background: var(--panel-alt);
     border-top: 1px solid var(--border);
   }
   #reply-preview-bar.active { display: flex; }
@@ -442,7 +509,7 @@
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    background: #1c2233;
+    background: var(--panel-alt);
     border-top: 1px solid var(--border);
   }
   #image-preview-bar.active { display: flex; }
@@ -477,8 +544,24 @@
   .msg .bubble .msg-image + div { margin-top: 6px; }
 
   #sidebar { padding: 16px; overflow-y: auto; min-height: 0; }
-  #sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .sidebar-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 0 10px;
+    cursor: pointer;
+  }
+  .sidebar-toggle:hover { color: var(--text); background: transparent; }
+  .sidebar-toggle .sidebar-toggle-arrow { transition: transform 0.15s; }
+  .sidebar-toggle.collapsed .sidebar-toggle-arrow { transform: rotate(-90deg); }
   #online-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  #online-list.collapsed { display: none; }
   #online-list li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
   .mention-all-icon { font-size: 12px; flex-shrink: 0; }
@@ -597,13 +680,23 @@
 
 <div id="app">
   <div id="sidebar">
-    <h3>在线用户 (<span id="online-count">0</span>)</h3>
-    <ul id="online-list"></ul>
+    <button id="online-list-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>检品达人 (<span id="online-count">0</span>)</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <ul id="online-list" class="collapsed"></ul>
   </div>
   <div id="chat-col">
     <header>
       <div class="header-left">
-        <span class="my-username" id="my-username"></span>
+        <div class="username-block">
+          <span class="my-username" id="my-username"></span>
+          <button id="pin-history-toggle" type="button">📋 置顶记录</button>
+          <div id="pin-history-panel">
+            <div class="pin-history-title">置顶公告修改记录</div>
+            <div id="pin-history-list"></div>
+          </div>
+        </div>
         <h2>💬 CC</h2>
       </div>
       <span class="status" id="conn-status">连接中...</span>
@@ -681,11 +774,15 @@
   const sendBtn = document.getElementById('send-btn');
   const connStatus = document.getElementById('conn-status');
   const myUsernameEl = document.getElementById('my-username');
+  const pinHistoryToggle = document.getElementById('pin-history-toggle');
+  const pinHistoryPanel = document.getElementById('pin-history-panel');
+  const pinHistoryList = document.getElementById('pin-history-list');
   const announceOverlay = document.getElementById('announce-overlay');
   const announceFromEl = document.getElementById('announce-from');
   const announceTextEl = document.getElementById('announce-text');
   const announceCloseBtn = document.getElementById('announce-close-btn');
   const onlineList = document.getElementById('online-list');
+  const onlineListToggle = document.getElementById('online-list-toggle');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
   const pinnedTextEl = document.getElementById('pinned-text');
@@ -772,6 +869,7 @@
         setPinnedText(data.text || '');
         // 保存成功了（不管是不是自己改的），把编辑框关掉、密码框清空、错误提示清掉
         closePinEdit();
+        if (Array.isArray(data.history)) renderPinHistory(data.history);
       } else if (data.type === 'pin_error') {
         pinErrorMsg.textContent = data.message || '密码错误';
         pinErrorMsg.classList.add('active');
@@ -779,7 +877,7 @@
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
-          const reactionBtn = Array.from(targetWrap.querySelectorAll('.reaction-btn'))
+          const reactionBtn = Array.from(targetWrap.querySelectorAll('.reaction-badge'))
             .find((btn) => btn.dataset.emoji === data.emoji);
           if (reactionBtn) applyLiveReactionUpdate(reactionBtn, Array.isArray(data.users) ? data.users : []);
         }
@@ -903,9 +1001,11 @@
 
     if (typeof data.id === 'number') {
       const reactions = data.reactions && typeof data.reactions === 'object' ? data.reactions : {};
+      const badgesContainer = document.createElement('div');
+      badgesContainer.className = 'reaction-badges';
       REACTION_EMOJIS.forEach((emoji) => {
         const reactionBtn = document.createElement('button');
-        reactionBtn.className = 'reaction-btn';
+        reactionBtn.className = 'reaction-badge';
         reactionBtn.dataset.emoji = emoji;
         reactionBtn.innerHTML = `<span class="reaction-icon">${emoji}</span><span class="reaction-count"></span>`;
         reactionBtn.addEventListener('click', () => {
@@ -914,8 +1014,9 @@
           }
         });
         updateReactionButton(reactionBtn, Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
-        metaRow.appendChild(reactionBtn);
+        badgesContainer.appendChild(reactionBtn);
       });
+      bubble.appendChild(badgesContainer);
     }
 
     wrap.appendChild(name);
@@ -932,6 +1033,7 @@
     const emoji = reactionBtn.dataset.emoji;
     const label = emoji === '👍' ? '点赞' : '疑问';
     reactionBtn.classList.toggle('reacted', iReacted);
+    reactionBtn.classList.toggle('has-count', count > 0);
     reactionBtn.querySelector('.reaction-count').textContent = count > 0 ? String(count) : '';
     reactionBtn.title = count > 0 ? `${users.join('、')} ${label === '点赞' ? '点了赞' : '表示疑问'}` : label;
     reactionBtn.dataset.prevCount = String(count);
@@ -957,7 +1059,7 @@
     const summaryEl = wrapEl.querySelector('.reaction-summary');
     if (!summaryEl) return;
     const parts = [];
-    wrapEl.querySelectorAll('.reaction-btn').forEach((btn) => {
+    wrapEl.querySelectorAll('.reaction-badge').forEach((btn) => {
       const emoji = btn.dataset.emoji;
       let users = [];
       try {
@@ -1228,6 +1330,11 @@
     });
   }
 
+  onlineListToggle.addEventListener('click', () => {
+    const collapsed = onlineList.classList.toggle('collapsed');
+    onlineListToggle.classList.toggle('collapsed', collapsed);
+  });
+
   function setPinnedText(text) {
     currentPinnedText = text || '';
     if (currentPinnedText) {
@@ -1243,6 +1350,62 @@
     pinnedInput.style.height = 'auto';
     pinnedInput.style.height = Math.min(pinnedInput.scrollHeight, 100) + 'px';
   }
+
+  // ===== 置顶公告修改历史（留证用，按生效时间段折叠展示） =====
+  function formatHistoryDate(ts) {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
+  function renderPinHistory(historyList) {
+    pinHistoryList.innerHTML = '';
+    if (!Array.isArray(historyList) || historyList.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'ph-empty';
+      empty.textContent = '暂无修改记录';
+      pinHistoryList.appendChild(empty);
+      return;
+    }
+    // 最新的排最上面，方便一眼看到最近改动
+    historyList.slice().reverse().forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'pin-history-entry';
+
+      const range = document.createElement('div');
+      range.className = 'ph-range';
+      const startStr = formatHistoryDate(entry.startTime);
+      const endStr = entry.endTime ? formatHistoryDate(entry.endTime) : '至今';
+      range.textContent = startStr === endStr ? startStr : `${startStr} - ${endStr}`;
+
+      const by = document.createElement('div');
+      by.className = 'ph-by';
+      by.textContent = `由 ${entry.by || '未知'} 设置`;
+
+      const text = document.createElement('div');
+      text.className = 'ph-text';
+      text.textContent = entry.text ? entry.text : '（空 - 当时清除了置顶公告）';
+
+      item.appendChild(range);
+      item.appendChild(by);
+      item.appendChild(text);
+      pinHistoryList.appendChild(item);
+    });
+  }
+
+  function togglePinHistory() {
+    pinHistoryPanel.classList.toggle('active');
+  }
+  pinHistoryToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePinHistory();
+  });
+  document.addEventListener('click', (e) => {
+    if (pinHistoryPanel.classList.contains('active') &&
+      !pinHistoryPanel.contains(e.target) &&
+      e.target !== pinHistoryToggle) {
+      pinHistoryPanel.classList.remove('active');
+    }
+  });
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;

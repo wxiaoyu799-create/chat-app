@@ -1,13 +1,13 @@
 {
-  "name": "在线聊天室",
-  "short_name": "聊天室",
+  "name": "CC",
+  "short_name": "CC",
   "description": "一个实时在线聊天工具",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f1115",
-  "theme_color": "#5b8def",
+  "background_color": "#ffffff",
+  "theme_color": "#f4f5f7",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -210,53 +210,45 @@
   .system-msg { text-align: center; color: var(--system); font-size: 12px; margin: 6px 0; }
   #typing { font-size: 12px; color: var(--muted); min-height: 16px; padding: 0 18px; }
 
-  /* 置顶公告——现在放在左侧栏里，窄宽度纵向堆叠布局 */
+  /* 置顶公告——横条样式，在聊天区顶部（可编辑+看历史记录） */
   .sidebar-divider { height: 1px; background: var(--border); margin: 14px 0; }
   #pinned-bar {
     position: relative;
-    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
     background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
   }
-  .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-  .pin-bar-head .pin-icon { flex-shrink: 0; }
-  .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
-  #pinned-bar .pin-text {
-    display: block;
-    color: var(--text);
-    word-break: break-word;
-    white-space: pre-wrap;
-    line-height: 1.5;
-    margin-bottom: 8px;
-  }
+  #pinned-bar .pin-icon { flex-shrink: 0; }
+  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
-  .pin-bar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   #pinned-bar .pin-edit-btn {
-    flex: 1;
+    flex-shrink: 0;
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
     font-size: 11px;
-    padding: 5px 6px;
+    padding: 4px 8px;
     white-space: nowrap;
   }
   #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
   #pinned-edit-row {
     display: none;
-    flex-direction: column;
     gap: 8px;
-    margin-top: 8px;
-    padding: 10px 12px;
+    padding: 10px 18px;
     background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    align-items: center;
   }
   #pinned-edit-row.active { display: flex; }
   #pinned-edit-row #pinned-input {
-    width: 100%;
+    flex: 1;
+    min-width: 160px;
     font-size: 13px;
     font-family: inherit;
     resize: none;
@@ -264,10 +256,8 @@
     max-height: 100px;
     overflow-y: auto;
   }
-  #pinned-edit-row #pinned-password-input { width: 100%; font-size: 13px; }
-  #pinned-edit-row .pin-edit-btn,
-  #pinned-edit-row #pin-save-btn { flex: 1; font-size: 12px; padding: 8px 6px; }
-  #pinned-edit-row > div.pin-edit-actions-row { display: flex; gap: 6px; }
+  #pinned-edit-row #pinned-password-input { width: 110px; flex: 0 0 auto; font-size: 13px; }
+  #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
   #pin-error-msg {
     width: 100%;
     font-size: 12px;
@@ -275,6 +265,26 @@
     display: none;
   }
   #pin-error-msg.active { display: block; }
+
+  /* 左侧栏的公告栏——只读展示，跟顶部置顶公告内容同步，没有编辑/历史入口 */
+  #sidebar-announce {
+    padding: 10px 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  #sidebar-announce .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  #sidebar-announce .pin-bar-head .pin-icon { flex-shrink: 0; }
+  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
+  #sidebar-announce .pin-text {
+    display: block;
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
@@ -454,18 +464,13 @@
     border-color: #f0a94e;
   }
   .reaction-badge .reaction-count { min-width: 6px; }
-
-  .reaction-summary {
-    display: none;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text);
-    margin-top: 4px;
-    padding: 0 4px;
-    line-height: 1.4;
+  .reaction-badge .reaction-names {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .reaction-summary.active { display: block; }
-  .msg.me .reaction-summary { text-align: right; }
+  .reaction-badge:not(.has-count) .reaction-names { display: none; }
 
   @keyframes reaction-pop {
     0%   { transform: scale(1); }
@@ -763,29 +768,12 @@
 
     <div class="sidebar-divider"></div>
 
-    <div id="pinned-bar">
+    <div id="sidebar-announce">
       <div class="pin-bar-head">
         <span class="pin-icon">📌</span>
-        <span class="pin-bar-label">置顶公告</span>
+        <span class="pin-bar-label">公告栏</span>
       </div>
-      <span class="pin-text" id="pinned-text"></span>
-      <div class="pin-bar-actions">
-        <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
-        <button class="pin-edit-btn" id="pin-history-toggle" type="button">📋 记录</button>
-      </div>
-      <div id="pin-history-panel">
-        <div class="pin-history-title">置顶公告修改记录</div>
-        <div id="pin-history-list"></div>
-      </div>
-    </div>
-    <div id="pinned-edit-row">
-      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-      <div class="pin-edit-actions-row">
-        <button id="pin-save-btn">保存</button>
-        <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
-      </div>
-      <span id="pin-error-msg"></span>
+      <span class="pin-text" id="pinned-text-sidebar"></span>
     </div>
   </div>
   <div id="chat-col">
@@ -798,6 +786,23 @@
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
+    <div id="pinned-bar">
+      <span class="pin-icon">📌</span>
+      <span class="pin-text" id="pinned-text"></span>
+      <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
+      <button class="pin-edit-btn" id="pin-history-toggle" type="button">📋 记录</button>
+      <div id="pin-history-panel">
+        <div class="pin-history-title">置顶公告修改记录</div>
+        <div id="pin-history-list"></div>
+      </div>
+    </div>
+    <div id="pinned-edit-row">
+      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
+      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
+      <button id="pin-save-btn">保存</button>
+      <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
+      <span id="pin-error-msg"></span>
+    </div>
     <div id="messages"></div>
     <div id="typing"></div>
     <div id="mention-menu"></div>
@@ -871,6 +876,7 @@
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
   const pinnedTextEl = document.getElementById('pinned-text');
+  const pinnedTextSidebarEl = document.getElementById('pinned-text-sidebar');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
@@ -1091,9 +1097,6 @@
     metaRow.appendChild(time);
     metaRow.appendChild(replyBtn);
 
-    const reactionSummary = document.createElement('div');
-    reactionSummary.className = 'reaction-summary';
-
     if (typeof data.id === 'number') {
       const reactions = data.reactions && typeof data.reactions === 'object' ? data.reactions : {};
       const badgesContainer = document.createElement('div');
@@ -1102,7 +1105,7 @@
         const reactionBtn = document.createElement('button');
         reactionBtn.className = 'reaction-badge';
         reactionBtn.dataset.emoji = emoji;
-        reactionBtn.innerHTML = `<span class="reaction-icon">${emoji}</span><span class="reaction-count"></span>`;
+        reactionBtn.innerHTML = `<span class="reaction-icon">${emoji}</span><span class="reaction-count"></span><span class="reaction-names"></span>`;
         reactionBtn.addEventListener('click', () => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'reaction', messageId: data.id, emoji }));
@@ -1117,9 +1120,7 @@
     wrap.appendChild(name);
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
-    if (typeof data.id === 'number') wrap.appendChild(reactionSummary);
     messagesEl.appendChild(wrap);
-    updateReactionSummary(wrap);
   }
 
   function updateReactionButton(reactionBtn, users) {
@@ -1130,6 +1131,8 @@
     reactionBtn.classList.toggle('reacted', iReacted);
     reactionBtn.classList.toggle('has-count', count > 0);
     reactionBtn.querySelector('.reaction-count').textContent = count > 0 ? String(count) : '';
+    // 人名直接显示在徽章里面（跟在数字后面），不用再点开/悬停才能看到
+    reactionBtn.querySelector('.reaction-names').textContent = count > 0 ? users.join('、') : '';
     reactionBtn.title = count > 0 ? `${users.join('、')} ${label === '点赞' ? '点了赞' : '表示疑问'}` : label;
     reactionBtn.dataset.prevCount = String(count);
     reactionBtn.dataset.users = JSON.stringify(users);
@@ -1144,27 +1147,6 @@
       void reactionBtn.offsetWidth; // 强制重排，确保能重新触发动画
       reactionBtn.classList.add('pop');
     }
-    const wrap = reactionBtn.closest('.msg');
-    if (wrap) updateReactionSummary(wrap);
-  }
-
-  // 把"谁点了赞/谁有疑问"直接列出人名，不用像原来那样非要悬停在按钮上才能看到
-  // （手机上根本没有悬停这个操作，必须把名字亮出来）
-  function updateReactionSummary(wrapEl) {
-    const summaryEl = wrapEl.querySelector('.reaction-summary');
-    if (!summaryEl) return;
-    const parts = [];
-    wrapEl.querySelectorAll('.reaction-badge').forEach((btn) => {
-      const emoji = btn.dataset.emoji;
-      let users = [];
-      try {
-        users = JSON.parse(btn.dataset.users || '[]');
-      } catch (e) { /* ignore */ }
-      if (!users.length) return; // 这个表情目前没人点，不显示
-      parts.push(`${emoji} ${users.join('、')}`);
-    });
-    summaryEl.textContent = parts.join('　');
-    summaryEl.classList.toggle('active', parts.length > 0);
   }
 
   function startReply(replyUsername, replyText) {
@@ -1507,9 +1489,13 @@
     if (currentPinnedText) {
       pinnedTextEl.textContent = currentPinnedText;
       pinnedTextEl.classList.remove('empty');
+      pinnedTextSidebarEl.textContent = currentPinnedText;
+      pinnedTextSidebarEl.classList.remove('empty');
     } else {
       pinnedTextEl.textContent = '暂无公告，点击"编辑"设置一条';
       pinnedTextEl.classList.add('empty');
+      pinnedTextSidebarEl.textContent = '暂无公告';
+      pinnedTextSidebarEl.classList.add('empty');
     }
   }
 

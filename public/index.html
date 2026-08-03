@@ -192,7 +192,7 @@
   .msg { display: flex; flex-direction: column; max-width: 70%; }
   .msg.me { align-self: flex-end; align-items: flex-end; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
-  .msg .name { font-size: 11px; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
+  .msg .name { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
   .msg .bubble {
     position: relative;
     padding: 8px 12px;
@@ -210,41 +210,53 @@
   .system-msg { text-align: center; color: var(--system); font-size: 12px; margin: 6px 0; }
   #typing { font-size: 12px; color: var(--muted); min-height: 16px; padding: 0 18px; }
 
-  /* 置顶公告 */
+  /* 置顶公告——现在放在左侧栏里，窄宽度纵向堆叠布局 */
+  .sidebar-divider { height: 1px; background: var(--border); margin: 14px 0; }
   #pinned-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
+    position: relative;
+    padding: 10px 12px;
     background: var(--panel-alt);
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
   }
-  #pinned-bar .pin-icon { flex-shrink: 0; }
-  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
+  .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .pin-bar-head .pin-icon { flex-shrink: 0; }
+  .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
+  #pinned-bar .pin-text {
+    display: block;
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
+  .pin-bar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   #pinned-bar .pin-edit-btn {
-    flex-shrink: 0;
+    flex: 1;
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
     font-size: 11px;
-    padding: 4px 8px;
+    padding: 5px 6px;
+    white-space: nowrap;
   }
   #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
   #pinned-edit-row {
     display: none;
+    flex-direction: column;
     gap: 8px;
-    padding: 10px 18px;
+    margin-top: 8px;
+    padding: 10px 12px;
     background: var(--panel-alt);
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
   }
   #pinned-edit-row.active { display: flex; }
   #pinned-edit-row #pinned-input {
-    flex: 1;
-    min-width: 160px;
+    width: 100%;
     font-size: 13px;
     font-family: inherit;
     resize: none;
@@ -252,8 +264,10 @@
     max-height: 100px;
     overflow-y: auto;
   }
-  #pinned-edit-row #pinned-password-input { width: 110px; flex: 0 0 auto; font-size: 13px; }
-  #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
+  #pinned-edit-row #pinned-password-input { width: 100%; font-size: 13px; }
+  #pinned-edit-row .pin-edit-btn,
+  #pinned-edit-row #pin-save-btn { flex: 1; font-size: 12px; padding: 8px 6px; }
+  #pinned-edit-row > div.pin-edit-actions-row { display: flex; gap: 6px; }
   #pin-error-msg {
     width: 100%;
     font-size: 12px;
@@ -443,9 +457,10 @@
 
   .reaction-summary {
     display: none;
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 3px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 4px;
     padding: 0 4px;
     line-height: 1.4;
   }
@@ -503,7 +518,7 @@
   }
   #reply-preview-bar .reply-cancel-btn:hover { color: var(--text); background: transparent; }
 
-  /* 图片预览条 */
+  /* 图片预览条（支持多张） */
   #image-preview-bar {
     display: none;
     align-items: center;
@@ -513,14 +528,55 @@
     border-top: 1px solid var(--border);
   }
   #image-preview-bar.active { display: flex; }
-  #image-preview-bar img {
+  #image-preview-thumbs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex: 1;
+  }
+  .image-preview-item {
+    position: relative;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+  }
+  .image-preview-item img {
     width: 48px;
     height: 48px;
     object-fit: cover;
     border-radius: 6px;
     border: 1px solid var(--border);
+    display: block;
   }
-  #image-preview-status { flex: 1; font-size: 12px; color: var(--muted); }
+  .image-preview-item.uploading img { opacity: 0.5; }
+  .image-preview-item .item-remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e5534b;
+    color: #fff;
+    border: 1.5px solid var(--panel-alt);
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .image-preview-item .item-spinner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: var(--text);
+  }
+  #image-preview-status { flex-shrink: 0; font-size: 12px; color: var(--muted); }
 
   /* 图片上传按钮 */
   #image-pick-btn {
@@ -533,15 +589,34 @@
   }
   #image-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
-  /* 消息里的图片 */
-  .msg .bubble .msg-image {
+  /* 消息里的图片（支持多张，网格排列） */
+  .msg-images-grid {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .msg-images-grid.count-1 { grid-template-columns: 1fr; }
+  .msg-images-grid.count-2,
+  .msg-images-grid.count-4 { grid-template-columns: 1fr 1fr; }
+  .msg-images-grid.count-3,
+  .msg-images-grid.count-5,
+  .msg-images-grid.count-6,
+  .msg-images-grid.count-7,
+  .msg-images-grid.count-8,
+  .msg-images-grid.count-9 { grid-template-columns: 1fr 1fr 1fr; }
+  .msg-images-grid .msg-image {
+    width: 100%;
+    height: 100%;
     max-width: 220px;
     max-height: 220px;
     border-radius: 10px;
     cursor: pointer;
     display: block;
+    object-fit: cover;
   }
-  .msg .bubble .msg-image + div { margin-top: 6px; }
+  .msg-images-grid.count-1 .msg-image { max-width: 220px; max-height: 260px; }
+  .msg-images-grid:not(.count-1) .msg-image { max-width: 100px; max-height: 100px; aspect-ratio: 1; }
+  .msg-images-grid + div { margin-top: 6px; }
 
   #sidebar { padding: 16px; overflow-y: auto; min-height: 0; }
   .sidebar-toggle {
@@ -685,34 +760,44 @@
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <ul id="online-list" class="collapsed"></ul>
+
+    <div class="sidebar-divider"></div>
+
+    <div id="pinned-bar">
+      <div class="pin-bar-head">
+        <span class="pin-icon">📌</span>
+        <span class="pin-bar-label">置顶公告</span>
+      </div>
+      <span class="pin-text" id="pinned-text"></span>
+      <div class="pin-bar-actions">
+        <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
+        <button class="pin-edit-btn" id="pin-history-toggle" type="button">📋 记录</button>
+      </div>
+      <div id="pin-history-panel">
+        <div class="pin-history-title">置顶公告修改记录</div>
+        <div id="pin-history-list"></div>
+      </div>
+    </div>
+    <div id="pinned-edit-row">
+      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
+      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
+      <div class="pin-edit-actions-row">
+        <button id="pin-save-btn">保存</button>
+        <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
+      </div>
+      <span id="pin-error-msg"></span>
+    </div>
   </div>
   <div id="chat-col">
     <header>
       <div class="header-left">
         <div class="username-block">
           <span class="my-username" id="my-username"></span>
-          <button id="pin-history-toggle" type="button">📋 置顶记录</button>
-          <div id="pin-history-panel">
-            <div class="pin-history-title">置顶公告修改记录</div>
-            <div id="pin-history-list"></div>
-          </div>
         </div>
         <h2>💬 CC</h2>
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
-    <div id="pinned-bar">
-      <span class="pin-icon">📌</span>
-      <span class="pin-text" id="pinned-text"></span>
-      <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
-    </div>
-    <div id="pinned-edit-row">
-      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-      <button id="pin-save-btn">保存</button>
-      <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
-      <span id="pin-error-msg"></span>
-    </div>
     <div id="messages"></div>
     <div id="typing"></div>
     <div id="mention-menu"></div>
@@ -724,13 +809,13 @@
       <button class="reply-cancel-btn" id="reply-cancel-btn">✕</button>
     </div>
     <div id="image-preview-bar">
-      <img id="image-preview-thumb" alt="预览图" />
+      <div id="image-preview-thumbs"></div>
       <span id="image-preview-status">已选择图片</span>
-      <button class="reply-cancel-btn" id="image-cancel-btn">✕</button>
+      <button class="reply-cancel-btn" id="image-cancel-btn" title="清空全部">✕</button>
     </div>
     <div id="input-row">
-      <button id="image-pick-btn" type="button" title="发送图片">🖼️</button>
-      <input id="image-file-input" type="file" accept="image/*" style="display:none" />
+      <button id="image-pick-btn" type="button" title="发送图片（可多选）">🖼️</button>
+      <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
       <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
     </div>
@@ -805,7 +890,7 @@
   const replyPreviewText = document.getElementById('reply-preview-text');
   const replyCancelBtn = document.getElementById('reply-cancel-btn');
   const imagePreviewBar = document.getElementById('image-preview-bar');
-  const imagePreviewThumb = document.getElementById('image-preview-thumb');
+  const imagePreviewThumbs = document.getElementById('image-preview-thumbs');
   const imagePreviewStatus = document.getElementById('image-preview-status');
   const imageCancelBtn = document.getElementById('image-cancel-btn');
   const imagePickBtn = document.getElementById('image-pick-btn');
@@ -817,9 +902,11 @@
   let titleFlashTimer = null;
   let audioCtx = null;
   let replyingTo = null; // { username, text }
-  let pendingImageUrl = null; // 上传成功后的图片URL，发送消息时带上
-  let pendingImageObjectUrl = null; // 本地预览用的blob URL，发送/取消后要释放掉
+  // 每一项：{ id, file, objectUrl, uploadedUrl(上传成功后填), uploading(bool), el(对应的预览DOM) }
+  let pendingImages = [];
+  let pendingImageIdCounter = 0;
   const MAX_IMAGE_SIZE = 8 * 1024 * 1024; // 跟服务端限制保持一致：8MB
+  const MAX_IMAGES_PER_MESSAGE = 9; // 跟服务端保持一致
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
   const QUICK_STORAGE_KEY = 'chatQuickPhrases';
@@ -958,18 +1045,26 @@
       bubble.appendChild(quoteBlock);
     }
 
-    if (data.image) {
-      const imgLink = document.createElement('a');
-      imgLink.href = data.image;
-      imgLink.target = '_blank';
-      imgLink.rel = 'noopener noreferrer';
-      const img = document.createElement('img');
-      img.className = 'msg-image';
-      img.src = data.image;
-      img.alt = '图片消息';
-      img.loading = 'lazy';
-      imgLink.appendChild(img);
-      bubble.appendChild(imgLink);
+    // images是新格式(数组)；image是旧格式(单张字符串)，两种都兼容一下，
+    // 避免服务器还没重启、内存里残留旧格式消息时渲染出错
+    const imageList = Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []);
+    if (imageList.length > 0) {
+      const grid = document.createElement('div');
+      grid.className = `msg-images-grid count-${Math.min(imageList.length, 9)}`;
+      imageList.forEach((url) => {
+        const imgLink = document.createElement('a');
+        imgLink.href = url;
+        imgLink.target = '_blank';
+        imgLink.rel = 'noopener noreferrer';
+        const img = document.createElement('img');
+        img.className = 'msg-image';
+        img.src = url;
+        img.alt = '图片消息';
+        img.loading = 'lazy';
+        imgLink.appendChild(img);
+        grid.appendChild(imgLink);
+      });
+      bubble.appendChild(grid);
     }
 
     if (data.text && data.text.trim()) {
@@ -989,7 +1084,7 @@
     replyBtn.className = 'reply-btn';
     replyBtn.textContent = '↩ 回复';
     replyBtn.addEventListener('click', () => {
-      const replyText = (data.text && data.text.trim()) ? data.text : (data.image ? '[图片]' : '');
+      const replyText = (data.text && data.text.trim()) ? data.text : ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
       startReply(data.username, replyText);
     });
 
@@ -1087,69 +1182,141 @@
 
   replyCancelBtn.addEventListener('click', cancelReply);
 
-  // ===== 图片发送 =====
-  function resetImagePreview() {
-    pendingImageUrl = null;
-    if (pendingImageObjectUrl) {
-      URL.revokeObjectURL(pendingImageObjectUrl);
-      pendingImageObjectUrl = null;
+  // ===== 图片发送（支持多张） =====
+  function updateImagePreviewStatus() {
+    const total = pendingImages.length;
+    if (total === 0) {
+      imagePreviewBar.classList.remove('active');
+      return;
     }
+    imagePreviewBar.classList.add('active');
+    const uploadingCount = pendingImages.filter((p) => p.uploading).length;
+    const failedCount = pendingImages.filter((p) => p.failed).length;
+    if (uploadingCount > 0) {
+      imagePreviewStatus.textContent = `上传中 ${total - uploadingCount}/${total}...`;
+    } else if (failedCount > 0) {
+      imagePreviewStatus.textContent = `${failedCount} 张上传失败，点×移除后重试`;
+    } else {
+      imagePreviewStatus.textContent = `${total} 张图片已就绪`;
+    }
+  }
+
+  function removePendingImage(id) {
+    const idx = pendingImages.findIndex((p) => p.id === id);
+    if (idx === -1) return;
+    const [removed] = pendingImages.splice(idx, 1);
+    if (removed.objectUrl) URL.revokeObjectURL(removed.objectUrl);
+    if (removed.el) removed.el.remove();
+    updateImagePreviewStatus();
+    if (pendingImages.length === 0) resetImagePreview();
+  }
+
+  function resetImagePreview() {
+    pendingImages.forEach((p) => {
+      if (p.objectUrl) URL.revokeObjectURL(p.objectUrl);
+    });
+    pendingImages = [];
+    imagePreviewThumbs.innerHTML = '';
     imagePreviewBar.classList.remove('active');
-    imagePreviewThumb.src = '';
     imageFileInput.value = '';
   }
 
-  async function handleImageFile(file) {
-    if (!file) return;
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      alert('只支持 jpg / png / gif / webp 格式的图片');
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      alert('图片太大了，最大支持 8MB');
-      return;
-    }
+  function renderImagePreviewItem(item) {
+    const wrap = document.createElement('div');
+    wrap.className = 'image-preview-item' + (item.uploading ? ' uploading' : '');
 
-    pendingImageObjectUrl = URL.createObjectURL(file);
-    imagePreviewThumb.src = pendingImageObjectUrl;
-    imagePreviewStatus.textContent = '上传中...';
-    imagePreviewBar.classList.add('active');
-    pendingImageUrl = null;
+    const img = document.createElement('img');
+    img.src = item.objectUrl;
+    wrap.appendChild(img);
 
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'item-remove-btn';
+    removeBtn.textContent = '×';
+    removeBtn.title = '移除这张';
+    removeBtn.addEventListener('click', () => removePendingImage(item.id));
+    wrap.appendChild(removeBtn);
+
+    item.el = wrap;
+    imagePreviewThumbs.appendChild(wrap);
+  }
+
+  async function uploadOneImage(item) {
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', item.file);
       const res = await fetch('/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '上传失败');
-      pendingImageUrl = data.url;
-      imagePreviewStatus.textContent = '图片已就绪，回车/点发送 一起发出去';
+      item.uploadedUrl = data.url;
+      item.uploading = false;
     } catch (e) {
-      imagePreviewStatus.textContent = `上传失败：${e.message}`;
-      pendingImageUrl = null;
+      item.uploading = false;
+      item.failed = true;
+      if (item.el) item.el.classList.add('uploading');
     }
+    updateImagePreviewStatus();
+  }
+
+  function handleImageFiles(fileList) {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (files.length === 0) return;
+
+    const remainingSlots = MAX_IMAGES_PER_MESSAGE - pendingImages.length;
+    if (remainingSlots <= 0) {
+      alert(`最多一次发 ${MAX_IMAGES_PER_MESSAGE} 张图片`);
+      return;
+    }
+    if (files.length > remainingSlots) {
+      alert(`最多还能再加 ${remainingSlots} 张，超出的部分已忽略`);
+    }
+
+    const toAdd = files.slice(0, remainingSlots);
+    toAdd.forEach((file) => {
+      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+        alert(`${file.name || '某张图片'} 格式不支持（只支持 jpg/png/gif/webp）`);
+        return;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`${file.name || '某张图片'} 太大了，最大支持 8MB`);
+        return;
+      }
+      const item = {
+        id: ++pendingImageIdCounter,
+        file,
+        objectUrl: URL.createObjectURL(file),
+        uploadedUrl: null,
+        uploading: true,
+        failed: false,
+      };
+      pendingImages.push(item);
+      renderImagePreviewItem(item);
+      uploadOneImage(item);
+    });
+    updateImagePreviewStatus();
   }
 
   imagePickBtn.addEventListener('click', () => imageFileInput.click());
   imageFileInput.addEventListener('change', () => {
-    const file = imageFileInput.files && imageFileInput.files[0];
-    if (file) handleImageFile(file);
+    handleImageFiles(imageFileInput.files);
+    imageFileInput.value = ''; // 允许连续选同一批文件也能重新触发change
   });
   imageCancelBtn.addEventListener('click', resetImagePreview);
 
-  // 支持直接在输入框粘贴剪贴板里的图片（截图工具复制的图很常见这么用）
+  // 支持直接在输入框粘贴剪贴板里的图片（截图工具复制的图很常见这么用），
+  // 一次粘贴可能包含多个图片项，都加进去
   textInput.addEventListener('paste', (e) => {
     const items = e.clipboardData && e.clipboardData.items;
     if (!items) return;
+    const imageFiles = [];
     for (const item of items) {
       if (item.type && item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) {
-          e.preventDefault();
-          handleImageFile(file);
-        }
-        break;
+        if (file) imageFiles.push(file);
       }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      handleImageFiles(imageFiles);
     }
   });
 
@@ -1209,7 +1376,7 @@
     if (!data.mentionsAll) {
       showDesktopNotification(
         iAmMentionedInText ? `${data.username} @了你` : `${data.username} 回复了你`,
-        data.text || (data.image ? '[图片]' : '')
+        data.text || ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''))
       );
     }
     if (document.hidden) {
@@ -1236,9 +1403,9 @@
     if (!Array.isArray(data.mentions) || !data.mentions.includes(username)) return;
 
     announceFromEl.textContent = `来自 ${data.username}`;
-    announceTextEl.textContent = data.text || (data.image ? '[图片]' : '');
+    announceTextEl.textContent = data.text || ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
     announceOverlay.classList.add('active');
-    showDesktopNotification(`📢 ${data.username} @所有人`, data.text || (data.image ? '[图片]' : ''));
+    showDesktopNotification(`📢 ${data.username} @所有人`, data.text || ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : '')));
   }
 
   function closeAnnounceOverlay() {
@@ -1614,16 +1781,16 @@
     const text = textInput.value.trim();
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const hasSelectedImage = imagePreviewBar.classList.contains('active');
-    if (hasSelectedImage && !pendingImageUrl) {
-      // 图片还在上传中，先别发，避免发出一条没有图的消息
+    if (pendingImages.some((p) => p.uploading)) {
+      // 还有图片在上传中，先别发，避免发出一条缺图的消息
       imagePreviewStatus.textContent = '图片还在上传中，请稍等一下再发送...';
       return;
     }
-    if (!text && !pendingImageUrl) return; // 文字和图片都没有，没什么可发的
+    const readyImages = pendingImages.filter((p) => p.uploadedUrl && !p.failed);
+    if (!text && readyImages.length === 0) return; // 文字和图片都没有，没什么可发的
 
     const payload = { type: 'message', text };
-    if (pendingImageUrl) payload.image = pendingImageUrl;
+    if (readyImages.length > 0) payload.images = readyImages.map((p) => p.uploadedUrl);
     if (replyingTo) payload.quote = replyingTo;
     ws.send(JSON.stringify(payload));
     textInput.value = '';

@@ -5,12 +5,29 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
+const { Pool } = require('pg');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
+
+// ==================== 数据库（只用来持久化置顶公告+它的修改历史，留证用） ====================
+// 没配置 DATABASE_URL 环境变量时，dbPool 为 null，整个应用会自动退化成纯内存模式
+// （跟接数据库之前的行为完全一样），不会因为没数据库就崩掉。
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const dbPool = DATABASE_URL
+  ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } })
+  : null;
+
+if (dbPool) {
+  dbPool.on('error', (err) => {
+    console.error('[数据库连接池错误]', err.message);
+  });
+} else {
+  console.log('未配置 DATABASE_URL，置顶公告历史将只保存在内存中（重启会清空）');
+}
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -52,12 +69,84 @@ app.post('/upload', (req, res) => {
 
 // 在线用户: ws -> { username, id }
 const clients = new Map();
-// 最近消息历史（内存中，重启后清空）
+// 最近消息历史（内存中，重启后清空——这部分保持原样不接数据库）
 const MAX_HISTORY = 100;
 let history = [];
-// 置顶公告（内存中，重启后清空，但会用下面这个默认值重新初始化）
+// 置顶公告默认内容（数据库里一条记录都没有时，用这个当第一条）
 const DEFAULT_PINNED_TEXT = '您好，本订单包裹已到库，xx商品xx（描述下实际情况）【可在代购订单列表该订单详情中查看截图】（如有提供图），现需要您确认：  ①是否可以直接为您入库？ ②请您于中国时间xx月xx日xx点前回复，如未收到您的回复将默认为您入库并在平台完成签收，签收后再出现任何问题卖家将无法再进行对应，所有问题损失需您自行承担，敬请了解。';
+// 下面两个是内存里的"当前快照"，用来快速响应/广播给客户端；
+// 真正的持久化存储在数据库里（如果配置了 DATABASE_URL 的话），
+// 这两个变量在服务器启动时会从数据库加载出最新状态。
 let pinnedText = DEFAULT_PINNED_TEXT;
+const PINNED_HISTORY_MAX = 50;
+let pinnedHistory = [{ text: pinnedText, by: '系统默认', startTime: Date.now(), endTime: null }];
+
+async function ensurePinnedTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS pinned_history (
+      id BIGSERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      by_user TEXT NOT NULL,
+      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
+      end_time TIMESTAMPTZ
+    );
+  `);
+}
+
+async function loadPinnedStateFromDB() {
+  if (!dbPool) return; // 没配置数据库，继续用内存里的默认值
+  try {
+    await ensurePinnedTable();
+    const { rows } = await dbPool.query('SELECT * FROM pinned_history ORDER BY start_time ASC;');
+    if (rows.length === 0) {
+      // 数据库是空的（第一次接入），把内存里的默认值写进去当第一条记录
+      const inserted = await dbPool.query(
+        'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
+        [DEFAULT_PINNED_TEXT, '系统默认']
+      );
+      pinnedHistory = inserted.rows.map(rowToHistoryEntry);
+    } else {
+      pinnedHistory = rows.map(rowToHistoryEntry);
+    }
+    pinnedText = pinnedHistory[pinnedHistory.length - 1].text;
+    console.log(`已从数据库加载置顶公告历史，共 ${pinnedHistory.length} 条记录`);
+  } catch (err) {
+    console.error('[加载置顶公告历史失败，暂时改用内存默认值]', err.message);
+  }
+}
+
+function rowToHistoryEntry(row) {
+  return {
+    text: row.text,
+    by: row.by_user,
+    startTime: new Date(row.start_time).getTime(),
+    endTime: row.end_time ? new Date(row.end_time).getTime() : null,
+  };
+}
+
+async function recordPinnedChange(newText, byUsername) {
+  const now = Date.now();
+  // 先更新内存里的快照，保证不管数据库有没有配置/有没有写成功，广播出去的内容始终是对的
+  const last = pinnedHistory[pinnedHistory.length - 1];
+  if (last && last.endTime === null) last.endTime = now;
+  pinnedHistory.push({ text: newText, by: byUsername, startTime: now, endTime: null });
+  if (pinnedHistory.length > PINNED_HISTORY_MAX) pinnedHistory.shift();
+
+  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录
+  try {
+    await dbPool.query(
+      "UPDATE pinned_history SET end_time = now() WHERE end_time IS NULL;"
+    );
+    await dbPool.query(
+      'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL);',
+      [newText, byUsername]
+    );
+  } catch (err) {
+    // 数据库写入失败也不影响这次修改本身生效（内存已经更新了），只是这条记录暂时没能持久化
+    console.error('[置顶公告历史写入数据库失败]', err.message);
+  }
+}
 // 置顶公告最大长度（原来是200，模板较长，放宽一些）
 const PINNED_MAX_LENGTH = 600;
 // 置顶公告编辑密码：优先读取环境变量 PIN_EDIT_PASSWORD（部署到Render时在后台设置），
@@ -123,7 +212,7 @@ wss.on('connection', (ws) => {
       // 发送历史消息 + 当前在线列表 + 置顶公告给新用户
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
-      ws.send(JSON.stringify({ type: 'pinned', text: pinnedText }));
+      ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -136,14 +225,18 @@ wss.on('connection', (ws) => {
       if (!client) return;
       const text = String(data.text || '').slice(0, 2000);
 
-      // 图片：只接受我们自己 /upload 接口生成的路径，避免被塞入任意外部地址
-      let image = null;
-      if (typeof data.image === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(data.image)) {
-        image = data.image;
+      // 图片：只接受我们自己 /upload 接口生成的路径，避免被塞入任意外部地址；
+      // 最多9张一起发，避免被刷屏/滥用
+      const MAX_IMAGES_PER_MESSAGE = 9;
+      let images = [];
+      if (Array.isArray(data.images)) {
+        images = data.images
+          .filter((url) => typeof url === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(url))
+          .slice(0, MAX_IMAGES_PER_MESSAGE);
       }
 
       // 纯文字消息不能是空的；但如果带了图片，文字可以为空（图片本身就是内容）
-      if (!text.trim() && !image) return;
+      if (!text.trim() && images.length === 0) return;
 
       // 引用回复：只保留必要的快照信息（用户名+文本片段），不做原消息查找，
       // 这样即使原消息已经滚出历史记录，引用内容依然完整可显示。
@@ -162,7 +255,7 @@ wss.on('connection', (ws) => {
         id: nextMessageId++,
         username: client.username,
         text,
-        image,
+        images,
         mentions: mentioned,
         mentionsAll: isAll,
         quote,
@@ -207,7 +300,10 @@ wss.on('connection', (ws) => {
         return;
       }
       pinnedText = String(data.text || '').slice(0, PINNED_MAX_LENGTH);
-      const pinMsg = { type: 'pinned', text: pinnedText, by: client.username };
+      // 这里不用 await：函数内部会先同步更新好内存状态（下面广播用的到），
+      // 数据库写入部分在后台异步完成，失败了也只是打日志、不影响这次修改正常生效
+      recordPinnedChange(pinnedText, client.username);
+      const pinMsg = { type: 'pinned', text: pinnedText, by: client.username, history: pinnedHistory };
       broadcast(pinMsg); // 包括操作者自己，保证所有端一致
       if (pinnedText) {
         const sys = {
@@ -239,8 +335,15 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`聊天服务器已启动`);
-  console.log(`本机访问: http://localhost:${PORT}`);
-  console.log(`局域网访问: http://<你的局域网IP>:${PORT}`);
-});
+async function startServer() {
+  await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`聊天服务器已启动`);
+    console.log(`本机访问: http://localhost:${PORT}`);
+    console.log(`局域网访问: http://<你的局域网IP>:${PORT}`);
+    console.log(dbPool ? '数据库已连接，置顶公告历史会持久化' : '数据库未配置，置顶公告历史仅保存在内存中');
+  });
+}
+
+startServer();

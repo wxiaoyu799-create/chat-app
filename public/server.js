@@ -152,6 +152,70 @@ const PINNED_MAX_LENGTH = 600;
 // 置顶公告编辑密码：优先读取环境变量 PIN_EDIT_PASSWORD（部署到Render时在后台设置），
 // 本地没配置环境变量时用这个默认值兜底，方便本地测试，正式使用务必在Render上单独设置
 const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
+
+// 公告栏（侧栏那个）：跟置顶公告完全独立，各自内容互不关联，共用同一个编辑密码，
+// 修改历史的追踪机制跟置顶公告完全一样（同样会走数据库持久化，如果配置了 DATABASE_URL 的话）
+let announcementText = '';
+const ANNOUNCEMENT_MAX_LENGTH = 600;
+const ANNOUNCEMENT_HISTORY_MAX = 50;
+let announcementHistory = [{ text: announcementText, by: '系统默认', startTime: Date.now(), endTime: null }];
+
+async function ensureAnnouncementTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS announcement_history (
+      id BIGSERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      by_user TEXT NOT NULL,
+      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
+      end_time TIMESTAMPTZ
+    );
+  `);
+}
+
+async function loadAnnouncementStateFromDB() {
+  if (!dbPool) return; // 没配置数据库，继续用内存里的默认值（空公告）
+  try {
+    await ensureAnnouncementTable();
+    const { rows } = await dbPool.query('SELECT * FROM announcement_history ORDER BY start_time ASC;');
+    if (rows.length === 0) {
+      // 数据库是空的（第一次接入），把内存里的默认值（空字符串）写进去当第一条记录
+      const inserted = await dbPool.query(
+        'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
+        ['', '系统默认']
+      );
+      announcementHistory = inserted.rows.map(rowToHistoryEntry);
+    } else {
+      announcementHistory = rows.map(rowToHistoryEntry);
+    }
+    announcementText = announcementHistory[announcementHistory.length - 1].text;
+    console.log(`已从数据库加载公告栏历史，共 ${announcementHistory.length} 条记录`);
+  } catch (err) {
+    console.error('[加载公告栏历史失败，暂时改用内存默认值]', err.message);
+  }
+}
+
+async function recordAnnouncementChange(newText, byUsername) {
+  const now = Date.now();
+  const last = announcementHistory[announcementHistory.length - 1];
+  if (last && last.endTime === null) last.endTime = now;
+  announcementHistory.push({ text: newText, by: byUsername, startTime: now, endTime: null });
+  if (announcementHistory.length > ANNOUNCEMENT_HISTORY_MAX) announcementHistory.shift();
+
+  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录
+  try {
+    await dbPool.query(
+      "UPDATE announcement_history SET end_time = now() WHERE end_time IS NULL;"
+    );
+    await dbPool.query(
+      'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL);',
+      [newText, byUsername]
+    );
+  } catch (err) {
+    console.error('[公告栏历史写入数据库失败]', err.message);
+  }
+}
+
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
 // 允许的消息表情回应（白名单，避免被塞入任意文本）
@@ -213,6 +277,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
+      ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -317,6 +382,21 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (data.type === 'announcement') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'announcement_error', message: '密码错误，无法修改公告栏' }));
+        return;
+      }
+      announcementText = String(data.text || '').slice(0, ANNOUNCEMENT_MAX_LENGTH);
+      // 同样不用await：内部先同步更新内存状态，数据库写入在后台异步完成
+      recordAnnouncementChange(announcementText, client.username);
+      broadcast({ type: 'announcement', text: announcementText, by: client.username, history: announcementHistory });
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
@@ -337,6 +417,7 @@ wss.on('connection', (ws) => {
 
 async function startServer() {
   await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
+  await loadAnnouncementStateFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

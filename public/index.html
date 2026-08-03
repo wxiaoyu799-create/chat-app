@@ -152,6 +152,24 @@
     z-index: 20;
   }
   #pin-history-panel.active { display: block; }
+  #announcement-history-panel {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    width: 320px;
+    max-width: 80vw;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    padding: 12px 14px;
+    z-index: 20;
+  }
+  #announcement-history-panel.active { display: block; }
   .pin-history-title {
     font-size: 12px;
     font-weight: 700;
@@ -266,8 +284,9 @@
   }
   #pin-error-msg.active { display: block; }
 
-  /* 左侧栏的公告栏——只读展示，跟顶部置顶公告内容同步，没有编辑/历史入口 */
+  /* 左侧栏的公告栏——独立内容，可编辑，跟顶部置顶公告完全无关 */
   #sidebar-announce {
+    position: relative;
     padding: 10px 12px;
     background: var(--panel-alt);
     border: 1px solid var(--border);
@@ -283,8 +302,51 @@
     word-break: break-word;
     white-space: pre-wrap;
     line-height: 1.5;
+    margin-bottom: 8px;
   }
   #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
+  #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
+  #sidebar-announce .pin-edit-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    padding: 5px 6px;
+    white-space: nowrap;
+  }
+  #sidebar-announce .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
+  #announcement-edit-row {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #announcement-edit-row.active { display: flex; }
+  #announcement-edit-row #announcement-input {
+    width: 100%;
+    font-size: 13px;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+  #announcement-edit-row #announcement-password-input { width: 100%; font-size: 13px; }
+  #announcement-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
+  #announcement-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
+  #announcement-error-msg {
+    width: 100%;
+    font-size: 12px;
+    color: #e5534b;
+    display: none;
+  }
+  #announcement-error-msg.active { display: block; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
@@ -770,10 +832,27 @@
 
     <div id="sidebar-announce">
       <div class="pin-bar-head">
-        <span class="pin-icon">📌</span>
+        <span class="pin-icon">📢</span>
         <span class="pin-bar-label">公告栏</span>
       </div>
-      <span class="pin-text" id="pinned-text-sidebar"></span>
+      <span class="pin-text" id="announcement-text"></span>
+      <div class="pin-bar-actions">
+        <button class="pin-edit-btn" id="announcement-edit-open-btn">编辑</button>
+        <button class="pin-edit-btn" id="announcement-history-toggle" type="button">📋 记录</button>
+      </div>
+      <div id="announcement-history-panel">
+        <div class="pin-history-title">公告栏修改记录</div>
+        <div id="announcement-history-list"></div>
+      </div>
+    </div>
+    <div id="announcement-edit-row">
+      <textarea id="announcement-input" placeholder="设置公告栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
+      <input id="announcement-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
+      <div class="pin-edit-actions-row">
+        <button id="announcement-save-btn">保存</button>
+        <button class="pin-edit-btn" id="announcement-cancel-btn">取消</button>
+      </div>
+      <span id="announcement-error-msg"></span>
     </div>
   </div>
   <div id="chat-col">
@@ -867,6 +946,9 @@
   const pinHistoryToggle = document.getElementById('pin-history-toggle');
   const pinHistoryPanel = document.getElementById('pin-history-panel');
   const pinHistoryList = document.getElementById('pin-history-list');
+  const announcementHistoryToggle = document.getElementById('announcement-history-toggle');
+  const announcementHistoryPanel = document.getElementById('announcement-history-panel');
+  const announcementHistoryList = document.getElementById('announcement-history-list');
   const announceOverlay = document.getElementById('announce-overlay');
   const announceFromEl = document.getElementById('announce-from');
   const announceTextEl = document.getElementById('announce-text');
@@ -876,7 +958,14 @@
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
   const pinnedTextEl = document.getElementById('pinned-text');
-  const pinnedTextSidebarEl = document.getElementById('pinned-text-sidebar');
+  const announcementTextEl = document.getElementById('announcement-text');
+  const announcementEditOpenBtn = document.getElementById('announcement-edit-open-btn');
+  const announcementEditRow = document.getElementById('announcement-edit-row');
+  const announcementInput = document.getElementById('announcement-input');
+  const announcementPasswordInput = document.getElementById('announcement-password-input');
+  const announcementErrorMsg = document.getElementById('announcement-error-msg');
+  const announcementSaveBtn = document.getElementById('announcement-save-btn');
+  const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
@@ -967,6 +1056,14 @@
         pinErrorMsg.textContent = data.message || '密码错误';
         pinErrorMsg.classList.add('active');
         pinnedPasswordInput.focus();
+      } else if (data.type === 'announcement') {
+        setAnnouncementText(data.text || '');
+        closeAnnouncementEdit();
+        if (Array.isArray(data.history)) renderAnnouncementHistory(data.history);
+      } else if (data.type === 'announcement_error') {
+        announcementErrorMsg.textContent = data.message || '密码错误';
+        announcementErrorMsg.classList.add('active');
+        announcementPasswordInput.focus();
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
@@ -1489,13 +1586,9 @@
     if (currentPinnedText) {
       pinnedTextEl.textContent = currentPinnedText;
       pinnedTextEl.classList.remove('empty');
-      pinnedTextSidebarEl.textContent = currentPinnedText;
-      pinnedTextSidebarEl.classList.remove('empty');
     } else {
       pinnedTextEl.textContent = '暂无公告，点击"编辑"设置一条';
       pinnedTextEl.classList.add('empty');
-      pinnedTextSidebarEl.textContent = '暂无公告';
-      pinnedTextSidebarEl.classList.add('empty');
     }
   }
 
@@ -1504,19 +1597,19 @@
     pinnedInput.style.height = Math.min(pinnedInput.scrollHeight, 100) + 'px';
   }
 
-  // ===== 置顶公告修改历史（留证用，按生效时间段折叠展示） =====
+  // ===== 公告类修改历史（留证用，按生效时间段折叠展示）——置顶公告和公告栏共用这套渲染逻辑 =====
   function formatHistoryDate(ts) {
     const d = new Date(ts);
     return `${d.getMonth() + 1}月${d.getDate()}日`;
   }
 
-  function renderPinHistory(historyList) {
-    pinHistoryList.innerHTML = '';
+  function renderHistoryList(historyList, listEl, emptyPlaceholderText) {
+    listEl.innerHTML = '';
     if (!Array.isArray(historyList) || historyList.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'ph-empty';
       empty.textContent = '暂无修改记录';
-      pinHistoryList.appendChild(empty);
+      listEl.appendChild(empty);
       return;
     }
     // 最新的排最上面，方便一眼看到最近改动
@@ -1536,29 +1629,38 @@
 
       const text = document.createElement('div');
       text.className = 'ph-text';
-      text.textContent = entry.text ? entry.text : '（空 - 当时清除了置顶公告）';
+      text.textContent = entry.text ? entry.text : emptyPlaceholderText;
 
       item.appendChild(range);
       item.appendChild(by);
       item.appendChild(text);
-      pinHistoryList.appendChild(item);
+      listEl.appendChild(item);
     });
   }
 
-  function togglePinHistory() {
-    pinHistoryPanel.classList.toggle('active');
+  function renderPinHistory(historyList) {
+    renderHistoryList(historyList, pinHistoryList, '（空 - 当时清除了置顶公告）');
   }
-  pinHistoryToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    togglePinHistory();
-  });
-  document.addEventListener('click', (e) => {
-    if (pinHistoryPanel.classList.contains('active') &&
-      !pinHistoryPanel.contains(e.target) &&
-      e.target !== pinHistoryToggle) {
-      pinHistoryPanel.classList.remove('active');
-    }
-  });
+
+  function renderAnnouncementHistory(historyList) {
+    renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）');
+  }
+
+  function setupHistoryToggle(toggleBtn, panelEl) {
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panelEl.classList.toggle('active');
+    });
+    document.addEventListener('click', (e) => {
+      if (panelEl.classList.contains('active') &&
+        !panelEl.contains(e.target) &&
+        e.target !== toggleBtn) {
+        panelEl.classList.remove('active');
+      }
+    });
+  }
+  setupHistoryToggle(pinHistoryToggle, pinHistoryPanel);
+  setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;
@@ -1607,6 +1709,73 @@
   pinnedPasswordInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') savePinnedText();
     if (e.key === 'Escape') closePinEdit();
+  });
+
+  // ===== 公告栏（侧栏那个，跟置顶公告完全独立） =====
+  let currentAnnouncementText = '';
+
+  function setAnnouncementText(text) {
+    currentAnnouncementText = text || '';
+    if (currentAnnouncementText) {
+      announcementTextEl.textContent = currentAnnouncementText;
+      announcementTextEl.classList.remove('empty');
+    } else {
+      announcementTextEl.textContent = '暂无内容，点击"编辑"设置一条';
+      announcementTextEl.classList.add('empty');
+    }
+  }
+
+  function autoResizeAnnouncementInput() {
+    announcementInput.style.height = 'auto';
+    announcementInput.style.height = Math.min(announcementInput.scrollHeight, 100) + 'px';
+  }
+
+  function openAnnouncementEdit() {
+    announcementInput.value = currentAnnouncementText;
+    announcementPasswordInput.value = '';
+    announcementErrorMsg.classList.remove('active');
+    announcementEditRow.classList.add('active');
+    announcementInput.focus();
+    autoResizeAnnouncementInput();
+  }
+
+  function closeAnnouncementEdit() {
+    announcementEditRow.classList.remove('active');
+    announcementPasswordInput.value = '';
+    announcementErrorMsg.classList.remove('active');
+    announcementErrorMsg.textContent = '';
+  }
+
+  function saveAnnouncementText() {
+    const text = announcementInput.value.trim();
+    const password = announcementPasswordInput.value;
+    if (!password) {
+      announcementErrorMsg.textContent = '请输入编辑密码';
+      announcementErrorMsg.classList.add('active');
+      announcementPasswordInput.focus();
+      return;
+    }
+    announcementErrorMsg.classList.remove('active');
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'announcement', text, password }));
+    }
+    // 同样不在这里直接关闭——由服务器广播回来的结果决定关闭还是提示错误
+  }
+
+  announcementEditOpenBtn.addEventListener('click', openAnnouncementEdit);
+  announcementCancelBtn.addEventListener('click', closeAnnouncementEdit);
+  announcementSaveBtn.addEventListener('click', saveAnnouncementText);
+  announcementInput.addEventListener('input', autoResizeAnnouncementInput);
+  announcementInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveAnnouncementText();
+    }
+    if (e.key === 'Escape') closeAnnouncementEdit();
+  });
+  announcementPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveAnnouncementText();
+    if (e.key === 'Escape') closeAnnouncementEdit();
   });
 
   // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
@@ -1751,6 +1920,7 @@
     loginEl.style.display = 'none';
     appEl.classList.add('active');
     setPinnedText('');
+    setAnnouncementText('');
     myUsernameEl.textContent = username;
     myUsernameEl.title = `当前登录：${username}`;
     try {

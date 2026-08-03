@@ -489,16 +489,18 @@
   .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
-  /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种 */
+  /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种。
+     注意：锚点方向要"朝对话中间展开"而不是朝屏幕外侧——不然消息很短时（比如就几个字），
+     徽章（尤其现在里面还带着人名，本身可能比气泡还宽）会被左侧栏/右侧栏裁切看不全。 */
   .reaction-badges {
     position: absolute;
     bottom: -11px;
-    right: 8px;
+    left: 8px; /* 对方消息(左对齐气泡)：从气泡左边往右展开，朝对话中间去 */
     display: flex;
     gap: 3px;
     z-index: 2;
   }
-  .msg.me .reaction-badges { right: auto; left: 8px; }
+  .msg.me .reaction-badges { left: auto; right: 8px; } /* 自己消息(右对齐气泡)：从气泡右边往左展开，同样朝中间去 */
 
   .reaction-badge {
     background: var(--panel);

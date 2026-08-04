@@ -456,6 +456,86 @@
   }
   #announce-close-btn:hover { background: #e6994a; }
 
+  /* 删除历史记录的自定义确认弹窗——不用浏览器原生confirm/prompt，
+     因为Electron桌面版不支持window.prompt()，用了会导致"点了没反应" */
+  #delete-confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.72);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #delete-confirm-overlay.active {
+    display: flex;
+    animation: announce-fade-in 0.2s ease;
+  }
+  #delete-confirm-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 26px 22px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    transform: scale(0.85) translateY(10px);
+    animation: announce-pop 0.35s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  #delete-confirm-card .delete-confirm-icon { font-size: 32px; margin-bottom: 6px; }
+  #delete-confirm-card .delete-confirm-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  #delete-confirm-card .delete-confirm-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 16px;
+    max-height: 25vh;
+    overflow-y: auto;
+    text-align: left;
+    background: var(--panel-alt);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  #delete-confirm-password {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  #delete-confirm-error {
+    font-size: 12px;
+    color: #e5534b;
+    text-align: left;
+    min-height: 16px;
+    margin-bottom: 8px;
+  }
+  .delete-confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .delete-confirm-actions button { flex: 1; padding: 10px; font-size: 13px; }
+  #delete-confirm-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  #delete-confirm-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #delete-confirm-ok-btn {
+    background: #e5534b;
+    color: #fff;
+    border: none;
+    font-weight: 600;
+  }
+  #delete-confirm-ok-btn:hover { background: #c9463f; }
+
   /* @ 自动补全下拉 */
   #mention-menu {
     display: none;
@@ -963,6 +1043,20 @@
   </div>
 </div>
 
+<div id="delete-confirm-overlay">
+  <div id="delete-confirm-card">
+    <div class="delete-confirm-icon">🗑️</div>
+    <div class="delete-confirm-title">删除这条历史记录？</div>
+    <div class="delete-confirm-desc" id="delete-confirm-desc"></div>
+    <input type="password" id="delete-confirm-password" placeholder="输入编辑密码确认删除" autocomplete="off" />
+    <div class="delete-confirm-error" id="delete-confirm-error"></div>
+    <div class="delete-confirm-actions">
+      <button id="delete-confirm-cancel-btn">取消</button>
+      <button id="delete-confirm-ok-btn">确定删除</button>
+    </div>
+  </div>
+</div>
+
 <script>
   let ws = null;
   let username = '';
@@ -1086,10 +1180,12 @@
         setPinnedText(data.text || '');
         // 保存成功了（不管是不是自己改的），把编辑框关掉、密码框清空、错误提示清掉
         closePinEdit();
+        closeDeleteConfirm(); // 如果这次是删除操作触发的，成功后顺带关掉删除弹窗
         if (Array.isArray(data.history)) renderPinHistory(data.history);
       } else if (data.type === 'pin_error') {
-        if (lastPinAction === 'delete') {
-          alert(data.message || '密码错误');
+        if (lastPinAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+          deleteConfirmError.textContent = data.message || '密码错误';
+          deleteConfirmPassword.focus();
         } else {
           pinErrorMsg.textContent = data.message || '密码错误';
           pinErrorMsg.classList.add('active');
@@ -1098,10 +1194,12 @@
       } else if (data.type === 'announcement') {
         setAnnouncementText(data.text || '');
         closeAnnouncementEdit();
+        closeDeleteConfirm();
         if (Array.isArray(data.history)) renderAnnouncementHistory(data.history);
       } else if (data.type === 'announcement_error') {
-        if (lastAnnouncementAction === 'delete') {
-          alert(data.message || '密码错误');
+        if (lastAnnouncementAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+          deleteConfirmError.textContent = data.message || '密码错误';
+          deleteConfirmPassword.focus();
         } else {
           announcementErrorMsg.textContent = data.message || '密码错误';
           announcementErrorMsg.classList.add('active');
@@ -1700,26 +1798,72 @@
     renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
   }
 
-  function handleDeletePinHistoryEntry(entry) {
-    const preview = (entry.text || '(空)').slice(0, 20);
-    if (!confirm(`确定要删除这条置顶公告历史记录吗？\n"${preview}"\n删除后无法恢复。`)) return;
-    const password = prompt('请输入编辑密码以确认删除：');
-    if (!password) return;
-    lastPinAction = 'delete';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
+  // ===== 删除历史记录的自定义确认弹窗（不用confirm/prompt，Electron里prompt不可靠） =====
+  const deleteConfirmOverlay = document.getElementById('delete-confirm-overlay');
+  const deleteConfirmDesc = document.getElementById('delete-confirm-desc');
+  const deleteConfirmPassword = document.getElementById('delete-confirm-password');
+  const deleteConfirmError = document.getElementById('delete-confirm-error');
+  const deleteConfirmOkBtn = document.getElementById('delete-confirm-ok-btn');
+  const deleteConfirmCancelBtn = document.getElementById('delete-confirm-cancel-btn');
+  let pendingDeleteAction = null; // { kind: 'pin' | 'announcement', entry }
+
+  function openDeleteConfirm(kind, entry) {
+    pendingDeleteAction = { kind, entry };
+    const preview = entry.text ? entry.text.slice(0, 40) : '(空)';
+    const label = kind === 'pin' ? '置顶公告' : '公告栏';
+    deleteConfirmDesc.textContent = `${label}历史记录：\n"${preview}"`;
+    deleteConfirmPassword.value = '';
+    deleteConfirmError.textContent = '';
+    deleteConfirmOverlay.classList.add('active');
+    deleteConfirmPassword.focus();
+  }
+
+  function closeDeleteConfirm() {
+    deleteConfirmOverlay.classList.remove('active');
+    pendingDeleteAction = null;
+  }
+
+  function confirmDeleteHistory() {
+    if (!pendingDeleteAction) return;
+    const password = deleteConfirmPassword.value;
+    if (!password) {
+      deleteConfirmError.textContent = '请输入编辑密码';
+      deleteConfirmPassword.focus();
+      return;
     }
+    const { kind, entry } = pendingDeleteAction;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      deleteConfirmError.textContent = '连接已断开，请稍后重试';
+      return;
+    }
+    if (kind === 'pin') {
+      lastPinAction = 'delete';
+      ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
+    } else {
+      lastAnnouncementAction = 'delete';
+      ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
+    }
+    // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
+    // 成功了会收到 pinned/announcement 广播，里面会顺带关掉这个弹窗；
+    // 密码错误等失败情况会收到 pin_error/announcement_error，直接在弹窗里显示，不用alert()
+  }
+
+  deleteConfirmCancelBtn.addEventListener('click', closeDeleteConfirm);
+  deleteConfirmOkBtn.addEventListener('click', confirmDeleteHistory);
+  deleteConfirmPassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmDeleteHistory();
+    if (e.key === 'Escape') closeDeleteConfirm();
+  });
+  deleteConfirmOverlay.addEventListener('click', (e) => {
+    if (e.target === deleteConfirmOverlay) closeDeleteConfirm();
+  });
+
+  function handleDeletePinHistoryEntry(entry) {
+    openDeleteConfirm('pin', entry);
   }
 
   function handleDeleteAnnouncementHistoryEntry(entry) {
-    const preview = (entry.text || '(空)').slice(0, 20);
-    if (!confirm(`确定要删除这条公告栏历史记录吗？\n"${preview}"\n删除后无法恢复。`)) return;
-    const password = prompt('请输入编辑密码以确认删除：');
-    if (!password) return;
-    lastAnnouncementAction = 'delete';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
-    }
+    openDeleteConfirm('announcement', entry);
   }
 
   function setupHistoryToggle(toggleBtn, panelEl) {

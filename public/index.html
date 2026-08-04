@@ -197,6 +197,21 @@
     line-height: 1.5;
   }
   .pin-history-entry .ph-empty { color: var(--muted); font-style: italic; }
+  .pin-history-entry .ph-delete-btn {
+    margin-top: 6px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid #e5534b;
+    border-radius: 6px;
+    color: #e5534b;
+    font-size: 13px;
+    padding: 0;
+  }
+  .pin-history-entry .ph-delete-btn:hover { background: rgba(229, 83, 75, 0.1); }
 
   #messages {
     flex: 1;
@@ -245,12 +260,17 @@
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
   #pinned-bar .pin-edit-btn {
     flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: 1px solid var(--border);
+    border-radius: 6px;
     color: var(--muted);
-    font-size: 11px;
-    padding: 4px 8px;
-    white-space: nowrap;
+    font-size: 13px;
+    padding: 0;
   }
   #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
@@ -307,13 +327,18 @@
   #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
   #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
   #sidebar-announce .pin-edit-btn {
-    flex: 1;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: 1px solid var(--border);
+    border-radius: 6px;
     color: var(--muted);
-    font-size: 11px;
-    padding: 5px 6px;
-    white-space: nowrap;
+    font-size: 13px;
+    padding: 0;
   }
   #sidebar-announce .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
@@ -486,19 +511,21 @@
     cursor: pointer;
   }
   .msg .reply-btn:hover { color: var(--accent); background: transparent; }
-  .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+  .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 20px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
-  /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种 */
+  /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种。
+     注意：锚点方向要"朝对话中间展开"而不是朝屏幕外侧——不然消息很短时（比如就几个字），
+     徽章（尤其现在里面还带着人名，本身可能比气泡还宽）会被左侧栏/右侧栏裁切看不全。 */
   .reaction-badges {
     position: absolute;
-    bottom: -11px;
-    right: 8px;
+    bottom: -20px;
+    left: 8px; /* 对方消息(左对齐气泡)：从气泡左边往右展开，朝对话中间去 */
     display: flex;
     gap: 3px;
     z-index: 2;
   }
-  .msg.me .reaction-badges { right: auto; left: 8px; }
+  .msg.me .reaction-badges { left: auto; right: 8px; } /* 自己消息(右对齐气泡)：从气泡右边往左展开，同样朝中间去 */
 
   .reaction-badge {
     background: var(--panel);
@@ -563,6 +590,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* 自己发的消息气泡本身是蓝色的，上面这套"半透明蓝"配色会糊在一起看不清，
+     这里单独用一套基于白色的半透明配色，在蓝色气泡上对比度更好 */
+  .msg.me .quote-block {
+    border-left-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .msg.me .quote-block .quote-name { color: #fff; }
+  .msg.me .quote-block .quote-text { color: rgba(255, 255, 255, 0.8); }
 
   #reply-preview-bar {
     display: none;
@@ -837,8 +872,8 @@
       </div>
       <span class="pin-text" id="announcement-text"></span>
       <div class="pin-bar-actions">
-        <button class="pin-edit-btn" id="announcement-edit-open-btn">编辑</button>
-        <button class="pin-edit-btn" id="announcement-history-toggle" type="button">📋 记录</button>
+        <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
+        <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
       </div>
       <div id="announcement-history-panel">
         <div class="pin-history-title">公告栏修改记录</div>
@@ -868,8 +903,8 @@
     <div id="pinned-bar">
       <span class="pin-icon">📌</span>
       <span class="pin-text" id="pinned-text"></span>
-      <button class="pin-edit-btn" id="pin-edit-open-btn">编辑</button>
-      <button class="pin-edit-btn" id="pin-history-toggle" type="button">📋 记录</button>
+      <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
+      <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
       <div id="pin-history-panel">
         <div class="pin-history-title">置顶公告修改记录</div>
         <div id="pin-history-list"></div>
@@ -1053,17 +1088,25 @@
         closePinEdit();
         if (Array.isArray(data.history)) renderPinHistory(data.history);
       } else if (data.type === 'pin_error') {
-        pinErrorMsg.textContent = data.message || '密码错误';
-        pinErrorMsg.classList.add('active');
-        pinnedPasswordInput.focus();
+        if (lastPinAction === 'delete') {
+          alert(data.message || '密码错误');
+        } else {
+          pinErrorMsg.textContent = data.message || '密码错误';
+          pinErrorMsg.classList.add('active');
+          pinnedPasswordInput.focus();
+        }
       } else if (data.type === 'announcement') {
         setAnnouncementText(data.text || '');
         closeAnnouncementEdit();
         if (Array.isArray(data.history)) renderAnnouncementHistory(data.history);
       } else if (data.type === 'announcement_error') {
-        announcementErrorMsg.textContent = data.message || '密码错误';
-        announcementErrorMsg.classList.add('active');
-        announcementPasswordInput.focus();
+        if (lastAnnouncementAction === 'delete') {
+          alert(data.message || '密码错误');
+        } else {
+          announcementErrorMsg.textContent = data.message || '密码错误';
+          announcementErrorMsg.classList.add('active');
+          announcementPasswordInput.focus();
+        }
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
@@ -1603,7 +1646,7 @@
     return `${d.getMonth() + 1}月${d.getDate()}日`;
   }
 
-  function renderHistoryList(historyList, listEl, emptyPlaceholderText) {
+  function renderHistoryList(historyList, listEl, emptyPlaceholderText, onDelete) {
     listEl.innerHTML = '';
     if (!Array.isArray(historyList) || historyList.length === 0) {
       const empty = document.createElement('div');
@@ -1634,16 +1677,49 @@
       item.appendChild(range);
       item.appendChild(by);
       item.appendChild(text);
+
+      // 当前正在生效的那条不给删除按钮（删了就跟公告栏当前显示内容对不上了，服务端也会拒绝）
+      if (onDelete && entry.endTime !== null) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'ph-delete-btn';
+        delBtn.title = '删除这条记录';
+        delBtn.textContent = '🗑️';
+        delBtn.addEventListener('click', () => onDelete(entry));
+        item.appendChild(delBtn);
+      }
+
       listEl.appendChild(item);
     });
   }
 
   function renderPinHistory(historyList) {
-    renderHistoryList(historyList, pinHistoryList, '（空 - 当时清除了置顶公告）');
+    renderHistoryList(historyList, pinHistoryList, '（空 - 当时清除了置顶公告）', handleDeletePinHistoryEntry);
   }
 
   function renderAnnouncementHistory(historyList) {
-    renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）');
+    renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
+  }
+
+  function handleDeletePinHistoryEntry(entry) {
+    const preview = (entry.text || '(空)').slice(0, 20);
+    if (!confirm(`确定要删除这条置顶公告历史记录吗？\n"${preview}"\n删除后无法恢复。`)) return;
+    const password = prompt('请输入编辑密码以确认删除：');
+    if (!password) return;
+    lastPinAction = 'delete';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
+    }
+  }
+
+  function handleDeleteAnnouncementHistoryEntry(entry) {
+    const preview = (entry.text || '(空)').slice(0, 20);
+    if (!confirm(`确定要删除这条公告栏历史记录吗？\n"${preview}"\n删除后无法恢复。`)) return;
+    const password = prompt('请输入编辑密码以确认删除：');
+    if (!password) return;
+    lastAnnouncementAction = 'delete';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
+    }
   }
 
   function setupHistoryToggle(toggleBtn, panelEl) {
@@ -1688,6 +1764,7 @@
       return;
     }
     pinErrorMsg.classList.remove('active');
+    lastPinAction = 'edit';
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'pin', text, password }));
     }
@@ -1713,6 +1790,8 @@
 
   // ===== 公告栏（侧栏那个，跟置顶公告完全独立） =====
   let currentAnnouncementText = '';
+  let lastAnnouncementAction = 'edit'; // 'edit' 或 'delete'，决定announcement_error回来时提示方式
+  let lastPinAction = 'edit'; // 同上，给置顶公告用
 
   function setAnnouncementText(text) {
     currentAnnouncementText = text || '';
@@ -1756,6 +1835,7 @@
       return;
     }
     announcementErrorMsg.classList.remove('active');
+    lastAnnouncementAction = 'edit';
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'announcement', text, password }));
     }

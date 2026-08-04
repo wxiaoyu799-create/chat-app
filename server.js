@@ -118,6 +118,7 @@ async function loadPinnedStateFromDB() {
 
 function rowToHistoryEntry(row) {
   return {
+    id: row.id,
     text: row.text,
     by: row.by_user,
     startTime: new Date(row.start_time).getTime(),
@@ -130,7 +131,8 @@ async function recordPinnedChange(newText, byUsername) {
   // 先更新内存里的快照，保证不管数据库有没有配置/有没有写成功，广播出去的内容始终是对的
   const last = pinnedHistory[pinnedHistory.length - 1];
   if (last && last.endTime === null) last.endTime = now;
-  pinnedHistory.push({ text: newText, by: byUsername, startTime: now, endTime: null });
+  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
+  pinnedHistory.push(newEntry);
   if (pinnedHistory.length > PINNED_HISTORY_MAX) pinnedHistory.shift();
 
   if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录
@@ -138,13 +140,23 @@ async function recordPinnedChange(newText, byUsername) {
     await dbPool.query(
       "UPDATE pinned_history SET end_time = now() WHERE end_time IS NULL;"
     );
-    await dbPool.query(
-      'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL);',
+    const inserted = await dbPool.query(
+      'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
       [newText, byUsername]
     );
+    newEntry.id = inserted.rows[0].id;
   } catch (err) {
     // 数据库写入失败也不影响这次修改本身生效（内存已经更新了），只是这条记录暂时没能持久化
     console.error('[置顶公告历史写入数据库失败]', err.message);
+  }
+}
+
+async function deletePinnedHistoryEntry(targetId) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM pinned_history WHERE id = $1;', [targetId]);
+  } catch (err) {
+    console.error('[删除置顶公告历史记录失败]', err.message);
   }
 }
 // 置顶公告最大长度（原来是200，模板较长，放宽一些）
@@ -199,20 +211,41 @@ async function recordAnnouncementChange(newText, byUsername) {
   const now = Date.now();
   const last = announcementHistory[announcementHistory.length - 1];
   if (last && last.endTime === null) last.endTime = now;
-  announcementHistory.push({ text: newText, by: byUsername, startTime: now, endTime: null });
+  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
+  announcementHistory.push(newEntry);
   if (announcementHistory.length > ANNOUNCEMENT_HISTORY_MAX) announcementHistory.shift();
 
-  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录
+  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录（id用临时值即可，反正也没法真删数据库）
   try {
     await dbPool.query(
       "UPDATE announcement_history SET end_time = now() WHERE end_time IS NULL;"
     );
-    await dbPool.query(
-      'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL);',
+    const inserted = await dbPool.query(
+      'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
       [newText, byUsername]
     );
+    // 用数据库真实生成的id替换掉临时id，这样后面删除的时候才能对上数据库里的具体那一行
+    newEntry.id = inserted.rows[0].id;
   } catch (err) {
     console.error('[公告栏历史写入数据库失败]', err.message);
+  }
+}
+
+async function deleteAnnouncementHistoryEntry(targetId) {
+  if (!dbPool) return; // 内存模式不用管，内存那边已经在调用处删掉了
+  try {
+    await dbPool.query('DELETE FROM announcement_history WHERE id = $1;', [targetId]);
+  } catch (err) {
+    console.error('[删除公告栏历史记录失败]', err.message);
+  }
+}
+
+async function deletePinnedHistoryEntry(targetId) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM pinned_history WHERE id = $1;', [targetId]);
+  } catch (err) {
+    console.error('[删除置顶公告历史记录失败]', err.message);
   }
 }
 
@@ -261,7 +294,7 @@ function extractMentions(text) {
 }
 
 wss.on('connection', (ws) => {
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let data;
     try {
       data = JSON.parse(raw);
@@ -365,9 +398,10 @@ wss.on('connection', (ws) => {
         return;
       }
       pinnedText = String(data.text || '').slice(0, PINNED_MAX_LENGTH);
-      // 这里不用 await：函数内部会先同步更新好内存状态（下面广播用的到），
-      // 数据库写入部分在后台异步完成，失败了也只是打日志、不影响这次修改正常生效
-      recordPinnedChange(pinnedText, client.username);
+      // 这里改成 await 了：等数据库真正写完、拿到确定的ID之后再广播，
+      // 不然客户端可能会收到一个"临时ID"，等数据库写完真实ID后就对不上了
+      // （之前这里是fire-and-forget，结果导致公告栏删除功能出现过ID不一致的bug，这里保持一致改成await更安全）
+      await recordPinnedChange(pinnedText, client.username);
       const pinMsg = { type: 'pinned', text: pinnedText, by: client.username, history: pinnedHistory };
       broadcast(pinMsg); // 包括操作者自己，保证所有端一致
       if (pinnedText) {
@@ -382,6 +416,27 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (data.type === 'pin_delete_history') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'pin_error', message: '密码错误，无法删除记录' }));
+        return;
+      }
+      const targetId = data.id;
+      const idx = pinnedHistory.findIndex((entry) => String(entry.id) === String(targetId));
+      if (idx === -1) return;
+      if (pinnedHistory[idx].endTime === null) {
+        ws.send(JSON.stringify({ type: 'pin_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
+        return;
+      }
+      pinnedHistory.splice(idx, 1);
+      await deletePinnedHistoryEntry(targetId);
+      broadcast({ type: 'pinned', text: pinnedText, history: pinnedHistory });
+      return;
+    }
+
     if (data.type === 'announcement') {
       const client = clients.get(ws);
       if (!client) return;
@@ -391,9 +446,32 @@ wss.on('connection', (ws) => {
         return;
       }
       announcementText = String(data.text || '').slice(0, ANNOUNCEMENT_MAX_LENGTH);
-      // 同样不用await：内部先同步更新内存状态，数据库写入在后台异步完成
-      recordAnnouncementChange(announcementText, client.username);
+      // 同样改成await，理由同上——确保广播出去的历史记录ID已经是数据库最终确定的值
+      await recordAnnouncementChange(announcementText, client.username);
       broadcast({ type: 'announcement', text: announcementText, by: client.username, history: announcementHistory });
+      return;
+    }
+
+    if (data.type === 'announcement_delete_history') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'announcement_error', message: '密码错误，无法删除记录' }));
+        return;
+      }
+      const targetId = data.id;
+      const idx = announcementHistory.findIndex((entry) => String(entry.id) === String(targetId));
+      if (idx === -1) return; // 找不到就算了，可能已经被删过了
+      if (announcementHistory[idx].endTime === null) {
+        // 当前正在生效的这一条不能删，删了就跟公告栏当前显示的内容对不上了；
+        // 想删的话得先编辑成新内容，让这条"过期"了再删
+        ws.send(JSON.stringify({ type: 'announcement_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
+        return;
+      }
+      announcementHistory.splice(idx, 1);
+      await deleteAnnouncementHistoryEntry(targetId); // 内存已经删了，这里等数据库那边也真删完
+      broadcast({ type: 'announcement', text: announcementText, history: announcementHistory });
       return;
     }
 

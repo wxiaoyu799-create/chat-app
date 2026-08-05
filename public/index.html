@@ -152,7 +152,7 @@
     z-index: 20;
   }
   #pin-history-panel.active { display: block; }
-  #announcement-history-panel {
+  #announcement-history-panel, #memo-history-panel {
     display: none;
     position: absolute;
     top: 100%;
@@ -169,7 +169,7 @@
     padding: 12px 14px;
     z-index: 20;
   }
-  #announcement-history-panel.active { display: block; }
+  #announcement-history-panel.active, #memo-history-panel.active { display: block; }
   .pin-history-title {
     font-size: 12px;
     font-weight: 700;
@@ -305,7 +305,8 @@
   #pin-error-msg.active { display: block; }
 
   /* 左侧栏的公告栏——独立内容，可编辑，跟顶部置顶公告完全无关 */
-  #sidebar-announce {
+  /* 左侧栏的公告栏/备忘栏——独立内容，可编辑，跟顶部置顶公告完全无关；备忘栏额外支持整块折叠 */
+  #sidebar-announce, #sidebar-memo {
     position: relative;
     padding: 10px 12px;
     background: var(--panel-alt);
@@ -313,10 +314,10 @@
     border-radius: 8px;
     font-size: 12px;
   }
-  #sidebar-announce .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-  #sidebar-announce .pin-bar-head .pin-icon { flex-shrink: 0; }
-  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
-  #sidebar-announce .pin-text {
+  #sidebar-announce .pin-bar-head, #sidebar-memo .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  #sidebar-announce .pin-bar-head .pin-icon, #sidebar-memo .pin-bar-head .pin-icon { flex-shrink: 0; }
+  #sidebar-announce .pin-bar-head .pin-bar-label, #sidebar-memo .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
+  #sidebar-announce .pin-text, #sidebar-memo .pin-text {
     display: block;
     color: var(--text);
     word-break: break-word;
@@ -324,9 +325,9 @@
     line-height: 1.5;
     margin-bottom: 8px;
   }
-  #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
-  #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
-  #sidebar-announce .pin-edit-btn {
+  #sidebar-announce .pin-text.empty, #sidebar-memo .pin-text.empty { color: var(--muted); font-style: italic; }
+  #sidebar-announce .pin-bar-actions, #sidebar-memo .pin-bar-actions { display: flex; gap: 6px; }
+  #sidebar-announce .pin-edit-btn, #sidebar-memo .pin-edit-btn {
     flex-shrink: 0;
     width: 28px;
     height: 28px;
@@ -340,9 +341,13 @@
     font-size: 13px;
     padding: 0;
   }
-  #sidebar-announce .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #sidebar-announce .pin-edit-btn:hover, #sidebar-memo .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
-  #announcement-edit-row {
+  /* 备忘栏整块折叠（跟检品达人列表一样的折叠交互） */
+  #memo-panel-body { margin-top: 8px; }
+  #memo-panel-body.collapsed { display: none; }
+
+  #announcement-edit-row, #memo-edit-row {
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -352,8 +357,8 @@
     border: 1px solid var(--border);
     border-radius: 8px;
   }
-  #announcement-edit-row.active { display: flex; }
-  #announcement-edit-row #announcement-input {
+  #announcement-edit-row.active, #memo-edit-row.active { display: flex; }
+  #announcement-edit-row #announcement-input, #memo-edit-row #memo-input {
     width: 100%;
     font-size: 13px;
     font-family: inherit;
@@ -362,16 +367,16 @@
     max-height: 100px;
     overflow-y: auto;
   }
-  #announcement-edit-row #announcement-password-input { width: 100%; font-size: 13px; }
-  #announcement-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
-  #announcement-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
-  #announcement-error-msg {
+  #announcement-edit-row #announcement-password-input, #memo-edit-row #memo-password-input { width: 100%; font-size: 13px; }
+  #announcement-edit-row .pin-edit-actions-row, #memo-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
+  #announcement-edit-row .pin-edit-actions-row button, #memo-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
+  #announcement-error-msg, #memo-error-msg {
     width: 100%;
     font-size: 12px;
     color: #e5534b;
     display: none;
   }
-  #announcement-error-msg.active { display: block; }
+  #announcement-error-msg.active, #memo-error-msg.active { display: block; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
@@ -969,6 +974,35 @@
       </div>
       <span id="announcement-error-msg"></span>
     </div>
+
+    <div class="sidebar-divider"></div>
+
+    <button id="memo-panel-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>📝 备忘栏</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="memo-panel-body" class="collapsed">
+      <div id="sidebar-memo">
+        <span class="pin-text" id="memo-text"></span>
+        <div class="pin-bar-actions">
+          <button class="pin-edit-btn" id="memo-edit-open-btn" title="编辑">✏️</button>
+          <button class="pin-edit-btn" id="memo-history-toggle" type="button" title="修改记录">📋</button>
+        </div>
+        <div id="memo-history-panel">
+          <div class="pin-history-title">备忘栏修改记录</div>
+          <div id="memo-history-list"></div>
+        </div>
+      </div>
+      <div id="memo-edit-row">
+        <textarea id="memo-input" placeholder="设置备忘栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
+        <input id="memo-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
+        <div class="pin-edit-actions-row">
+          <button id="memo-save-btn">保存</button>
+          <button class="pin-edit-btn" id="memo-cancel-btn">取消</button>
+        </div>
+        <span id="memo-error-msg"></span>
+      </div>
+    </div>
   </div>
   <div id="chat-col">
     <header>
@@ -1095,6 +1129,19 @@
   const announcementErrorMsg = document.getElementById('announcement-error-msg');
   const announcementSaveBtn = document.getElementById('announcement-save-btn');
   const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
+  const memoPanelToggle = document.getElementById('memo-panel-toggle');
+  const memoPanelBody = document.getElementById('memo-panel-body');
+  const memoTextEl = document.getElementById('memo-text');
+  const memoEditOpenBtn = document.getElementById('memo-edit-open-btn');
+  const memoEditRow = document.getElementById('memo-edit-row');
+  const memoInput = document.getElementById('memo-input');
+  const memoPasswordInput = document.getElementById('memo-password-input');
+  const memoErrorMsg = document.getElementById('memo-error-msg');
+  const memoSaveBtn = document.getElementById('memo-save-btn');
+  const memoCancelBtn = document.getElementById('memo-cancel-btn');
+  const memoHistoryToggle = document.getElementById('memo-history-toggle');
+  const memoHistoryPanel = document.getElementById('memo-history-panel');
+  const memoHistoryList = document.getElementById('memo-history-list');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
@@ -1204,6 +1251,20 @@
           announcementErrorMsg.textContent = data.message || '密码错误';
           announcementErrorMsg.classList.add('active');
           announcementPasswordInput.focus();
+        }
+      } else if (data.type === 'memo') {
+        setMemoText(data.text || '');
+        closeMemoEdit();
+        closeDeleteConfirm();
+        if (Array.isArray(data.history)) renderMemoHistory(data.history);
+      } else if (data.type === 'memo_error') {
+        if (lastMemoAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+          deleteConfirmError.textContent = data.message || '密码错误';
+          deleteConfirmPassword.focus();
+        } else {
+          memoErrorMsg.textContent = data.message || '密码错误';
+          memoErrorMsg.classList.add('active');
+          memoPasswordInput.focus();
         }
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
@@ -1722,6 +1783,11 @@
     onlineListToggle.classList.toggle('collapsed', collapsed);
   });
 
+  memoPanelToggle.addEventListener('click', () => {
+    const collapsed = memoPanelBody.classList.toggle('collapsed');
+    memoPanelToggle.classList.toggle('collapsed', collapsed);
+  });
+
   function setPinnedText(text) {
     currentPinnedText = text || '';
     if (currentPinnedText) {
@@ -1798,6 +1864,10 @@
     renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
   }
 
+  function renderMemoHistory(historyList) {
+    renderHistoryList(historyList, memoHistoryList, '（空 - 当时清除了备忘栏内容）', handleDeleteMemoHistoryEntry);
+  }
+
   // ===== 删除历史记录的自定义确认弹窗（不用confirm/prompt，Electron里prompt不可靠） =====
   const deleteConfirmOverlay = document.getElementById('delete-confirm-overlay');
   const deleteConfirmDesc = document.getElementById('delete-confirm-desc');
@@ -1810,7 +1880,7 @@
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
     const preview = entry.text ? entry.text.slice(0, 40) : '(空)';
-    const label = kind === 'pin' ? '置顶公告' : '公告栏';
+    const label = kind === 'pin' ? '置顶公告' : (kind === 'memo' ? '备忘栏' : '公告栏');
     deleteConfirmDesc.textContent = `${label}历史记录：\n"${preview}"`;
     deleteConfirmPassword.value = '';
     deleteConfirmError.textContent = '';
@@ -1839,6 +1909,9 @@
     if (kind === 'pin') {
       lastPinAction = 'delete';
       ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
+    } else if (kind === 'memo') {
+      lastMemoAction = 'delete';
+      ws.send(JSON.stringify({ type: 'memo_delete_history', id: entry.id, password }));
     } else {
       lastAnnouncementAction = 'delete';
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
@@ -1866,6 +1939,10 @@
     openDeleteConfirm('announcement', entry);
   }
 
+  function handleDeleteMemoHistoryEntry(entry) {
+    openDeleteConfirm('memo', entry);
+  }
+
   function setupHistoryToggle(toggleBtn, panelEl) {
     toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1881,6 +1958,7 @@
   }
   setupHistoryToggle(pinHistoryToggle, pinHistoryPanel);
   setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
+  setupHistoryToggle(memoHistoryToggle, memoHistoryPanel);
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;
@@ -2000,6 +2078,74 @@
   announcementPasswordInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveAnnouncementText();
     if (e.key === 'Escape') closeAnnouncementEdit();
+  });
+
+  // ===== 备忘栏（侧栏那个，跟置顶公告、公告栏都完全独立，逻辑对称复制过来） =====
+  let currentMemoText = '';
+  let lastMemoAction = 'edit'; // 'edit' 或 'delete'
+
+  function setMemoText(text) {
+    currentMemoText = text || '';
+    if (currentMemoText) {
+      memoTextEl.textContent = currentMemoText;
+      memoTextEl.classList.remove('empty');
+    } else {
+      memoTextEl.textContent = '暂无内容，点击"编辑"设置一条';
+      memoTextEl.classList.add('empty');
+    }
+  }
+
+  function autoResizeMemoInput() {
+    memoInput.style.height = 'auto';
+    memoInput.style.height = Math.min(memoInput.scrollHeight, 100) + 'px';
+  }
+
+  function openMemoEdit() {
+    memoInput.value = currentMemoText;
+    memoPasswordInput.value = '';
+    memoErrorMsg.classList.remove('active');
+    memoEditRow.classList.add('active');
+    memoInput.focus();
+    autoResizeMemoInput();
+  }
+
+  function closeMemoEdit() {
+    memoEditRow.classList.remove('active');
+    memoPasswordInput.value = '';
+    memoErrorMsg.classList.remove('active');
+    memoErrorMsg.textContent = '';
+  }
+
+  function saveMemoText() {
+    const text = memoInput.value.trim();
+    const password = memoPasswordInput.value;
+    if (!password) {
+      memoErrorMsg.textContent = '请输入编辑密码';
+      memoErrorMsg.classList.add('active');
+      memoPasswordInput.focus();
+      return;
+    }
+    memoErrorMsg.classList.remove('active');
+    lastMemoAction = 'edit';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'memo', text, password }));
+    }
+  }
+
+  memoEditOpenBtn.addEventListener('click', openMemoEdit);
+  memoCancelBtn.addEventListener('click', closeMemoEdit);
+  memoSaveBtn.addEventListener('click', saveMemoText);
+  memoInput.addEventListener('input', autoResizeMemoInput);
+  memoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveMemoText();
+    }
+    if (e.key === 'Escape') closeMemoEdit();
+  });
+  memoPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveMemoText();
+    if (e.key === 'Escape') closeMemoEdit();
   });
 
   // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
@@ -2145,6 +2291,7 @@
     appEl.classList.add('active');
     setPinnedText('');
     setAnnouncementText('');
+    setMemoText('');
     myUsernameEl.textContent = username;
     myUsernameEl.title = `当前登录：${username}`;
     try {

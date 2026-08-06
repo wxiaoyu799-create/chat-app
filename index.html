@@ -259,6 +259,7 @@
   #pinned-bar .pin-icon { flex-shrink: 0; }
   #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
+  #pinned-bar .pin-text a { color: var(--accent); text-decoration: underline; }
   #pinned-bar .pin-edit-btn {
     flex-shrink: 0;
     width: 22px;
@@ -327,6 +328,7 @@
     margin-bottom: 8px;
   }
   #sidebar-announce .pin-text.empty, #sidebar-memo .pin-text.empty { color: var(--muted); font-style: italic; }
+  #sidebar-announce .pin-text a, #sidebar-memo .pin-text a { color: var(--accent); text-decoration: underline; }
   #sidebar-announce .pin-bar-actions, #sidebar-memo .pin-bar-actions { display: flex; gap: 6px; }
   #sidebar-announce .pin-edit-btn, #sidebar-memo .pin-edit-btn {
     flex-shrink: 0;
@@ -766,6 +768,62 @@
   }
   #image-preview-status { flex-shrink: 0; font-size: 12px; color: var(--muted); }
 
+  /* 通用文件预览条（跟图片预览条样式接近，但每一项是文件名chip不是缩略图） */
+  #file-preview-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--panel-alt);
+    border-top: 1px solid var(--border);
+  }
+  #file-preview-bar.active { display: flex; }
+  #file-preview-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+  }
+  .file-preview-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 24px 6px 8px;
+    font-size: 12px;
+    max-width: 220px;
+  }
+  .file-preview-item.uploading { opacity: 0.6; }
+  .file-preview-item .file-preview-icon { flex-shrink: 0; }
+  .file-preview-item .file-preview-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .file-preview-item .item-remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e5534b;
+    color: #fff;
+    border: 1.5px solid var(--panel-alt);
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  #file-preview-status { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+
   /* 图片上传按钮 */
   #image-pick-btn {
     flex-shrink: 0;
@@ -776,6 +834,46 @@
     padding: 0 12px;
   }
   #image-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
+  /* 文件上传按钮 */
+  #file-pick-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0 12px;
+  }
+  #file-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
+  /* 消息气泡里的文件卡片 */
+  .msg-file-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    text-decoration: none;
+    max-width: 260px;
+  }
+  .msg.me .msg-file-card { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
+  .msg-file-card .msg-file-icon { font-size: 20px; flex-shrink: 0; }
+  .msg-file-card .msg-file-info { min-width: 0; flex: 1; }
+  .msg-file-card .msg-file-name {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+  }
+  .msg.me .msg-file-card .msg-file-name { color: #fff; }
+  .msg-file-card .msg-file-size { font-size: 11px; color: var(--muted); }
+  .msg.me .msg-file-card .msg-file-size { color: rgba(255,255,255,0.75); }
+  .msg-file-card .msg-file-download { flex-shrink: 0; font-size: 16px; }
 
   /* 消息里的图片（支持多张，网格排列） */
   .msg-images-grid {
@@ -917,6 +1015,57 @@
   #quick-add-row .quick-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
   #quick-add-row .quick-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
+  /* 实用工具入口（比如骏河屋判定台），点了之后全屏打开 */
+  .tool-entry-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 10px 12px;
+    text-align: left;
+  }
+  .tool-entry-btn:hover { border-color: var(--accent); background: var(--panel-alt); }
+  .tool-entry-btn .tool-entry-icon { font-size: 16px; flex-shrink: 0; }
+  .tool-entry-btn .tool-entry-label { flex: 1; }
+
+  #tool-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #tool-overlay.active { display: flex; }
+  #tool-overlay-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  #tool-overlay-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  #tool-overlay-close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  #tool-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #tool-overlay-frame {
+    flex: 1;
+    width: 100%;
+    border: none;
+  }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
@@ -1047,9 +1196,16 @@
       <span id="image-preview-status">已选择图片</span>
       <button class="reply-cancel-btn" id="image-cancel-btn" title="清空全部">✕</button>
     </div>
+    <div id="file-preview-bar">
+      <div id="file-preview-list"></div>
+      <span id="file-preview-status">已选择文件</span>
+      <button class="reply-cancel-btn" id="file-cancel-btn" title="清空全部">✕</button>
+    </div>
     <div id="input-row">
       <button id="image-pick-btn" type="button" title="发送图片（可多选）">🖼️</button>
       <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
+      <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）">📎</button>
+      <input id="file-file-input" type="file" multiple style="display:none" />
       <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
     </div>
@@ -1065,7 +1221,23 @@
         <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
       </div>
     </div>
+
+    <div class="sidebar-divider"></div>
+
+    <h3>实用工具</h3>
+    <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
+      <span class="tool-entry-icon">🔍</span>
+      <span class="tool-entry-label">骏河屋检品判定台</span>
+    </button>
   </div>
+</div>
+
+<div id="tool-overlay">
+  <div id="tool-overlay-header">
+    <span id="tool-overlay-title">骏河屋检品判定台</span>
+    <button id="tool-overlay-close-btn" title="关闭，返回聊天室">✕ 返回聊天室</button>
+  </div>
+  <iframe id="tool-overlay-frame" title="工具页面"></iframe>
 </div>
 
 <div id="announce-overlay">
@@ -1153,6 +1325,11 @@
   const mentionMenu = document.getElementById('mention-menu');
   const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
+  const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
+  const toolOverlay = document.getElementById('tool-overlay');
+  const toolOverlayTitle = document.getElementById('tool-overlay-title');
+  const toolOverlayFrame = document.getElementById('tool-overlay-frame');
+  const toolOverlayCloseBtn = document.getElementById('tool-overlay-close-btn');
   const quickAddRow = document.getElementById('quick-add-row');
   const quickAddInput = document.getElementById('quick-add-input');
   const quickSaveBtn = document.getElementById('quick-save-btn');
@@ -1167,6 +1344,12 @@
   const imageCancelBtn = document.getElementById('image-cancel-btn');
   const imagePickBtn = document.getElementById('image-pick-btn');
   const imageFileInput = document.getElementById('image-file-input');
+  const filePreviewBar = document.getElementById('file-preview-bar');
+  const filePreviewList = document.getElementById('file-preview-list');
+  const filePreviewStatus = document.getElementById('file-preview-status');
+  const fileCancelBtn = document.getElementById('file-cancel-btn');
+  const filePickBtn = document.getElementById('file-pick-btn');
+  const fileFileInput = document.getElementById('file-file-input');
 
   let onlineUsers = [];
   let currentPinnedText = '';
@@ -1180,6 +1363,11 @@
   const MAX_IMAGE_SIZE = 8 * 1024 * 1024; // 跟服务端限制保持一致：8MB
   const MAX_IMAGES_PER_MESSAGE = 9; // 跟服务端保持一致
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  // 通用文件：每一项 { id, file, uploadedUrl, uploadedName, uploadedSize, uploading, failed, el }
+  let pendingFiles = [];
+  let pendingFileIdCounter = 0;
+  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 跟服务端限制保持一致：100MB
+  const MAX_FILES_PER_MESSAGE = 5; // 跟服务端保持一致
 
   const QUICK_STORAGE_KEY = 'chatQuickPhrases';
   const REACTION_EMOJIS = ['👍', '❓'];
@@ -1314,6 +1502,25 @@
     return linkifyUrls(withMentions);
   }
 
+  // 给置顶公告/公告栏/备忘栏这些"纯说明文字"用的富文本渲染：
+  // 支持 [显示文字](链接) 这种markdown风格的链接，也支持直接粘贴裸链接自动识别。
+  // 用占位符先把markdown链接"藏起来"再跑自动识别链接的逻辑，避免自动识别把href属性里的地址也当成一段裸链接又包一层<a>，
+  // 把HTML搞乱。
+  function renderRichText(text) {
+    const escaped = escapeHtml(text);
+    const placeholders = [];
+    const withPlaceholders = escaped.replace(
+      /\[([^\[\]]{1,100})\]\((https?:\/\/[^\s)]+)\)/g,
+      (match, label, url) => {
+        const token = `\u0000LINK${placeholders.length}\u0000`;
+        placeholders.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
+        return token;
+      }
+    );
+    const linkified = linkifyUrls(withPlaceholders);
+    return linkified.replace(/\u0000LINK(\d+)\u0000/g, (match, idx) => placeholders[Number(idx)]);
+  }
+
   function renderMessage(data, opts) {
     const isLive = !!(opts && opts.live);
     if (data.type === 'system') {
@@ -1371,6 +1578,42 @@
         grid.appendChild(imgLink);
       });
       bubble.appendChild(grid);
+    }
+
+    if (Array.isArray(data.files) && data.files.length > 0) {
+      data.files.forEach((f) => {
+        const card = document.createElement('a');
+        card.className = 'msg-file-card';
+        card.href = f.url;
+        card.download = f.name || '';
+        card.target = '_blank';
+        card.rel = 'noopener noreferrer';
+
+        const icon = document.createElement('span');
+        icon.className = 'msg-file-icon';
+        icon.textContent = '📄';
+        card.appendChild(icon);
+
+        const info = document.createElement('div');
+        info.className = 'msg-file-info';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'msg-file-name';
+        nameEl.textContent = f.name || '未命名文件';
+        nameEl.title = f.name || '';
+        const sizeEl = document.createElement('span');
+        sizeEl.className = 'msg-file-size';
+        sizeEl.textContent = typeof f.size === 'number' ? formatFileSize(f.size) : '';
+        info.appendChild(nameEl);
+        info.appendChild(sizeEl);
+        card.appendChild(info);
+
+        const downloadIcon = document.createElement('span');
+        downloadIcon.className = 'msg-file-download';
+        downloadIcon.textContent = '⬇️';
+        card.appendChild(downloadIcon);
+
+        bubble.appendChild(card);
+      });
     }
 
     if (data.text && data.text.trim()) {
@@ -1602,6 +1845,137 @@
     }
   });
 
+  // ===== 通用文件发送（安装包/文档等，跟图片是两条独立的上传通道） =====
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  }
+
+  function updateFilePreviewStatus() {
+    const total = pendingFiles.length;
+    if (total === 0) {
+      filePreviewBar.classList.remove('active');
+      return;
+    }
+    filePreviewBar.classList.add('active');
+    const uploadingCount = pendingFiles.filter((p) => p.uploading).length;
+    const failedCount = pendingFiles.filter((p) => p.failed).length;
+    if (uploadingCount > 0) {
+      filePreviewStatus.textContent = `上传中 ${total - uploadingCount}/${total}...`;
+    } else if (failedCount > 0) {
+      filePreviewStatus.textContent = `${failedCount} 个文件上传失败，点×移除后重试`;
+    } else {
+      filePreviewStatus.textContent = `${total} 个文件已就绪`;
+    }
+  }
+
+  function removePendingFile(id) {
+    const idx = pendingFiles.findIndex((p) => p.id === id);
+    if (idx === -1) return;
+    const [removed] = pendingFiles.splice(idx, 1);
+    if (removed.el) removed.el.remove();
+    updateFilePreviewStatus();
+    if (pendingFiles.length === 0) resetFilePreview();
+  }
+
+  function resetFilePreview() {
+    pendingFiles = [];
+    filePreviewList.innerHTML = '';
+    filePreviewBar.classList.remove('active');
+    fileFileInput.value = '';
+  }
+
+  function renderFilePreviewItem(item) {
+    const wrap = document.createElement('div');
+    wrap.className = 'file-preview-item' + (item.uploading ? ' uploading' : '');
+
+    const icon = document.createElement('span');
+    icon.className = 'file-preview-icon';
+    icon.textContent = '📎';
+    wrap.appendChild(icon);
+
+    const name = document.createElement('span');
+    name.className = 'file-preview-name';
+    name.textContent = item.file.name;
+    name.title = item.file.name;
+    wrap.appendChild(name);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'item-remove-btn';
+    removeBtn.textContent = '×';
+    removeBtn.title = '移除这个文件';
+    removeBtn.addEventListener('click', () => removePendingFile(item.id));
+    wrap.appendChild(removeBtn);
+
+    item.el = wrap;
+    filePreviewList.appendChild(wrap);
+  }
+
+  async function uploadOneFile(item) {
+    try {
+      const formData = new FormData();
+      formData.append('file', item.file);
+      const res = await fetch('/upload-file', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '上传失败');
+      item.uploadedUrl = data.url;
+      item.uploadedName = data.name;
+      item.uploadedSize = data.size;
+      item.uploading = false;
+    } catch (e) {
+      item.uploading = false;
+      item.failed = true;
+      if (item.el) {
+        item.el.classList.add('uploading');
+        item.el.title = e.message || '上传失败';
+      }
+    }
+    updateFilePreviewStatus();
+  }
+
+  function handleGeneralFiles(fileList) {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (files.length === 0) return;
+
+    const remainingSlots = MAX_FILES_PER_MESSAGE - pendingFiles.length;
+    if (remainingSlots <= 0) {
+      alert(`最多一次发 ${MAX_FILES_PER_MESSAGE} 个文件`);
+      return;
+    }
+    if (files.length > remainingSlots) {
+      alert(`最多还能再加 ${remainingSlots} 个，超出的部分已忽略`);
+    }
+
+    const toAdd = files.slice(0, remainingSlots);
+    toAdd.forEach((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`${file.name || '某个文件'} 太大了，最大支持 ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+        return;
+      }
+      const item = {
+        id: ++pendingFileIdCounter,
+        file,
+        uploadedUrl: null,
+        uploadedName: null,
+        uploadedSize: null,
+        uploading: true,
+        failed: false,
+      };
+      pendingFiles.push(item);
+      renderFilePreviewItem(item);
+      uploadOneFile(item);
+    });
+    updateFilePreviewStatus();
+  }
+
+  filePickBtn.addEventListener('click', () => fileFileInput.click());
+  fileFileInput.addEventListener('change', () => {
+    handleGeneralFiles(fileFileInput.files);
+    fileFileInput.value = '';
+  });
+  fileCancelBtn.addEventListener('click', resetFilePreview);
+
   function playMentionSound() {
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1792,7 +2166,7 @@
   function setPinnedText(text) {
     currentPinnedText = text || '';
     if (currentPinnedText) {
-      pinnedTextEl.textContent = currentPinnedText;
+      pinnedTextEl.innerHTML = renderRichText(currentPinnedText);
       pinnedTextEl.classList.remove('empty');
     } else {
       pinnedTextEl.textContent = '暂无公告，点击"编辑"设置一条';
@@ -2019,7 +2393,7 @@
   function setAnnouncementText(text) {
     currentAnnouncementText = text || '';
     if (currentAnnouncementText) {
-      announcementTextEl.textContent = currentAnnouncementText;
+      announcementTextEl.innerHTML = renderRichText(currentAnnouncementText);
       announcementTextEl.classList.remove('empty');
     } else {
       announcementTextEl.textContent = '暂无内容，点击"编辑"设置一条';
@@ -2088,7 +2462,7 @@
   function setMemoText(text) {
     currentMemoText = text || '';
     if (currentMemoText) {
-      memoTextEl.textContent = currentMemoText;
+      memoTextEl.innerHTML = renderRichText(currentMemoText);
       memoTextEl.classList.remove('empty');
     } else {
       memoTextEl.textContent = '暂无内容，点击"编辑"设置一条';
@@ -2280,6 +2654,29 @@
 
   renderQuickList();
 
+  // ===== 实用工具全屏面板（比如骏河屋检品判定台）=====
+  // iframe的src故意留空，点开才设置——避免每个人一进聊天室，
+  // 浏览器就顺带把整个判定工具也加载一遍，白白浪费流量和加载时间
+  function openToolOverlay(url, title) {
+    toolOverlayTitle.textContent = title;
+    if (toolOverlayFrame.src !== url) {
+      toolOverlayFrame.src = url;
+    }
+    toolOverlay.classList.add('active');
+  }
+
+  function closeToolOverlay() {
+    toolOverlay.classList.remove('active');
+  }
+
+  toolSurugayaBtn.addEventListener('click', () => {
+    openToolOverlay('/surugaya-checker.html', '骏河屋检品判定台');
+  });
+  toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && toolOverlay.classList.contains('active')) closeToolOverlay();
+  });
+
   function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -2314,11 +2711,19 @@
       imagePreviewStatus.textContent = '图片还在上传中，请稍等一下再发送...';
       return;
     }
+    if (pendingFiles.some((p) => p.uploading)) {
+      filePreviewStatus.textContent = '文件还在上传中，请稍等一下再发送...';
+      return;
+    }
     const readyImages = pendingImages.filter((p) => p.uploadedUrl && !p.failed);
-    if (!text && readyImages.length === 0) return; // 文字和图片都没有，没什么可发的
+    const readyFiles = pendingFiles.filter((p) => p.uploadedUrl && !p.failed);
+    if (!text && readyImages.length === 0 && readyFiles.length === 0) return; // 文字/图片/文件都没有，没什么可发的
 
     const payload = { type: 'message', text };
     if (readyImages.length > 0) payload.images = readyImages.map((p) => p.uploadedUrl);
+    if (readyFiles.length > 0) {
+      payload.files = readyFiles.map((p) => ({ url: p.uploadedUrl, name: p.uploadedName, size: p.uploadedSize }));
+    }
     if (replyingTo) payload.quote = replyingTo;
     ws.send(JSON.stringify(payload));
     textInput.value = '';
@@ -2326,6 +2731,7 @@
     closeMentionMenu();
     cancelReply();
     resetImagePreview();
+    resetFilePreview();
   }
 
   // ===== @ 提及自动补全 =====

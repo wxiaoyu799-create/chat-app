@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>骏河屋退换判定工具</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ai-iro: #1c2b4a;       /* 藍色 - 主色，日式靛蓝 */
+    --ai-iro-dark: #121d33;
+    --paper: #edeae0;         /* 和纸色 - 背景 */
+    --paper-panel: #f7f5ee;
+    --ink: #2a2a28;
+    --ink-soft: #6b6a63;
+    --line: #d8d3c4;
+    --shu-iro: #b93a32;       /* 朱色 - 印章红，只用在判定结果上 */
+    --shu-iro-dark: #8f2c26;
+    --ok-green: #3d6b4f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .serif { font-family: "Shippori Mincho", "Noto Serif SC", serif; }
+
+  /* ===== 顶部 ===== */
+  header.top {
+    background: var(--ai-iro);
+    color: #f0ede0;
+    padding: 48px 24px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  header.top::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 22px);
+    pointer-events: none;
+  }
+  header.top .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.28em;
+    color: #b9c2d6;
+    margin-bottom: 14px;
+  }
+  header.top h1 {
+    font-size: clamp(26px, 4.5vw, 40px);
+    margin: 0 0 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  header.top p {
+    max-width: 560px;
+    margin: 0 auto;
+    color: #cdd3e0;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  main {
+    max-width: 980px;
+    margin: -20px auto 60px;
+    padding: 0 20px;
+  }
+
+  /* ===== 输入面板 ===== */
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  @media (max-width: 760px) {
+    .panels { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--paper-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03), 0 12px 30px -18px rgba(28,43,74,0.25);
+    overflow: hidden;
+  }
+  .panel-head {
+    padding: 16px 20px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .panel-head .num {
+    font-family: "Shippori Mincho", serif;
+    font-size: 13px;
+    color: var(--shu-iro);
+    border: 1px solid var(--shu-iro);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .panel-head h2 { font-size: 16px; margin: 0; font-weight: 700; }
+  .panel-head .sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .panel-body { padding: 18px 20px 22px; }
+
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label.field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .check-item input { margin-top: 3px; flex-shrink: 0; accent-color: var(--shu-iro); }
+
+  textarea, select, input[type="number"], input[type="date"] {
+    width: 100%;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ink);
+  }
+  textarea { resize: vertical; min-height: 70px; line-height: 1.6; }
+  textarea:focus, select:focus, input:focus {
+    outline: 2px solid var(--ai-iro);
+    outline-offset: 1px;
+  }
+
+  .radio-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .radio-item { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .radio-item input { accent-color: var(--shu-iro); }
+
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .row-2 { grid-template-columns: 1fr; } }
+
+  .hint { font-size: 11.5px; color: var(--ink-soft); margin-top: 5px; line-height: 1.6; }
+
+  /* ===== 判定按钮 ===== */
+  .judge-row { text-align: center; margin: 30px 0 8px; }
+  #judge-btn {
+    font-family: "Shippori Mincho", serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    background: var(--shu-iro);
+    color: #fff;
+    border: none;
+    padding: 14px 46px;
+    border-radius: 3px;
+    cursor: pointer;
+    box-shadow: 0 10px 24px -10px rgba(185,58,50,0.55);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  }
+  #judge-btn:hover { background: var(--shu-iro-dark); transform: translateY(-1px); }
+  #judge-btn:active { transform: translateY(1px) scale(0.98); }
+
+  /* ===== 结果区 ===== */
+  #result-section { display: none; margin-top: 32px; }
+  #result-section.active { display: block; }
+
+  .verdict-card {
+    background: var(--paper-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 30px 26px 26px;
+    box-shadow: 0 16px 36px -20px rgba(28,43,74,0.3);
+    position: relative;
+  }
+
+  .stamp-wrap {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .stamp {
+    width: 92px;
+    height: 92px;
+    border-radius: 6px;
+    border: 4px solid var(--shu-iro);
+    color: var(--shu-iro);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Shippori Mincho", serif;
+    font-weight: 700;
+    font-size: 15px;
+    text-align: center;
+    line-height: 1.3;
+    flex-shrink: 0;
+    transform: rotate(-6deg) scale(0.5);
+    opacity: 0;
+    transition: transform 0.35s cubic-bezier(.34,1.56,.64,1), opacity 0.25s ease;
+    position: relative;
+    background: rgba(185,58,50,0.04);
+  }
+  .stamp::after {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 1px solid var(--shu-iro);
+    border-radius: 3px;
+    opacity: 0.5;
+  }
+  #result-section.active .stamp { transform: rotate(-6deg) scale(1); opacity: 1; }
+  .stamp.risky { border-color: #a3781f; color: #a3781f; }
+  .stamp.risky::after { border-color: #a3781f; }
+  .stamp.no { border-color: var(--ink-soft); color: var(--ink-soft); }
+  .stamp.no::after { border-color: var(--ink-soft); }
+
+  .verdict-text h3 { margin: 0 0 6px; font-size: 20px; }
+  .verdict-text p { margin: 0; font-size: 13px; color: var(--ink-soft); line-height: 1.7; }
+
+  .reason-list {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    border-top: 1px dashed var(--line);
+    padding-top: 16px;
+  }
+  .reason-list li {
+    font-size: 13px;
+    line-height: 1.8;
+    padding-left: 20px;
+    position: relative;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .reason-list li::before {
+    content: '·';
+    position: absolute;
+    left: 4px;
+    color: var(--shu-iro);
+    font-weight: 700;
+  }
+
+  .message-box {
+    background: var(--ai-iro);
+    color: #eceef4;
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin-top: 6px;
+  }
+  .message-box h4 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #b9c2d6;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .message-box textarea {
+    width: 100%;
+    min-height: 130px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #f0ede0;
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .copy-btn {
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.35);
+    color: #eceef4;
+    font-size: 12px;
+    padding: 7px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .copy-btn:hover { border-color: #fff; }
+
+  footer.disclaimer {
+    max-width: 980px;
+    margin: 0 auto 50px;
+    padding: 0 20px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height: 1.8;
+  }
+  footer.disclaimer a { color: var(--ai-iro); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">SURUGA-YA · 退換判定</div>
+  <h1 class="serif">骏河屋退换货判定工具</h1>
+  <p>把网页标注的商品描述和实际收到的情况分别粘贴进去，工具会扫描关键词、交叉比对，自动给出是否符合退换货条件的参考判定。</p>
+</header>
+
+<main>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="num">1</span>
+        <div>
+          <h2>网页标注内容</h2>
+          <div class="sub">商品页面上卖家事先写了什么（成色等级、瑕疵说明等）</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">网页描述原文</label>
+          <textarea id="listing-text" style="min-height:260px;" placeholder="把商品页面的状态说明粘贴/摘抄在这里，例如：&#10;中古B级，附原盒，无说明书，外盒有轻微压痕，机身划痕..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="num">2</span>
+        <div>
+          <h2>实际收到情况</h2>
+          <div class="sub">到手之后实际检查到的商品状况</div>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label class="field-label">实际状态描述</label>
+          <textarea id="actual-text" style="min-height:260px;" placeholder="描述实际收到的情况，例如：&#10;开箱后发现外盒有明显撞凹，商品本体划痕严重，成色感觉像C级，网页上没有提到这些..."></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="judge-row">
+    <button id="judge-btn">开始判定</button>
+  </div>
+
+  <div id="result-section">
+    <div class="verdict-card">
+      <div class="stamp-wrap">
+        <div class="stamp" id="stamp-el">判定中</div>
+        <div class="verdict-text">
+          <h3 id="verdict-title"></h3>
+          <p id="verdict-sub"></p>
+        </div>
+      </div>
+      <ul class="reason-list" id="reason-list"></ul>
+      <div class="message-box" id="message-box" style="display:none;">
+        <h4>建议联系骏河屋的说明文本（可直接复制修改）</h4>
+        <textarea id="message-text" readonly></textarea>
+        <button class="copy-btn" id="copy-btn">复制文本</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="disclaimer">
+  判定基于骏河屋官方公开的退换货说明整理（购买者无责、网页已标注的状态问题不能作为退货理由等），
+  用的是<strong>关键词匹配</strong>的简化方式识别文字里的问题描述，不是真正理解语义，仅供参考，不构成对结果的保证——
+  请对照上面列出的判定依据，人工核实一遍关键词识别得是否准确。
+  骏河屋 Marketplace 内不同店铺可能有各自独立的补充条款，请以商品页面公示的具体规则、以及骏河屋官方最终回复为准。
+  官方说明：<a href="https://www.suruga-ya.jp/man/customer_guide/henpin.html" target="_blank" rel="noopener noreferrer">骏河屋退换货说明</a>
+  ｜ <a href="https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html" target="_blank" rel="noopener noreferrer">骏河屋中古品贩卖基准</a>
+</footer>
+
+<script>
+  // ===== 关键词词库（基于骏河屋官方公开退换货规则整理，纯文本匹配，不涉及真正的语义理解） =====
+  const PERSONAL_REASON_KEYWORDS = ['不喜欢', '不想要', '拍错', '后悔', '改变主意', '看错', '不想买了', '单纯想退', '没有理由', '临时不需要'];
+  const WRONG_ITEM_KEYWORDS = ['发错', '型号不对', '型号不符', '不是我买的', '对不上', '不一样的商品', '货不对板', '发的不是'];
+  const ISSUE_KEYWORDS = ['破损', '划痕', '划伤', '污渍', '污损', '掉漆', '裂纹', '裂痕', '变形', '发霉', '缺件', '缺少', '少了', '不全', '故障', '不能用', '无法使用', '异味', '生锈', '磨损', '脏', '瑕疵', '压痕', '撞凹', '凹陷', '褪色', '发黄', '受潮', '进水'];
+
+  function findKeywords(text, list) {
+    return list.filter((k) => text.includes(k));
+  }
+
+  // 提取"S级/A级/B级/C级"或"S品/A品/B品/C品"这种成色等级标注，取第一个匹配到的
+  function extractGrade(text) {
+    const match = text.match(/([SABC])\s*[级品]/);
+    return match ? match[1] : null;
+  }
+
+  function judge() {
+    const webText = document.getElementById('listing-text').value.trim();
+    const actualText = document.getElementById('actual-text').value.trim();
+
+    if (!actualText) {
+      renderResult('no', ['请先填写"实际收到情况"，才能进行判定。']);
+      return;
+    }
+
+    const reasons = [];
+    let verdict = 'eligible';
+    let hasPositiveSignal = false; // 是否检测到支持"符合条件"的信号
+
+    const personalHits = findKeywords(actualText, PERSONAL_REASON_KEYWORDS);
+    const wrongHits = findKeywords(actualText, WRONG_ITEM_KEYWORDS);
+    const actualIssues = findKeywords(actualText, ISSUE_KEYWORDS);
+    const webIssues = findKeywords(webText, ISSUE_KEYWORDS);
+    const undisclosed = actualIssues.filter((k) => !webIssues.includes(k));
+    const disclosed = actualIssues.filter((k) => webIssues.includes(k));
+    const webGrade = extractGrade(webText);
+    const actualGrade = extractGrade(actualText);
+    const gradeConflict = webGrade && actualGrade && webGrade !== actualGrade;
+
+    // 规则1：买家自己原因，一律不受理（优先级最高，检测到就直接判不受理）
+    if (personalHits.length > 0) {
+      verdict = 'no';
+      reasons.push(`实际情况描述里出现"${personalHits.join('、')}"这类字眼，看起来属于买家自己原因，骏河屋官方明确不接受这类退货，即使同时存在其他问题，这条本身就不成立。`);
+    }
+
+    // 规则2：发错货 —— 官方明确允许的退货情形
+    if (wrongHits.length > 0) {
+      hasPositiveSignal = true;
+      reasons.push(`检测到"${wrongHits.join('、')}"，疑似发错货/型号不符，这属于官方明确列出的可退货情形（商品違い）。`);
+    }
+
+    // 规则3：成色等级冲突（网页标的等级 vs 实际描述的等级对不上）
+    if (gradeConflict) {
+      hasPositiveSignal = true;
+      reasons.push(`网页描述标注的成色等级是"${webGrade}级"，但实际情况描述里提到的是"${actualGrade}级"，两者不一致，值得作为"商品状态与描述不符"提出。`);
+    } else if (webGrade && actualGrade) {
+      reasons.push(`网页标注成色等级"${webGrade}级"，实际描述里提到的等级一致，没有发现等级冲突。`);
+    }
+
+    // 规则4：问题类关键词交叉比对 —— 网页有没有提前说过
+    if (disclosed.length > 0) {
+      reasons.push(`检测到"${disclosed.join('、')}"这几个问题，但网页描述里似乎已经提前说明过，这部分不能作为退货理由。`);
+    }
+    if (undisclosed.length > 0) {
+      hasPositiveSignal = true;
+      reasons.push(`检测到"${undisclosed.join('、')}"，网页描述里没有找到相关说明，符合"商品状态与描述不符"的退货情形。`);
+    }
+
+    // 综合判定
+    if (verdict !== 'no') {
+      if (hasPositiveSignal) {
+        verdict = 'eligible';
+      } else if (actualIssues.length > 0 && disclosed.length === actualIssues.length) {
+        // 识别到问题了，但全部都是网页已经提前说明过的，没有新增依据
+        verdict = 'no';
+        reasons.push('识别到的问题都是网页已经提前说明过的，没有发现新的、未标注的问题依据。');
+      } else {
+        // 什么关键词都没识别到——不代表没问题，只是关键词匹配的局限性
+        verdict = 'risky';
+        reasons.push('没有从"实际情况"文字里识别出明确的问题关键词——可能是描述用词不够具体（比如用了关键词库里没有的说法），也可能是确实没有问题，建议换更明确的说法重新描述（比如具体写"划痕""缺件""破损"这类词），或者人工再核实一遍。');
+      }
+    }
+
+    reasons.push('⚠️ 这是基于关键词匹配的简化判断，不代表真正理解语义，请对照上面列出的具体关键词，人工核实一下是否准确反映了实际情况。');
+
+    renderResult(verdict, reasons);
+  }
+
+  function renderResult(verdict, reasons) {
+    const section = document.getElementById('result-section');
+    const stamp = document.getElementById('stamp-el');
+    const title = document.getElementById('verdict-title');
+    const sub = document.getElementById('verdict-sub');
+    const list = document.getElementById('reason-list');
+    const msgBox = document.getElementById('message-box');
+    const msgText = document.getElementById('message-text');
+
+    stamp.classList.remove('risky', 'no');
+    section.classList.remove('active');
+    // 强制重排，确保每次判定都能重新触发印章动画
+    void section.offsetWidth;
+
+    if (verdict === 'eligible') {
+      stamp.textContent = '受理相当';
+      title.textContent = '符合退换货条件';
+      sub.textContent = '按官方规则和关键词匹配来看，这种情况通常可以申请退货/退款，建议尽快联系骏河屋。';
+    } else if (verdict === 'risky') {
+      stamp.textContent = '要相談';
+      stamp.classList.add('risky');
+      title.textContent = '信息不够明确，建议人工核实';
+      sub.textContent = '关键词匹配没能识别出明确的问题依据，不代表一定没问题，建议换更具体的说法描述，或者人工再判断一次。';
+    } else {
+      stamp.textContent = '不受理';
+      stamp.classList.add('no');
+      title.textContent = '不符合退换货条件';
+      sub.textContent = '按官方规则来看，这种情况通常不会被受理。';
+    }
+
+    list.innerHTML = '';
+    reasons.forEach((r) => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      list.appendChild(li);
+    });
+
+    if (verdict === 'no') {
+      msgBox.style.display = 'none';
+    } else {
+      msgBox.style.display = 'block';
+      const listingText = document.getElementById('listing-text').value.trim();
+      const actualText = document.getElementById('actual-text').value.trim();
+      const lines = [
+        '您好，我的订单出现以下情况，麻烦帮忙确认处理：',
+        '',
+        '取引番号：（请填写订单号）',
+        '购入者姓名：（请填写下单姓名）',
+        '',
+        '商品页面标注状态：',
+        listingText || '（未填写，请补充商品页面上的原始状态说明）',
+        '',
+        '实际收到情况：',
+        actualText || '（未填写，请补充实际检查到的具体问题）',
+        '',
+        '以上，麻烦确认后告知处理方式，谢谢。',
+      ];
+      msgText.value = lines.join('\n');
+    }
+
+    section.classList.add('active');
+    if (typeof section.scrollIntoView === 'function') {
+      section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  document.getElementById('judge-btn').addEventListener('click', judge);
+
+  document.getElementById('copy-btn').addEventListener('click', () => {
+    const msgText = document.getElementById('message-text');
+    msgText.select();
+    navigator.clipboard.writeText(msgText.value).then(() => {
+      const btn = document.getElementById('copy-btn');
+      const original = btn.textContent;
+      btn.textContent = '已复制';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    }).catch(() => {
+      document.execCommand('copy');
+    });
+  });
+</script>
+
+</body>
+</html>

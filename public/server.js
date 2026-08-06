@@ -67,6 +67,43 @@ app.post('/upload', (req, res) => {
   });
 });
 
+// 通用文件上传（安装包/文档等），跟图片上传分开一个接口：
+// - 不限制文件类型（图片接口特意只放行4种图片格式，这个不加白名单）
+// - 上限调到100MB，够放一般的安装包/压缩包，太大的文件还是建议用网盘链接分享
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const uploadFile = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '';
+      const randomName = crypto.randomBytes(12).toString('hex');
+      cb(null, `${Date.now()}-${randomName}${ext}`);
+    },
+  }),
+  limits: { fileSize: MAX_FILE_SIZE },
+});
+
+app.post('/upload-file', (req, res) => {
+  uploadFile.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `文件太大了，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB` });
+      }
+      return res.status(400).json({ error: err.message || '上传失败' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '没有收到文件' });
+    }
+    // 原始文件名做个长度截断，避免超长文件名把消息体撑得太大；存储用的文件名跟原始名无关，不影响下载时的显示名
+    const originalName = String(req.file.originalname || '未命名文件').slice(0, 150);
+    res.json({
+      url: `/uploads/${req.file.filename}`,
+      name: originalName,
+      size: req.file.size,
+    });
+  });
+});
+
 // 在线用户: ws -> { username, id }
 const clients = new Map();
 // 最近消息历史（内存中，重启后清空——这部分保持原样不接数据库）
@@ -240,6 +277,79 @@ async function deleteAnnouncementHistoryEntry(targetId) {
   }
 }
 
+// 备忘栏：跟置顶公告、公告栏都各自独立，互不关联，同样共用一个编辑密码，
+// 逻辑跟公告栏完全对称（编辑+历史记录+删除+数据库持久化），复制这一套过来改个名字
+let memoText = '';
+const MEMO_MAX_LENGTH = 600;
+const MEMO_HISTORY_MAX = 50;
+let memoHistory = [{ text: memoText, by: '系统默认', startTime: Date.now(), endTime: null }];
+
+async function ensureMemoTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS memo_history (
+      id BIGSERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      by_user TEXT NOT NULL,
+      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
+      end_time TIMESTAMPTZ
+    );
+  `);
+}
+
+async function loadMemoStateFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureMemoTable();
+    const { rows } = await dbPool.query('SELECT * FROM memo_history ORDER BY start_time ASC;');
+    if (rows.length === 0) {
+      const inserted = await dbPool.query(
+        'INSERT INTO memo_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
+        ['', '系统默认']
+      );
+      memoHistory = inserted.rows.map(rowToHistoryEntry);
+    } else {
+      memoHistory = rows.map(rowToHistoryEntry);
+    }
+    memoText = memoHistory[memoHistory.length - 1].text;
+    console.log(`已从数据库加载备忘栏历史，共 ${memoHistory.length} 条记录`);
+  } catch (err) {
+    console.error('[加载备忘栏历史失败，暂时改用内存默认值]', err.message);
+  }
+}
+
+async function recordMemoChange(newText, byUsername) {
+  const now = Date.now();
+  const last = memoHistory[memoHistory.length - 1];
+  if (last && last.endTime === null) last.endTime = now;
+  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
+  memoHistory.push(newEntry);
+  if (memoHistory.length > MEMO_HISTORY_MAX) memoHistory.shift();
+
+  if (!dbPool) return;
+  try {
+    await dbPool.query(
+      "UPDATE memo_history SET end_time = now() WHERE end_time IS NULL;"
+    );
+    const inserted = await dbPool.query(
+      'INSERT INTO memo_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
+      [newText, byUsername]
+    );
+    newEntry.id = inserted.rows[0].id;
+  } catch (err) {
+    console.error('[备忘栏历史写入数据库失败]', err.message);
+  }
+}
+
+async function deleteMemoHistoryEntry(targetId) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM memo_history WHERE id = $1;', [targetId]);
+  } catch (err) {
+    console.error('[删除备忘栏历史记录失败]', err.message);
+  }
+}
+
 async function deletePinnedHistoryEntry(targetId) {
   if (!dbPool) return;
   try {
@@ -311,6 +421,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
+      ws.send(JSON.stringify({ type: 'memo', text: memoText, history: memoHistory }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -333,8 +444,23 @@ wss.on('connection', (ws) => {
           .slice(0, MAX_IMAGES_PER_MESSAGE);
       }
 
-      // 纯文字消息不能是空的；但如果带了图片，文字可以为空（图片本身就是内容）
-      if (!text.trim() && images.length === 0) return;
+      // 通用文件：同样只认自己 /upload-file 接口生成的路径；每条消息最多5个文件
+      const MAX_FILES_PER_MESSAGE = 5;
+      let files = [];
+      if (Array.isArray(data.files)) {
+        files = data.files
+          .filter((f) =>
+            f && typeof f === 'object' &&
+            typeof f.url === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(f.url) &&
+            typeof f.name === 'string' &&
+            typeof f.size === 'number'
+          )
+          .slice(0, MAX_FILES_PER_MESSAGE)
+          .map((f) => ({ url: f.url, name: f.name.slice(0, 150), size: f.size }));
+      }
+
+      // 纯文字消息不能是空的；但如果带了图片/文件，文字可以为空（附件本身就是内容）
+      if (!text.trim() && images.length === 0 && files.length === 0) return;
 
       // 引用回复：只保留必要的快照信息（用户名+文本片段），不做原消息查找，
       // 这样即使原消息已经滚出历史记录，引用内容依然完整可显示。
@@ -354,6 +480,7 @@ wss.on('connection', (ws) => {
         username: client.username,
         text,
         images,
+        files,
         mentions: mentioned,
         mentionsAll: isAll,
         quote,
@@ -475,6 +602,41 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (data.type === 'memo') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'memo_error', message: '密码错误，无法修改备忘栏' }));
+        return;
+      }
+      memoText = String(data.text || '').slice(0, MEMO_MAX_LENGTH);
+      await recordMemoChange(memoText, client.username);
+      broadcast({ type: 'memo', text: memoText, by: client.username, history: memoHistory });
+      return;
+    }
+
+    if (data.type === 'memo_delete_history') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'memo_error', message: '密码错误，无法删除记录' }));
+        return;
+      }
+      const targetId = data.id;
+      const idx = memoHistory.findIndex((entry) => String(entry.id) === String(targetId));
+      if (idx === -1) return;
+      if (memoHistory[idx].endTime === null) {
+        ws.send(JSON.stringify({ type: 'memo_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
+        return;
+      }
+      memoHistory.splice(idx, 1);
+      await deleteMemoHistoryEntry(targetId);
+      broadcast({ type: 'memo', text: memoText, history: memoHistory });
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
@@ -496,6 +658,7 @@ wss.on('connection', (ws) => {
 async function startServer() {
   await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
   await loadAnnouncementStateFromDB();
+  await loadMemoStateFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

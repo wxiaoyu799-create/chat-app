@@ -67,6 +67,43 @@ app.post('/upload', (req, res) => {
   });
 });
 
+// 通用文件上传（安装包/文档等），跟图片上传分开一个接口：
+// - 不限制文件类型（图片接口特意只放行4种图片格式，这个不加白名单）
+// - 上限调到100MB，够放一般的安装包/压缩包，太大的文件还是建议用网盘链接分享
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const uploadFile = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '';
+      const randomName = crypto.randomBytes(12).toString('hex');
+      cb(null, `${Date.now()}-${randomName}${ext}`);
+    },
+  }),
+  limits: { fileSize: MAX_FILE_SIZE },
+});
+
+app.post('/upload-file', (req, res) => {
+  uploadFile.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `文件太大了，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB` });
+      }
+      return res.status(400).json({ error: err.message || '上传失败' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: '没有收到文件' });
+    }
+    // 原始文件名做个长度截断，避免超长文件名把消息体撑得太大；存储用的文件名跟原始名无关，不影响下载时的显示名
+    const originalName = String(req.file.originalname || '未命名文件').slice(0, 150);
+    res.json({
+      url: `/uploads/${req.file.filename}`,
+      name: originalName,
+      size: req.file.size,
+    });
+  });
+});
+
 // 在线用户: ws -> { username, id }
 const clients = new Map();
 // 最近消息历史（内存中，重启后清空——这部分保持原样不接数据库）
@@ -407,8 +444,23 @@ wss.on('connection', (ws) => {
           .slice(0, MAX_IMAGES_PER_MESSAGE);
       }
 
-      // 纯文字消息不能是空的；但如果带了图片，文字可以为空（图片本身就是内容）
-      if (!text.trim() && images.length === 0) return;
+      // 通用文件：同样只认自己 /upload-file 接口生成的路径；每条消息最多5个文件
+      const MAX_FILES_PER_MESSAGE = 5;
+      let files = [];
+      if (Array.isArray(data.files)) {
+        files = data.files
+          .filter((f) =>
+            f && typeof f === 'object' &&
+            typeof f.url === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(f.url) &&
+            typeof f.name === 'string' &&
+            typeof f.size === 'number'
+          )
+          .slice(0, MAX_FILES_PER_MESSAGE)
+          .map((f) => ({ url: f.url, name: f.name.slice(0, 150), size: f.size }));
+      }
+
+      // 纯文字消息不能是空的；但如果带了图片/文件，文字可以为空（附件本身就是内容）
+      if (!text.trim() && images.length === 0 && files.length === 0) return;
 
       // 引用回复：只保留必要的快照信息（用户名+文本片段），不做原消息查找，
       // 这样即使原消息已经滚出历史记录，引用内容依然完整可显示。
@@ -428,6 +480,7 @@ wss.on('connection', (ws) => {
         username: client.username,
         text,
         images,
+        files,
         mentions: mentioned,
         mentionsAll: isAll,
         quote,

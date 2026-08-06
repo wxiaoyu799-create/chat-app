@@ -2670,7 +2670,9 @@
   }
 
   toolSurugayaBtn.addEventListener('click', () => {
-    openToolOverlay('/surugaya-checker.html', '骏河屋检品判定台');
+    // 这是骏河屋官方自己的网站，没法像我们自己的工具那样嵌进全屏iframe里
+    // （外部网站基本都会挡掉被别的网站嵌入），所以改成新标签页直接打开
+    window.open('https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html', '_blank', 'noopener,noreferrer');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

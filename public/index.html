@@ -1009,7 +1009,15 @@
   #quick-add-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
   #quick-add-row { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
   #quick-add-row.active { display: flex; }
-  #quick-add-row input { font-size: 13px; padding: 8px 10px; }
+  #quick-add-row textarea {
+    font-size: 13px;
+    padding: 8px 10px;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 150px;
+    overflow-y: auto;
+  }
   #quick-add-row .quick-add-actions { display: flex; gap: 6px; }
   #quick-add-row .quick-add-actions button { flex: 1; font-size: 12px; padding: 6px; margin-top: 0; }
   #quick-add-row .quick-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
@@ -1032,6 +1040,91 @@
   .tool-entry-btn:hover { border-color: var(--accent); background: var(--panel-alt); }
   .tool-entry-btn .tool-entry-icon { font-size: 16px; flex-shrink: 0; }
   .tool-entry-btn .tool-entry-label { flex: 1; }
+
+  /* 提醒事项 */
+  #reminder-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .reminder-item {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .reminder-item .reminder-schedule {
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .reminder-item .reminder-text {
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .reminder-item .reminder-actions { display: flex; gap: 6px; }
+  .reminder-item .pin-edit-btn {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 0;
+  }
+  .reminder-item .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  .reminder-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; margin-bottom: 8px; }
+
+  #reminder-edit-row {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #reminder-edit-row.active { display: flex; }
+  .reminder-time-row { display: flex; align-items: center; gap: 8px; }
+  .reminder-time-row #reminder-time-input { width: auto; flex: 0 0 auto; font-size: 13px; }
+  .reminder-time-row .reminder-time-hint { font-size: 11px; color: var(--muted); }
+  #reminder-weekday-picker {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  #reminder-weekday-picker label {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+    cursor: pointer;
+  }
+  #reminder-weekday-picker input { width: auto; accent-color: var(--accent); }
+  #reminder-edit-row #reminder-text-input {
+    width: 100%;
+    font-size: 13px;
+    font-family: inherit;
+    resize: none;
+  }
+  #reminder-edit-row #reminder-password-input { width: 100%; font-size: 13px; }
+  #reminder-error-msg {
+    width: 100%;
+    font-size: 12px;
+    color: #e5534b;
+    display: none;
+  }
+  #reminder-error-msg.active { display: block; }
 
   #tool-overlay {
     display: none;
@@ -1215,11 +1308,42 @@
     <div id="quick-categories"></div>
     <button id="quick-add-btn">+ 添加常用语</button>
     <div id="quick-add-row">
-      <input id="quick-add-input" type="text" placeholder="输入常用语内容...（含&quot;代拍/代购/煤炉&quot;会自动归类）" maxlength="200" />
+      <textarea id="quick-add-input" placeholder="输入常用语内容...（含&quot;代拍/代购/煤炉&quot;会自动归类，Shift+Enter换行）" rows="1"></textarea>
       <div class="quick-add-actions">
         <button id="quick-save-btn">保存</button>
         <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
       </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <h3>⏰ 提醒事项</h3>
+    <div id="reminder-list"></div>
+    <button id="reminder-add-open-btn" class="tool-entry-btn" type="button">
+      <span class="tool-entry-icon">➕</span>
+      <span class="tool-entry-label">添加提醒</span>
+    </button>
+    <div id="reminder-edit-row">
+      <div class="reminder-time-row">
+        <input type="time" id="reminder-time-input" />
+        <span class="reminder-time-hint">（日本时间）</span>
+      </div>
+      <div id="reminder-weekday-picker">
+        <label><input type="checkbox" value="1" checked />一</label>
+        <label><input type="checkbox" value="2" checked />二</label>
+        <label><input type="checkbox" value="3" checked />三</label>
+        <label><input type="checkbox" value="4" checked />四</label>
+        <label><input type="checkbox" value="5" checked />五</label>
+        <label><input type="checkbox" value="6" checked />六</label>
+        <label><input type="checkbox" value="0" checked />日</label>
+      </div>
+      <textarea id="reminder-text-input" placeholder="提醒内容..." rows="2"></textarea>
+      <input type="password" id="reminder-password-input" placeholder="编辑密码" autocomplete="off" />
+      <div class="pin-edit-actions-row">
+        <button id="reminder-save-btn">保存</button>
+        <button class="pin-edit-btn" id="reminder-cancel-btn">取消</button>
+      </div>
+      <span id="reminder-error-msg"></span>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -1326,6 +1450,16 @@
   const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
   const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
+  const reminderListEl = document.getElementById('reminder-list');
+  const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
+  const reminderEditRow = document.getElementById('reminder-edit-row');
+  const reminderTimeInput = document.getElementById('reminder-time-input');
+  const reminderWeekdayPicker = document.getElementById('reminder-weekday-picker');
+  const reminderTextInput = document.getElementById('reminder-text-input');
+  const reminderPasswordInput = document.getElementById('reminder-password-input');
+  const reminderErrorMsg = document.getElementById('reminder-error-msg');
+  const reminderSaveBtn = document.getElementById('reminder-save-btn');
+  const reminderCancelBtn = document.getElementById('reminder-cancel-btn');
   const toolOverlay = document.getElementById('tool-overlay');
   const toolOverlayTitle = document.getElementById('tool-overlay-title');
   const toolOverlayFrame = document.getElementById('tool-overlay-frame');
@@ -1454,6 +1588,19 @@
           memoErrorMsg.textContent = data.message || '密码错误';
           memoErrorMsg.classList.add('active');
           memoPasswordInput.focus();
+        }
+      } else if (data.type === 'reminder_list') {
+        renderReminderList(Array.isArray(data.reminders) ? data.reminders : []);
+        closeReminderEdit();
+        closeDeleteConfirm();
+      } else if (data.type === 'reminder_error') {
+        if (lastReminderAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+          deleteConfirmError.textContent = data.message || '密码错误';
+          deleteConfirmPassword.focus();
+        } else {
+          reminderErrorMsg.textContent = data.message || '密码错误';
+          reminderErrorMsg.classList.add('active');
+          reminderPasswordInput.focus();
         }
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
@@ -2254,9 +2401,16 @@
 
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
-    const preview = entry.text ? entry.text.slice(0, 40) : '(空)';
-    const label = kind === 'pin' ? '置顶公告' : (kind === 'memo' ? '备忘栏' : '公告栏');
-    deleteConfirmDesc.textContent = `${label}历史记录：\n"${preview}"`;
+    let label;
+    let preview;
+    if (kind === 'reminder') {
+      label = '提醒事项';
+      preview = `${formatReminderSchedule(entry)} ${entry.text}`.slice(0, 60);
+    } else {
+      label = kind === 'pin' ? '置顶公告' : (kind === 'memo' ? '备忘栏' : '公告栏');
+      preview = entry.text ? entry.text.slice(0, 40) : '(空)';
+    }
+    deleteConfirmDesc.textContent = `${label}：\n"${preview}"`;
     deleteConfirmPassword.value = '';
     deleteConfirmError.textContent = '';
     deleteConfirmOverlay.classList.add('active');
@@ -2287,13 +2441,16 @@
     } else if (kind === 'memo') {
       lastMemoAction = 'delete';
       ws.send(JSON.stringify({ type: 'memo_delete_history', id: entry.id, password }));
+    } else if (kind === 'reminder') {
+      lastReminderAction = 'delete';
+      ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
     } else {
       lastAnnouncementAction = 'delete';
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
-    // 成功了会收到 pinned/announcement 广播，里面会顺带关掉这个弹窗；
-    // 密码错误等失败情况会收到 pin_error/announcement_error，直接在弹窗里显示，不用alert()
+    // 成功了会收到 pinned/announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
+    // 密码错误等失败情况会收到 xxx_error，直接在弹窗里显示，不用alert()
   }
 
   deleteConfirmCancelBtn.addEventListener('click', closeDeleteConfirm);
@@ -2317,6 +2474,152 @@
   function handleDeleteMemoHistoryEntry(entry) {
     openDeleteConfirm('memo', entry);
   }
+
+  // ===== 提醒事项（列表，多条，都可以自己增删改，不用改代码/重新部署） =====
+  let lastReminderAction = 'edit'; // 'edit' 或 'delete'
+  let editingReminderId = null; // null = 当前是"新增"模式；有值 = 正在编辑这一条
+
+  const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function formatReminderSchedule(reminder) {
+    const timeStr = `${String(reminder.hour).padStart(2, '0')}:${String(reminder.minute).padStart(2, '0')}`;
+    if (!reminder.weekdays || reminder.weekdays.length === 7) {
+      return `每天 ${timeStr}`;
+    }
+    const sorted = [...reminder.weekdays].sort();
+    if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5])) {
+      return `工作日 ${timeStr}`;
+    }
+    if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5, 6])) {
+      return `周一至周六 ${timeStr}`;
+    }
+    const dayLabels = sorted.map((d) => WEEKDAY_LABELS[d]).join('、');
+    return `每周${dayLabels} ${timeStr}`;
+  }
+
+  function renderReminderList(list) {
+    reminderListEl.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'reminder-empty-hint';
+      empty.textContent = '暂无提醒事项';
+      reminderListEl.appendChild(empty);
+      return;
+    }
+    list.forEach((r) => {
+      const item = document.createElement('div');
+      item.className = 'reminder-item';
+
+      const schedule = document.createElement('div');
+      schedule.className = 'reminder-schedule';
+      schedule.textContent = formatReminderSchedule(r);
+      item.appendChild(schedule);
+
+      const text = document.createElement('div');
+      text.className = 'reminder-text';
+      text.textContent = r.text;
+      item.appendChild(text);
+
+      const actions = document.createElement('div');
+      actions.className = 'reminder-actions';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'pin-edit-btn';
+      editBtn.title = '编辑';
+      editBtn.textContent = '✏️';
+      editBtn.addEventListener('click', () => openReminderEdit(r));
+      actions.appendChild(editBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'pin-edit-btn';
+      delBtn.title = '删除';
+      delBtn.textContent = '🗑️';
+      delBtn.addEventListener('click', () => openDeleteConfirm('reminder', r));
+      actions.appendChild(delBtn);
+
+      item.appendChild(actions);
+      reminderListEl.appendChild(item);
+    });
+  }
+
+  function openReminderEdit(existing) {
+    editingReminderId = existing ? existing.id : null;
+    if (existing) {
+      reminderTimeInput.value = `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`;
+      reminderTextInput.value = existing.text;
+      const selectedDays = existing.weekdays || [0, 1, 2, 3, 4, 5, 6];
+      reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = selectedDays.includes(Number(cb.value));
+      });
+    } else {
+      reminderTimeInput.value = '';
+      reminderTextInput.value = '';
+      reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+    }
+    reminderPasswordInput.value = '';
+    reminderErrorMsg.classList.remove('active');
+    reminderEditRow.classList.add('active');
+    reminderTimeInput.focus();
+  }
+
+  function closeReminderEdit() {
+    reminderEditRow.classList.remove('active');
+    editingReminderId = null;
+  }
+
+  function saveReminder() {
+    const timeVal = reminderTimeInput.value; // "HH:MM"
+    if (!timeVal) {
+      reminderErrorMsg.textContent = '请选择提醒时间';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    const [hourStr, minuteStr] = timeVal.split(':');
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+
+    const checkedDays = Array.from(reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]:checked'))
+      .map((cb) => Number(cb.value));
+    if (checkedDays.length === 0) {
+      reminderErrorMsg.textContent = '至少要选一天';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    // 全选7天就当"每天"处理（不用特意传数组），跟服务端逻辑保持一致
+    const weekdays = checkedDays.length === 7 ? null : checkedDays;
+
+    const text = reminderTextInput.value.trim();
+    if (!text) {
+      reminderErrorMsg.textContent = '请输入提醒内容';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    const password = reminderPasswordInput.value;
+    if (!password) {
+      reminderErrorMsg.textContent = '请输入编辑密码';
+      reminderErrorMsg.classList.add('active');
+      reminderPasswordInput.focus();
+      return;
+    }
+    reminderErrorMsg.classList.remove('active');
+    lastReminderAction = 'edit';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      if (editingReminderId) {
+        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password }));
+      } else {
+        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password }));
+      }
+    }
+    // 同样不在这里关闭——等服务器广播reminder_list回来再关，密码错了会在原地提示
+  }
+
+  reminderAddOpenBtn.addEventListener('click', () => openReminderEdit(null));
+  reminderCancelBtn.addEventListener('click', closeReminderEdit);
+  reminderSaveBtn.addEventListener('click', saveReminder);
+  reminderPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveReminder();
+    if (e.key === 'Escape') closeReminderEdit();
+  });
 
   function setupHistoryToggle(toggleBtn, panelEl) {
     toggleBtn.addEventListener('click', (e) => {
@@ -2622,10 +2925,16 @@
     });
   }
 
+  function autoResizeQuickAddInput() {
+    quickAddInput.style.height = 'auto';
+    quickAddInput.style.height = Math.min(quickAddInput.scrollHeight, 150) + 'px';
+  }
+
   function openQuickAdd() {
     quickAddRow.classList.add('active');
     quickAddInput.value = '';
     quickAddInput.focus();
+    autoResizeQuickAddInput();
   }
 
   function closeQuickAdd() {
@@ -2647,8 +2956,12 @@
   quickAddBtn.addEventListener('click', openQuickAdd);
   quickCancelBtn.addEventListener('click', closeQuickAdd);
   quickSaveBtn.addEventListener('click', saveQuickAdd);
+  quickAddInput.addEventListener('input', autoResizeQuickAddInput);
   quickAddInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveQuickAdd();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveQuickAdd();
+    }
     if (e.key === 'Escape') closeQuickAdd();
   });
 

@@ -422,6 +422,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
       ws.send(JSON.stringify({ type: 'memo', text: memoText, history: memoHistory }));
+      ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -637,6 +638,59 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (data.type === 'reminder_add' || data.type === 'reminder_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'reminder_error', message: '密码错误，无法保存提醒' }));
+        return;
+      }
+      const hour = Number(data.hour);
+      const minute = Number(data.minute);
+      if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+        ws.send(JSON.stringify({ type: 'reminder_error', message: '时间格式不对' }));
+        return;
+      }
+      // weekdays: 前端传数组(0-6)表示只在这几天提醒；不传/传空数组/传满7天 都当作"每天"处理
+      const weekdays = Array.isArray(data.weekdays) &&
+        data.weekdays.length > 0 && data.weekdays.length < 7 &&
+        data.weekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        ? data.weekdays
+        : null;
+      const text = String(data.text || '').slice(0, 200).trim();
+      if (!text) {
+        ws.send(JSON.stringify({ type: 'reminder_error', message: '提醒内容不能为空' }));
+        return;
+      }
+
+      if (data.type === 'reminder_add') {
+        await addReminder(hour, minute, weekdays, text);
+      } else {
+        const ok = await updateReminder(data.id, hour, minute, weekdays, text);
+        if (!ok) {
+          ws.send(JSON.stringify({ type: 'reminder_error', message: '没找到这条提醒，可能已经被删除了' }));
+          return;
+        }
+      }
+      broadcast({ type: 'reminder_list', reminders });
+      return;
+    }
+
+    if (data.type === 'reminder_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'reminder_error', message: '密码错误，无法删除提醒' }));
+        return;
+      }
+      const ok = await deleteReminder(data.id);
+      if (!ok) return;
+      broadcast({ type: 'reminder_list', reminders });
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
@@ -655,28 +709,17 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ==================== 定时提醒（按日本时间） ====================
+// ==================== 定时提醒（按日本时间，可在聊天室里自己编辑，不用改代码） ====================
 // 用 Intl.DateTimeFormat 指定 timeZone: 'Asia/Tokyo' 来读取"日本时间"的时分/星期，
 // 这样不管 Render 服务器自己配置的是什么时区，读出来的都是准确的日本时间，不用自己算时差。
 // 日本不实行夏令时，所以这里也不用额外处理夏令时切换的问题。
-const REMINDERS = [
-  {
-    id: 'muyulu-checkin',
-    hour: 11,
-    minute: 30,
-    weekdays: null, // null = 每天
-    text: '请关注12点前能否完全前一天的煤炉检品。',
-  },
-  {
-    id: 'trash-collection',
-    hour: 17,
-    minute: 0,
-    weekdays: [1, 2, 3, 4, 5, 6], // 周一到周六（0=周日）
-    text: '帮忙收下各类垃圾',
-  },
+const DEFAULT_REMINDERS = [
+  { hour: 11, minute: 30, weekdays: null, text: '请关注12点前能否完全前一天的煤炉检品。' },
+  { hour: 17, minute: 0, weekdays: [1, 2, 3, 4, 5, 6], text: '帮忙收下各类垃圾' },
 ];
 const WEEKDAY_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 const reminderLastFiredDate = {}; // reminderId -> 'YYYY-MM-DD'（日本时间），防止同一天重复提醒
+let reminders = []; // { id, hour, minute, weekdays(数组或null=每天), text }
 
 function getJSTParts(date) {
   const fmt = new Intl.DateTimeFormat('en-US', {
@@ -697,21 +740,133 @@ function getJSTParts(date) {
   };
 }
 
+function rowToReminder(row) {
+  return {
+    id: row.id,
+    hour: row.hour,
+    minute: row.minute,
+    weekdays: row.weekdays ? row.weekdays.split(',').map(Number) : null,
+    text: row.text,
+  };
+}
+
+async function ensureRemindersTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS reminders (
+      id BIGSERIAL PRIMARY KEY,
+      hour INT NOT NULL,
+      minute INT NOT NULL,
+      weekdays TEXT,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function loadRemindersFromDB() {
+  if (!dbPool) {
+    // 没配数据库：退化成内存模式，用默认的两条兜底，保证功能仍然可用（重启会恢复成默认值）
+    reminders = DEFAULT_REMINDERS.map((r, i) => ({ id: `mem-default-${i}`, ...r }));
+    return;
+  }
+  try {
+    await ensureRemindersTable();
+    const { rows } = await dbPool.query('SELECT * FROM reminders ORDER BY id ASC;');
+    if (rows.length === 0) {
+      for (const d of DEFAULT_REMINDERS) {
+        await dbPool.query(
+          'INSERT INTO reminders (hour, minute, weekdays, text) VALUES ($1,$2,$3,$4);',
+          [d.hour, d.minute, d.weekdays ? d.weekdays.join(',') : null, d.text]
+        );
+      }
+      const reloaded = await dbPool.query('SELECT * FROM reminders ORDER BY id ASC;');
+      reminders = reloaded.rows.map(rowToReminder);
+    } else {
+      reminders = rows.map(rowToReminder);
+    }
+    console.log(`已从数据库加载 ${reminders.length} 条定时提醒`);
+  } catch (err) {
+    console.error('[加载定时提醒失败，暂时改用内存默认值]', err.message);
+    reminders = DEFAULT_REMINDERS.map((r, i) => ({ id: `mem-default-${i}`, ...r }));
+  }
+}
+
+async function addReminder(hour, minute, weekdays, text) {
+  const newReminder = { id: `mem-${Date.now()}`, hour, minute, weekdays, text };
+  reminders.push(newReminder);
+  if (!dbPool) return newReminder;
+  try {
+    const inserted = await dbPool.query(
+      'INSERT INTO reminders (hour, minute, weekdays, text) VALUES ($1,$2,$3,$4) RETURNING id;',
+      [hour, minute, weekdays ? weekdays.join(',') : null, text]
+    );
+    newReminder.id = inserted.rows[0].id;
+  } catch (err) {
+    console.error('[新增定时提醒写入数据库失败]', err.message);
+  }
+  return newReminder;
+}
+
+async function updateReminder(id, hour, minute, weekdays, text) {
+  const idx = reminders.findIndex((r) => String(r.id) === String(id));
+  if (idx === -1) return false;
+  reminders[idx] = { ...reminders[idx], hour, minute, weekdays, text };
+  if (!dbPool) return true;
+  try {
+    await dbPool.query(
+      'UPDATE reminders SET hour=$1, minute=$2, weekdays=$3, text=$4 WHERE id=$5;',
+      [hour, minute, weekdays ? weekdays.join(',') : null, text, id]
+    );
+  } catch (err) {
+    console.error('[更新定时提醒写入数据库失败]', err.message);
+  }
+  return true;
+}
+
+async function deleteReminder(id) {
+  const idx = reminders.findIndex((r) => String(r.id) === String(id));
+  if (idx === -1) return false;
+  reminders.splice(idx, 1);
+  if (!dbPool) return true;
+  try {
+    await dbPool.query('DELETE FROM reminders WHERE id=$1;', [id]);
+  } catch (err) {
+    console.error('[删除定时提醒失败]', err.message);
+  }
+  return true;
+}
+
+// 提醒触发时，用跟"@所有人"完全一样的方式广播——让所有在线的人都弹全屏提示框+收到系统通知，
+// 不是安安静静发一条系统消息就完事，避免被刷屏的聊天记录淹没错过
+function fireReminderBroadcast(text) {
+  const onlineUsernames = getOnlineUsers();
+  const msg = {
+    type: 'message',
+    id: nextMessageId++,
+    username: '⏰ 定时提醒',
+    text,
+    images: [],
+    files: [],
+    mentions: onlineUsernames,
+    mentionsAll: true,
+    quote: null,
+    reactions: {},
+    time: Date.now(),
+  };
+  pushHistory(msg);
+  broadcast(msg);
+}
+
 function checkReminders() {
   const { dateStr, hour, minute, weekdayNum } = getJSTParts(new Date());
-  REMINDERS.forEach((r) => {
+  reminders.forEach((r) => {
     if (r.hour !== hour || r.minute !== minute) return;
     if (r.weekdays && !r.weekdays.includes(weekdayNum)) return;
-    if (reminderLastFiredDate[r.id] === dateStr) return; // 今天已经发过了，不重复发
-    reminderLastFiredDate[r.id] = dateStr;
-
-    const msg = {
-      type: 'system',
-      text: `⏰ 定时提醒：${r.text}`,
-      time: Date.now(),
-    };
-    pushHistory(msg);
-    broadcast(msg);
+    const key = String(r.id);
+    if (reminderLastFiredDate[key] === dateStr) return; // 今天已经发过了，不重复发
+    reminderLastFiredDate[key] = dateStr;
+    fireReminderBroadcast(r.text);
     console.log(`[定时提醒] 已发送: ${r.text}`);
   });
 }
@@ -723,6 +878,7 @@ async function startServer() {
   await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
   await loadAnnouncementStateFromDB();
   await loadMemoStateFromDB();
+  await loadRemindersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

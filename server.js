@@ -655,6 +655,70 @@ wss.on('connection', (ws) => {
   });
 });
 
+// ==================== 定时提醒（按日本时间） ====================
+// 用 Intl.DateTimeFormat 指定 timeZone: 'Asia/Tokyo' 来读取"日本时间"的时分/星期，
+// 这样不管 Render 服务器自己配置的是什么时区，读出来的都是准确的日本时间，不用自己算时差。
+// 日本不实行夏令时，所以这里也不用额外处理夏令时切换的问题。
+const REMINDERS = [
+  {
+    id: 'muyulu-checkin',
+    hour: 11,
+    minute: 30,
+    weekdays: null, // null = 每天
+    text: '请关注12点前能否完全前一天的煤炉检品。',
+  },
+  {
+    id: 'trash-collection',
+    hour: 17,
+    minute: 0,
+    weekdays: [1, 2, 3, 4, 5, 6], // 周一到周六（0=周日）
+    text: '帮忙收下各类垃圾',
+  },
+];
+const WEEKDAY_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+const reminderLastFiredDate = {}; // reminderId -> 'YYYY-MM-DD'（日本时间），防止同一天重复提醒
+
+function getJSTParts(date) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    weekday: 'short',
+  });
+  const map = {};
+  fmt.formatToParts(date).forEach((p) => { if (p.type !== 'literal') map[p.type] = p.value; });
+  // 极少数情况下 hour12:false 在午夜会给出"24"而不是"00"，这里做个兜底
+  const hour = map.hour === '24' ? 0 : Number(map.hour);
+  return {
+    dateStr: `${map.year}-${map.month}-${map.day}`,
+    hour,
+    minute: Number(map.minute),
+    weekdayNum: WEEKDAY_MAP[map.weekday],
+  };
+}
+
+function checkReminders() {
+  const { dateStr, hour, minute, weekdayNum } = getJSTParts(new Date());
+  REMINDERS.forEach((r) => {
+    if (r.hour !== hour || r.minute !== minute) return;
+    if (r.weekdays && !r.weekdays.includes(weekdayNum)) return;
+    if (reminderLastFiredDate[r.id] === dateStr) return; // 今天已经发过了，不重复发
+    reminderLastFiredDate[r.id] = dateStr;
+
+    const msg = {
+      type: 'system',
+      text: `⏰ 定时提醒：${r.text}`,
+      time: Date.now(),
+    };
+    pushHistory(msg);
+    broadcast(msg);
+    console.log(`[定时提醒] 已发送: ${r.text}`);
+  });
+}
+
+// 每30秒检查一次，足够精确命中每分钟的提醒时间点，又不会太频繁
+setInterval(checkReminders, 30 * 1000);
+
 async function startServer() {
   await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
   await loadAnnouncementStateFromDB();

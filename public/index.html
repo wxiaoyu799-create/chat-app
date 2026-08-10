@@ -1099,6 +1099,18 @@
   #quick-add-row .quick-add-actions button { flex: 1; font-size: 12px; padding: 6px; margin-top: 0; }
   #quick-add-row .quick-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
   #quick-add-row .quick-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  .quick-add-category-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .quick-add-category-row select {
+    flex: 1;
+    font-size: 12px;
+    padding: 5px 8px;
+  }
 
   /* 实用工具入口（比如骏河屋判定台），点了之后全屏打开 */
   .tool-entry-btn {
@@ -1381,7 +1393,11 @@
     <div id="quick-categories"></div>
     <button id="quick-add-btn">+ 添加常用语</button>
     <div id="quick-add-row">
-      <textarea id="quick-add-input" placeholder="输入常用语内容...（含&quot;代拍/代购/煤炉&quot;会自动归类，Shift+Enter换行）" rows="1"></textarea>
+      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
+      <div class="quick-add-category-row">
+        <label for="quick-add-category-select">分类：</label>
+        <select id="quick-add-category-select"></select>
+      </div>
       <div class="quick-add-actions">
         <button id="quick-save-btn">保存</button>
         <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
@@ -1538,6 +1554,7 @@
   const toolOverlayCloseBtn = document.getElementById('tool-overlay-close-btn');
   const quickAddRow = document.getElementById('quick-add-row');
   const quickAddInput = document.getElementById('quick-add-input');
+  const quickAddCategorySelect = document.getElementById('quick-add-category-select');
   const quickSaveBtn = document.getElementById('quick-save-btn');
   const quickCancelBtn = document.getElementById('quick-cancel-btn');
   const replyPreviewBar = document.getElementById('reply-preview-bar');
@@ -2836,12 +2853,26 @@
     return quickCategories[quickCategories.length - 1];
   }
 
+  // 常用语现在存的是 { text, category } 对象，不是纯字符串了——
+  // 分类要明确记下来，不能每次都靠"文字里有没有出现分类名字"重新猜，
+  // 不然分类改名/自定义分类的时候，内容会跟着"猜丢"掉到兜底分类里。
+  // 这里对老数据（纯字符串数组）做一次性迁移：没有明确分类的，用关键词规则猜一个当初始值。
   function loadQuickPhrases() {
     try {
       const raw = localStorage.getItem(QUICK_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => {
+            if (typeof item === 'string') {
+              return { text: item, category: categorizePhrase(item) };
+            }
+            return item;
+          });
+        }
+      }
     } catch (e) { /* ignore */ }
-    return DEFAULT_QUICK_PHRASES.slice();
+    return DEFAULT_QUICK_PHRASES.map((text) => ({ text, category: categorizePhrase(text) }));
   }
 
   function saveQuickPhrases(list) {
@@ -2851,6 +2882,10 @@
   }
 
   let quickPhrases = loadQuickPhrases();
+  // 上面加载的时候，如果是老数据格式(纯字符串)，已经在内存里迁移成新格式了，
+  // 但还没写回localStorage——这里立刻存一次，让迁移"落盘"，避免每次刷新都用当时最新的分类列表重新猜一遍，
+  // 那样如果分类改过名字，旧数据的归属就会跟着"漂移"，不稳定
+  saveQuickPhrases(quickPhrases);
   // 记住每个分类展开/收起的状态，默认全部收起，点了才展开；
   // 不用预先初始化每个分类的key了——分类是动态的，读取不存在的key会拿到undefined，当成"收起"处理，效果一样
   const quickCategoryExpanded = {};
@@ -2868,9 +2903,11 @@
 
     const grouped = {};
     quickCategories.forEach((cat) => { grouped[cat] = []; });
-    quickPhrases.forEach((phrase, index) => {
-      const cat = categorizePhrase(phrase);
-      grouped[cat].push({ phrase, index });
+    quickPhrases.forEach((item, index) => {
+      // 用存储的分类字段，不再每次重新猜；万一这条记录的分类已经不存在了(比如分类被删掉了)，
+      // 兜底放到最后一个分类里，避免这条内容直接从列表里"消失"
+      const cat = grouped[item.category] ? item.category : quickCategories[quickCategories.length - 1];
+      grouped[cat].push({ phrase: item.text, index });
     });
 
     quickCategories.forEach((cat) => {
@@ -2958,6 +2995,12 @@
         }
         quickCategories[index] = newName;
         saveQuickCategories(quickCategories);
+        // 原来分类在这个名字下的常用语，也要跟着把.category字段改成新名字，
+        // 不然它们会变成"分类不存在"，下次渲染时被当成孤儿掉到兜底分类里
+        quickPhrases.forEach((item) => {
+          if (item.category === oldName) item.category = newName;
+        });
+        saveQuickPhrases(quickPhrases);
         renderQuickCategoryManageList();
         renderQuickList();
       });
@@ -2970,11 +3013,17 @@
       delBtn.disabled = quickCategories.length <= 1; // 至少保留一个分类兜底，不然没地方放常用语了
       delBtn.addEventListener('click', () => {
         if (quickCategories.length <= 1) return;
+        const removedCat = quickCategories[index];
         quickCategories.splice(index, 1);
         saveQuickCategories(quickCategories);
+        // 删掉分类不会连带删掉里面的常用语，把它们的.category字段明确迁移到兜底分类（最后一个分类）去
+        const fallbackCat = quickCategories[quickCategories.length - 1];
+        quickPhrases.forEach((item) => {
+          if (item.category === removedCat) item.category = fallbackCat;
+        });
+        saveQuickPhrases(quickPhrases);
         renderQuickCategoryManageList();
         renderQuickList();
-        // 提示一下：删掉分类不会连带删掉里面的常用语，那些内容会自动归到剩下分类里的兜底分类去
       });
       item.appendChild(delBtn);
 
@@ -3011,9 +3060,25 @@
     quickAddInput.style.height = Math.min(quickAddInput.scrollHeight, 150) + 'px';
   }
 
+  function populateQuickAddCategorySelect() {
+    quickAddCategorySelect.innerHTML = '';
+    quickCategories.forEach((cat) => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      quickAddCategorySelect.appendChild(opt);
+    });
+  }
+
+  // 用户有没有自己手动选过分类——选过就不再用关键词自动帮她改掉了，尊重手动选择
+  let quickAddCategoryManuallyChosen = false;
+
   function openQuickAdd() {
     quickAddRow.classList.add('active');
     quickAddInput.value = '';
+    populateQuickAddCategorySelect();
+    quickAddCategorySelect.value = quickCategories[quickCategories.length - 1]; // 默认先选兜底分类
+    quickAddCategoryManuallyChosen = false;
     quickAddInput.focus();
     autoResizeQuickAddInput();
   }
@@ -3025,10 +3090,12 @@
   function saveQuickAdd() {
     const text = quickAddInput.value.trim();
     if (text) {
-      quickPhrases.push(text);
+      // 用下拉框里明确选中的分类——不管是用户自己选的，还是没手动选时自动建议出来的，
+      // 反正保存的时候是"确定的值"，不再是每次重新猜
+      const category = quickAddCategorySelect.value || categorizePhrase(text);
+      quickPhrases.push({ text, category });
       saveQuickPhrases(quickPhrases);
-      // 新加的内容按关键词自动归到对应分类，顺手展开那个分类方便立刻看到
-      quickCategoryExpanded[categorizePhrase(text)] = true;
+      quickCategoryExpanded[category] = true;
       renderQuickList();
     }
     closeQuickAdd();
@@ -3037,7 +3104,17 @@
   quickAddBtn.addEventListener('click', openQuickAdd);
   quickCancelBtn.addEventListener('click', closeQuickAdd);
   quickSaveBtn.addEventListener('click', saveQuickAdd);
-  quickAddInput.addEventListener('input', autoResizeQuickAddInput);
+  quickAddCategorySelect.addEventListener('change', () => {
+    quickAddCategoryManuallyChosen = true;
+  });
+  quickAddInput.addEventListener('input', () => {
+    autoResizeQuickAddInput();
+    // 还没手动选过分类的话，边打字边按关键词live更新建议的分类，方便省事；
+    // 一旦手动选过，就不再自动覆盖了，尊重用户自己的选择
+    if (!quickAddCategoryManuallyChosen) {
+      quickAddCategorySelect.value = categorizePhrase(quickAddInput.value);
+    }
+  });
   quickAddInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

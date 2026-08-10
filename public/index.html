@@ -349,6 +349,8 @@
   /* 备忘栏整块折叠（跟检品达人列表一样的折叠交互） */
   #memo-panel-body { margin-top: 8px; }
   #memo-panel-body.collapsed { display: none; }
+  #reminder-panel-body { margin-top: 8px; }
+  #reminder-panel-body.collapsed { display: none; }
 
   #announcement-edit-row, #memo-edit-row {
     display: none;
@@ -1317,33 +1319,38 @@
 
     <div class="sidebar-divider"></div>
 
-    <h3>⏰ 提醒事项</h3>
-    <div id="reminder-list"></div>
-    <button id="reminder-add-open-btn" class="tool-entry-btn" type="button">
-      <span class="tool-entry-icon">➕</span>
-      <span class="tool-entry-label">添加提醒</span>
+    <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>⏰ 提醒事项</span>
+      <span class="sidebar-toggle-arrow">▶</span>
     </button>
-    <div id="reminder-edit-row">
-      <div class="reminder-time-row">
-        <input type="time" id="reminder-time-input" />
-        <span class="reminder-time-hint">（日本时间）</span>
+    <div id="reminder-panel-body" class="collapsed">
+      <div id="reminder-list"></div>
+      <button id="reminder-add-open-btn" class="tool-entry-btn" type="button">
+        <span class="tool-entry-icon">➕</span>
+        <span class="tool-entry-label">添加提醒</span>
+      </button>
+      <div id="reminder-edit-row">
+        <div class="reminder-time-row">
+          <input type="time" id="reminder-time-input" />
+          <span class="reminder-time-hint">（日本时间）</span>
+        </div>
+        <div id="reminder-weekday-picker">
+          <label><input type="checkbox" value="1" checked />一</label>
+          <label><input type="checkbox" value="2" checked />二</label>
+          <label><input type="checkbox" value="3" checked />三</label>
+          <label><input type="checkbox" value="4" checked />四</label>
+          <label><input type="checkbox" value="5" checked />五</label>
+          <label><input type="checkbox" value="6" checked />六</label>
+          <label><input type="checkbox" value="0" checked />日</label>
+        </div>
+        <textarea id="reminder-text-input" placeholder="提醒内容..." rows="2"></textarea>
+        <input type="password" id="reminder-password-input" placeholder="编辑密码" autocomplete="off" />
+        <div class="pin-edit-actions-row">
+          <button id="reminder-save-btn">保存</button>
+          <button class="pin-edit-btn" id="reminder-cancel-btn">取消</button>
+        </div>
+        <span id="reminder-error-msg"></span>
       </div>
-      <div id="reminder-weekday-picker">
-        <label><input type="checkbox" value="1" checked />一</label>
-        <label><input type="checkbox" value="2" checked />二</label>
-        <label><input type="checkbox" value="3" checked />三</label>
-        <label><input type="checkbox" value="4" checked />四</label>
-        <label><input type="checkbox" value="5" checked />五</label>
-        <label><input type="checkbox" value="6" checked />六</label>
-        <label><input type="checkbox" value="0" checked />日</label>
-      </div>
-      <textarea id="reminder-text-input" placeholder="提醒内容..." rows="2"></textarea>
-      <input type="password" id="reminder-password-input" placeholder="编辑密码" autocomplete="off" />
-      <div class="pin-edit-actions-row">
-        <button id="reminder-save-btn">保存</button>
-        <button class="pin-edit-btn" id="reminder-cancel-btn">取消</button>
-      </div>
-      <span id="reminder-error-msg"></span>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -1428,6 +1435,8 @@
   const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
   const memoPanelToggle = document.getElementById('memo-panel-toggle');
   const memoPanelBody = document.getElementById('memo-panel-body');
+  const reminderPanelToggle = document.getElementById('reminder-panel-toggle');
+  const reminderPanelBody = document.getElementById('reminder-panel-body');
   const memoTextEl = document.getElementById('memo-text');
   const memoEditOpenBtn = document.getElementById('memo-edit-open-btn');
   const memoEditRow = document.getElementById('memo-edit-row');
@@ -2308,6 +2317,11 @@
   memoPanelToggle.addEventListener('click', () => {
     const collapsed = memoPanelBody.classList.toggle('collapsed');
     memoPanelToggle.classList.toggle('collapsed', collapsed);
+  });
+
+  reminderPanelToggle.addEventListener('click', () => {
+    const collapsed = reminderPanelBody.classList.toggle('collapsed');
+    reminderPanelToggle.classList.toggle('collapsed', collapsed);
   });
 
   function setPinnedText(text) {

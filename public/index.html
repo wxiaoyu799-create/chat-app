@@ -381,6 +381,10 @@
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
+  /* 自己发的消息气泡本身是蓝色的(--bubble-me 和 --accent 是同一个颜色)，
+     @提及要是也用accent蓝色，就会跟气泡背景融成一片完全看不见——
+     这里单独给"me"消息里的提及换一套基于白色的配色，保证看得清 */
+  .msg.me .mention { color: #fff; text-decoration: underline; }
   .msg.mentioned-me .bubble { outline: 2px solid #f0a94e; outline-offset: 1px; }
 
   @keyframes mention-flash {

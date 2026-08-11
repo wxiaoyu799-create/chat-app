@@ -342,10 +342,26 @@
     word-break: break-word;
     white-space: pre-wrap;
     line-height: 1.5;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+  }
+  #sidebar-announce .pin-text.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
   #sidebar-announce .pin-text a { color: var(--accent); text-decoration: underline; }
+  #announcement-expand-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    padding: 0;
+    margin-bottom: 8px;
+  }
+  #announcement-expand-btn.visible { display: inline-block; }
   #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
   #sidebar-announce .pin-edit-btn {
     flex-shrink: 0;
@@ -365,6 +381,8 @@
 
   #reminder-panel-body { margin-top: 8px; }
   #reminder-panel-body.collapsed { display: none; }
+  #doc-links-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  #doc-links-body.collapsed { display: none; }
 
   #announcement-edit-row {
     display: none;
@@ -977,7 +995,7 @@
 
   /* 常用文本分类（二级菜单） */
   #quick-categories { flex: 1; overflow-y: auto; margin-bottom: 10px; }
-  .quick-category { margin-bottom: 8px; }
+  .quick-category { margin-bottom: 4px; }
   .quick-category-header {
     width: 100%;
     display: flex;
@@ -986,7 +1004,7 @@
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 6px 10px;
     color: var(--text);
     font-size: 13px;
     font-weight: 600;
@@ -996,6 +1014,13 @@
   .quick-category-header .quick-category-count { color: var(--muted); font-weight: 400; margin-left: 4px; }
   .quick-category-header .quick-category-arrow { transition: transform 0.15s; color: var(--muted); }
   .quick-category.expanded .quick-category-header .quick-category-arrow { transform: rotate(90deg); }
+  /* 空分类（一条常用语都没有）弱化显示，把视觉注意力留给真正有内容的分类 */
+  .quick-category.is-empty .quick-category-header {
+    border-style: dashed;
+    opacity: 0.55;
+    font-weight: 400;
+    padding: 4px 10px;
+  }
   .quick-category-list {
     list-style: none;
     margin: 6px 0 0;
@@ -1306,6 +1331,7 @@
         <span class="pin-bar-label">公告栏</span>
       </div>
       <span class="pin-text" id="announcement-text"></span>
+      <button id="announcement-expand-btn" type="button">展开全文</button>
       <div class="pin-bar-actions">
         <div class="pin-gear-wrap">
           <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作">⚙️</button>
@@ -1332,18 +1358,24 @@
 
     <div class="sidebar-divider"></div>
 
-    <a href="https://mingdong.feishu.cn/wiki/OhqdwF4iDig1utkjWLdcgDd4nxe?from=from_copylink" target="_blank" rel="noopener noreferrer" id="problem-record-link" class="tool-entry-btn">
-      <span class="tool-entry-icon">📋</span>
-      <span class="tool-entry-label">问题件记录</span>
-    </a>
-    <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
-      <span class="tool-entry-icon">📊</span>
-      <span class="tool-entry-label">复数追加记录</span>
-    </a>
-    <a href="https://mingdong.feishu.cn/wiki/Wt4mw4qBlieSKwkW9ufcy7v6nQh?from=from_copylink" target="_blank" rel="noopener noreferrer" id="inspection-standard-link" class="tool-entry-btn">
-      <span class="tool-entry-icon">📐</span>
-      <span class="tool-entry-label">检品标准流程规范</span>
-    </a>
+    <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>📚 参考文档</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="doc-links-body" class="collapsed">
+      <a href="https://mingdong.feishu.cn/wiki/OhqdwF4iDig1utkjWLdcgDd4nxe?from=from_copylink" target="_blank" rel="noopener noreferrer" id="problem-record-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📋</span>
+        <span class="tool-entry-label">问题件记录</span>
+      </a>
+      <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📊</span>
+        <span class="tool-entry-label">复数追加记录</span>
+      </a>
+      <a href="https://mingdong.feishu.cn/wiki/Wt4mw4qBlieSKwkW9ufcy7v6nQh?from=from_copylink" target="_blank" rel="noopener noreferrer" id="inspection-standard-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📐</span>
+        <span class="tool-entry-label">检品标准流程规范</span>
+      </a>
+    </div>
   </div>
   <div id="chat-col">
     <header>
@@ -1545,6 +1577,7 @@
   const typingEl = document.getElementById('typing');
   const pinnedTextEl = document.getElementById('pinned-text');
   const announcementTextEl = document.getElementById('announcement-text');
+  const announcementExpandBtn = document.getElementById('announcement-expand-btn');
   const announcementEditOpenBtn = document.getElementById('announcement-edit-open-btn');
   const announcementEditRow = document.getElementById('announcement-edit-row');
   const announcementInput = document.getElementById('announcement-input');
@@ -1554,6 +1587,8 @@
   const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
   const reminderPanelToggle = document.getElementById('reminder-panel-toggle');
   const reminderPanelBody = document.getElementById('reminder-panel-body');
+  const docLinksToggle = document.getElementById('doc-links-toggle');
+  const docLinksBody = document.getElementById('doc-links-body');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
@@ -2417,6 +2452,11 @@
     reminderPanelToggle.classList.toggle('collapsed', collapsed);
   });
 
+  docLinksToggle.addEventListener('click', () => {
+    const collapsed = docLinksBody.classList.toggle('collapsed');
+    docLinksToggle.classList.toggle('collapsed', collapsed);
+  });
+
   function setPinnedText(text) {
     currentPinnedText = text || '';
     if (currentPinnedText) {
@@ -2802,11 +2842,28 @@
     if (currentAnnouncementText) {
       announcementTextEl.innerHTML = renderRichText(currentAnnouncementText);
       announcementTextEl.classList.remove('empty');
+      announcementExpandBtn.textContent = '展开全文';
+      // 判断要不要显示"展开全文"按钮：先不截断量出完整高度，再截断量出截断后的高度，
+      // 两者一比就知道内容是不是真的被截掉了——直接读"已经截断状态下"的scrollHeight不太可靠，
+      // -webkit-line-clamp这个属性在这种场景下scrollHeight有时候量不准
+      announcementTextEl.classList.remove('clamped');
+      const fullHeight = announcementTextEl.scrollHeight;
+      announcementTextEl.classList.add('clamped');
+      const clampedHeight = announcementTextEl.clientHeight;
+      const isOverflowing = fullHeight > clampedHeight + 2;
+      announcementExpandBtn.classList.toggle('visible', isOverflowing);
     } else {
       announcementTextEl.textContent = '暂无内容，点击"编辑"设置一条';
       announcementTextEl.classList.add('empty');
+      announcementTextEl.classList.remove('clamped');
+      announcementExpandBtn.classList.remove('visible');
     }
   }
+
+  announcementExpandBtn.addEventListener('click', () => {
+    const nowClamped = announcementTextEl.classList.toggle('clamped');
+    announcementExpandBtn.textContent = nowClamped ? '展开全文' : '收起';
+  });
 
   function autoResizeAnnouncementInput() {
     announcementInput.style.height = 'auto';
@@ -2954,7 +3011,9 @@
     quickCategories.forEach((cat) => {
       const items = grouped[cat];
       const catEl = document.createElement('div');
-      catEl.className = 'quick-category' + (quickCategoryExpanded[cat] ? ' expanded' : '');
+      catEl.className = 'quick-category' +
+        (quickCategoryExpanded[cat] ? ' expanded' : '') +
+        (items.length === 0 ? ' is-empty' : '');
 
       const header = document.createElement('button');
       header.className = 'quick-category-header';

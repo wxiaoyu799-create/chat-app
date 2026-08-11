@@ -412,6 +412,7 @@ wss.on('connection', (ws) => {
         mentionsAll: isAll,
         quote,
         reactions: {},
+        pending: null, // 待处理标记：null=没标记，{by, at}=有人标了还没处理完
         time: Date.now(),
       };
       pushHistory(msg);
@@ -440,6 +441,21 @@ wss.on('connection', (ws) => {
         list.splice(idx, 1);
       }
       broadcast({ type: 'reaction_update', messageId, emoji, users: list });
+      return;
+    }
+
+    if (data.type === 'toggle_pending') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const messageId = data.messageId;
+      if (typeof messageId !== 'number') return;
+      const msg = history.find((m) => m.type === 'message' && m.id === messageId);
+      // 找不到说明这条消息已经被挤出历史记录了（超过 MAX_HISTORY 条），忽略即可
+      if (!msg) return;
+      // 待处理是个开关：谁都能标、谁都能取消，不需要密码——这是团队协作用的，
+      // 跟置顶公告那种"内容管理"性质不一样，越轻量越好用
+      msg.pending = msg.pending ? null : { by: client.username, at: Date.now() };
+      broadcast({ type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username });
       return;
     }
 
@@ -743,6 +759,7 @@ function fireReminderBroadcast(text) {
     mentionsAll: true,
     quote: null,
     reactions: {},
+    pending: null,
     time: Date.now(),
   };
   pushHistory(msg);

@@ -384,6 +384,58 @@
   #doc-links-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
   #doc-links-body.collapsed { display: none; }
 
+  #pending-count-badge {
+    display: inline-block;
+    background: #e5534b;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: 2px;
+  }
+  #pending-count-badge:empty { display: none; }
+  #pending-panel-body { margin-top: 8px; }
+  #pending-panel-body.collapsed { display: none; }
+  #pending-list { display: flex; flex-direction: column; gap: 6px; }
+  .pending-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; }
+  .pending-item {
+    background: var(--panel-alt);
+    border: 1px solid #e5534b;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pending-item:hover { border-color: #c9463f; }
+  .pending-item .pending-item-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .pending-item .pending-item-text {
+    color: var(--text);
+    word-break: break-word;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pending-item .pending-resolve-btn {
+    width: 100%;
+    font-size: 11px;
+    padding: 4px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .pending-item .pending-resolve-btn:hover { color: #e5534b; border-color: #e5534b; background: transparent; }
+
   #announcement-edit-row {
     display: none;
     flex-direction: column;
@@ -686,6 +738,20 @@
     white-space: nowrap;
   }
   .reaction-badge:not(.has-count) .reaction-names { display: none; }
+  /* 待处理徽章用红色系，跟点赞/疑问的橙色区分开，一眼能看出"这个是需要处理的" */
+  .pending-badge.reacted {
+    color: #e5534b;
+    background: rgba(229, 83, 75, 0.15);
+    border-color: #e5534b;
+  }
+  /* 被标记待处理的消息，气泡本身也带一点提示色，不用打开侧边栏也能一眼看出这条还没处理 */
+  .msg.msg-pending .bubble { box-shadow: 0 0 0 2px rgba(229, 83, 75, 0.4); }
+
+  @keyframes jump-highlight-flash {
+    0%, 100% { background: transparent; }
+    30% { background: rgba(240, 169, 78, 0.35); }
+  }
+  .msg.jump-highlight .bubble { animation: jump-highlight-flash 1.5s ease; }
 
   @keyframes reaction-pop {
     0%   { transform: scale(1); }
@@ -1502,6 +1568,16 @@
 
     <div class="sidebar-divider"></div>
 
+    <button id="pending-panel-toggle" class="sidebar-toggle" type="button">
+      <span>📌 待处理事项 <span id="pending-count-badge"></span></span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="pending-panel-body">
+      <div id="pending-list"></div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
     <h3>实用工具</h3>
     <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
       <span class="tool-entry-icon">🔍</span>
@@ -1587,6 +1663,10 @@
   const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
   const reminderPanelToggle = document.getElementById('reminder-panel-toggle');
   const reminderPanelBody = document.getElementById('reminder-panel-body');
+  const pendingPanelToggle = document.getElementById('pending-panel-toggle');
+  const pendingPanelBody = document.getElementById('pending-panel-body');
+  const pendingListEl = document.getElementById('pending-list');
+  const pendingCountBadge = document.getElementById('pending-count-badge');
   const docLinksToggle = document.getElementById('doc-links-toggle');
   const docLinksBody = document.getElementById('doc-links-body');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
@@ -1692,6 +1772,15 @@
         messagesEl.innerHTML = '';
         data.messages.forEach((m) => renderMessage(m, { live: false }));
         scrollToBottom();
+        // 历史消息里可能已经有之前标记过、还没处理完的待处理项，扫一遍填进侧边栏列表里，
+        // 不然刚进聊天室的人看不到"之前就已经有的"待处理事项
+        pendingMessages.clear();
+        data.messages.forEach((m) => {
+          if (m.type === 'message' && m.pending && typeof m.id === 'number') {
+            pendingMessages.set(m.id, { by: m.pending.by, at: m.pending.at, username: m.username, text: m.text });
+          }
+        });
+        renderPendingList();
       } else if (data.type === 'message') {
         renderMessage(data, { live: true });
         scrollToBottom();
@@ -1751,6 +1840,8 @@
             .find((btn) => btn.dataset.emoji === data.emoji);
           if (reactionBtn) applyLiveReactionUpdate(reactionBtn, Array.isArray(data.users) ? data.users : []);
         }
+      } else if (data.type === 'pending_update') {
+        applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
       } else if (data.type === 'typing') {
         typingEl.textContent = `${data.username} 正在输入...`;
         clearTimeout(typingEl._t);
@@ -1946,6 +2037,21 @@
         updateReactionButton(reactionBtn, Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
         badgesContainer.appendChild(reactionBtn);
       });
+
+      // "标记待处理"——跟点赞/疑问不一样，这个不是多人各自表态的东西，是个开关：
+      // 标了就说明"这条还没处理完"，谁都能标、谁都能取消，处理完了随手点掉就行
+      const pendingBtn = document.createElement('button');
+      pendingBtn.className = 'reaction-badge pending-badge';
+      pendingBtn.innerHTML = `<span class="reaction-icon">📌</span><span class="reaction-names"></span>`;
+      pendingBtn.title = '标记待处理';
+      pendingBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'toggle_pending', messageId: data.id }));
+        }
+      });
+      updatePendingButton(pendingBtn, wrap, data.pending || null);
+      badgesContainer.appendChild(pendingBtn);
+
       bubble.appendChild(badgesContainer);
     }
 
@@ -1953,6 +2059,16 @@
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
     messagesEl.appendChild(wrap);
+  }
+
+  // 待处理按钮和消息气泡本身的高亮状态，统一在这里更新（初始渲染和实时更新都走这个函数）
+  function updatePendingButton(pendingBtn, wrapEl, pending) {
+    const isPending = !!pending;
+    pendingBtn.classList.toggle('reacted', isPending);
+    pendingBtn.classList.toggle('has-count', isPending);
+    pendingBtn.querySelector('.reaction-names').textContent = isPending ? `${pending.by} 标记` : '';
+    pendingBtn.title = isPending ? `${pending.by} 标记为待处理，点击标记完成` : '标记待处理';
+    wrapEl.classList.toggle('msg-pending', isPending);
   }
 
   function updateReactionButton(reactionBtn, users) {
@@ -2456,6 +2572,91 @@
     const collapsed = docLinksBody.classList.toggle('collapsed');
     docLinksToggle.classList.toggle('collapsed', collapsed);
   });
+
+  pendingPanelToggle.addEventListener('click', () => {
+    const collapsed = pendingPanelBody.classList.toggle('collapsed');
+    pendingPanelToggle.classList.toggle('collapsed', collapsed);
+  });
+
+  // ===== 待处理事项：防止订单/消息被刷下去之后没人处理、被遗忘 =====
+  // key是messageId，value是 { by, at, username, text }，只存"当前还在待处理状态"的
+  const pendingMessages = new Map();
+
+  function formatPendingTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderPendingList() {
+    pendingListEl.innerHTML = '';
+    const count = pendingMessages.size;
+    pendingCountBadge.textContent = count > 0 ? String(count) : '';
+
+    if (count === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'pending-empty-hint';
+      empty.textContent = '暂无待处理事项';
+      pendingListEl.appendChild(empty);
+      return;
+    }
+
+    // 最新标记的排最上面，方便一眼看到最近谁又标了新的
+    const sorted = Array.from(pendingMessages.entries()).sort((a, b) => b[1].at - a[1].at);
+    sorted.forEach(([messageId, info]) => {
+      const item = document.createElement('div');
+      item.className = 'pending-item';
+
+      const meta = document.createElement('div');
+      meta.className = 'pending-item-meta';
+      meta.innerHTML = `<span>${info.username}</span><span>${info.by} 标记 · ${formatPendingTime(info.at)}</span>`;
+      item.appendChild(meta);
+
+      const textEl = document.createElement('div');
+      textEl.className = 'pending-item-text';
+      textEl.textContent = info.text || '（图片/文件消息）';
+      item.appendChild(textEl);
+
+      const resolveBtn = document.createElement('button');
+      resolveBtn.className = 'pending-resolve-btn';
+      resolveBtn.textContent = '✓ 标记完成';
+      resolveBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 别触发外层item的"跳转到消息"点击
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'toggle_pending', messageId }));
+        }
+      });
+      item.appendChild(resolveBtn);
+
+      // 点条目本身(除了完成按钮)跳转到聊天记录里对应的那条消息
+      item.addEventListener('click', () => {
+        const target = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('jump-highlight');
+          setTimeout(() => target.classList.remove('jump-highlight'), 1500);
+        }
+      });
+
+      pendingListEl.appendChild(item);
+    });
+  }
+
+  // 收到某条消息的pending状态变化（不管是自己标的还是广播来的），统一维护pendingMessages这个集合
+  function applyPendingUpdate(messageId, pending, username, text) {
+    if (pending) {
+      pendingMessages.set(messageId, { by: pending.by, at: pending.at, username, text });
+    } else {
+      pendingMessages.delete(messageId);
+    }
+    renderPendingList();
+
+    // 如果这条消息当前正显示在聊天记录里，顺手把气泡上的高亮和徽章状态也同步更新
+    const wrapEl = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+    if (wrapEl) {
+      const pendingBtn = wrapEl.querySelector('.pending-badge');
+      if (pendingBtn) updatePendingButton(pendingBtn, wrapEl, pending);
+    }
+  }
 
   function setPinnedText(text) {
     currentPinnedText = text || '';
@@ -3224,6 +3425,7 @@
   });
 
   renderQuickList();
+  renderPendingList();
 
   // ===== 实用工具全屏面板（比如骏河屋检品判定台）=====
   // iframe的src故意留空，点开才设置——避免每个人一进聊天室，

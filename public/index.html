@@ -109,7 +109,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  header h2 { margin: 0; font-size: 16px; }
+  header h2 { margin: 0; font-size: 22px; }
   header .status { font-size: 12px; color: var(--muted); }
   .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .username-block { position: relative; display: flex; flex-direction: column; gap: 2px; }
@@ -276,6 +276,24 @@
   }
   #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
+  /* 齿轮菜单——把"编辑"和"记录"两个按钮收起来，点齿轮图标才展开，平时尽量不占地方 */
+  .pin-gear-wrap { position: relative; flex-shrink: 0; }
+  .pin-gear-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    z-index: 15;
+  }
+  .pin-gear-menu.active { display: flex; }
+
   #pinned-edit-row {
     display: none;
     gap: 8px;
@@ -317,7 +335,7 @@
   }
   #sidebar-announce .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
   #sidebar-announce .pin-bar-head .pin-icon { flex-shrink: 0; }
-  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
+  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 15px; font-weight: 700; color: var(--muted); }
   #sidebar-announce .pin-text {
     display: block;
     color: var(--text);
@@ -1289,8 +1307,13 @@
       </div>
       <span class="pin-text" id="announcement-text"></span>
       <div class="pin-bar-actions">
-        <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
-        <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
+        <div class="pin-gear-wrap">
+          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作">⚙️</button>
+          <div id="announcement-gear-menu" class="pin-gear-menu">
+            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
+            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
+          </div>
+        </div>
       </div>
       <div id="announcement-history-panel">
         <div class="pin-history-title">公告栏修改记录</div>
@@ -1335,8 +1358,13 @@
     <div id="pinned-bar">
       <span class="pin-icon">📌</span>
       <span class="pin-text" id="pinned-text"></span>
-      <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
-      <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
+      <div class="pin-gear-wrap">
+        <button class="pin-edit-btn" id="pin-gear-btn" type="button" title="更多操作">⚙️</button>
+        <div id="pin-gear-menu" class="pin-gear-menu">
+          <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
+          <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
+        </div>
+      </div>
       <div id="pin-history-panel">
         <div class="pin-history-title">置顶公告修改记录</div>
         <div id="pin-history-list"></div>
@@ -1500,9 +1528,13 @@
   const pinHistoryToggle = document.getElementById('pin-history-toggle');
   const pinHistoryPanel = document.getElementById('pin-history-panel');
   const pinHistoryList = document.getElementById('pin-history-list');
+  const pinGearBtn = document.getElementById('pin-gear-btn');
+  const pinGearMenu = document.getElementById('pin-gear-menu');
   const announcementHistoryToggle = document.getElementById('announcement-history-toggle');
   const announcementHistoryPanel = document.getElementById('announcement-history-panel');
   const announcementHistoryList = document.getElementById('announcement-history-list');
+  const announcementGearBtn = document.getElementById('announcement-gear-btn');
+  const announcementGearMenu = document.getElementById('announcement-gear-menu');
   const announceOverlay = document.getElementById('announce-overlay');
   const announceFromEl = document.getElementById('announce-from');
   const announceTextEl = document.getElementById('announce-text');
@@ -2700,6 +2732,15 @@
   }
   setupHistoryToggle(pinHistoryToggle, pinHistoryPanel);
   setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
+  // 齿轮图标本身也是同一套"点击展开/点外面收起"逻辑，直接复用
+  setupHistoryToggle(pinGearBtn, pinGearMenu);
+  setupHistoryToggle(announcementGearBtn, announcementGearMenu);
+  // 在齿轮菜单里点了"编辑"或"记录"之后，齿轮菜单本身也应该跟着收起来，
+  // 不然点开编辑框/记录面板之后，齿轮小菜单还悬在那里，看着乱
+  pinEditOpenBtn.addEventListener('click', () => pinGearMenu.classList.remove('active'));
+  pinHistoryToggle.addEventListener('click', () => pinGearMenu.classList.remove('active'));
+  announcementEditOpenBtn.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
+  announcementHistoryToggle.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;

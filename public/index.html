@@ -386,7 +386,7 @@
 
   #pending-count-badge {
     display: inline-block;
-    background: #e5534b;
+    background: #8b5cf6;
     color: #fff;
     font-size: 11px;
     font-weight: 700;
@@ -430,13 +430,13 @@
   .pending-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; }
   .pending-item {
     background: var(--panel);
-    border: 1px solid #e5534b;
+    border: 1px solid #8b5cf6;
     border-radius: 8px;
     padding: 8px 10px;
     font-size: 12px;
     cursor: pointer;
   }
-  .pending-item:hover { border-color: #c9463f; }
+  .pending-item:hover { border-color: #7c3aed; }
   .pending-item .pending-item-meta {
     display: flex;
     justify-content: space-between;
@@ -463,7 +463,7 @@
     border: 1px solid var(--border);
     color: var(--muted);
   }
-  .pending-item .pending-resolve-btn:hover { color: #e5534b; border-color: #e5534b; background: transparent; }
+  .pending-item .pending-resolve-btn:hover { color: #8b5cf6; border-color: #8b5cf6; background: transparent; }
 
   #announcement-edit-row {
     display: none;
@@ -767,14 +767,15 @@
     white-space: nowrap;
   }
   .reaction-badge:not(.has-count) .reaction-names { display: none; }
-  /* 待处理徽章用红色系，跟点赞/疑问的橙色区分开，一眼能看出"这个是需要处理的" */
+  /* 待处理徽章用紫色系——跟点赞/疑问的橙色、删除类操作的红色都区分开，
+     一眼能看出"这个是需要处理的"，不会跟"危险操作"的红色混在一起 */
   .pending-badge.reacted {
-    color: #e5534b;
-    background: rgba(229, 83, 75, 0.15);
-    border-color: #e5534b;
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.15);
+    border-color: #8b5cf6;
   }
   /* 被标记待处理的消息，气泡本身也带一点提示色，不用打开侧边栏也能一眼看出这条还没处理 */
-  .msg.msg-pending .bubble { box-shadow: 0 0 0 2px rgba(229, 83, 75, 0.4); }
+  .msg.msg-pending .bubble { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5); }
 
   @keyframes jump-highlight-flash {
     0%, 100% { background: transparent; }

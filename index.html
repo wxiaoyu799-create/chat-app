@@ -109,7 +109,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  header h2 { margin: 0; font-size: 16px; }
+  header h2 { margin: 0; font-size: 22px; }
   header .status { font-size: 12px; color: var(--muted); }
   .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .username-block { position: relative; display: flex; flex-direction: column; gap: 2px; }
@@ -152,7 +152,7 @@
     z-index: 20;
   }
   #pin-history-panel.active { display: block; }
-  #announcement-history-panel, #memo-history-panel {
+  #announcement-history-panel {
     display: none;
     position: absolute;
     top: 100%;
@@ -169,7 +169,7 @@
     padding: 12px 14px;
     z-index: 20;
   }
-  #announcement-history-panel.active, #memo-history-panel.active { display: block; }
+  #announcement-history-panel.active { display: block; }
   .pin-history-title {
     font-size: 12px;
     font-weight: 700;
@@ -276,6 +276,24 @@
   }
   #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
+  /* 齿轮菜单——把"编辑"和"记录"两个按钮收起来，点齿轮图标才展开，平时尽量不占地方 */
+  .pin-gear-wrap { position: relative; flex-shrink: 0; }
+  .pin-gear-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    gap: 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    z-index: 15;
+  }
+  .pin-gear-menu.active { display: flex; }
+
   #pinned-edit-row {
     display: none;
     gap: 8px;
@@ -307,8 +325,7 @@
   #pin-error-msg.active { display: block; }
 
   /* 左侧栏的公告栏——独立内容，可编辑，跟顶部置顶公告完全无关 */
-  /* 左侧栏的公告栏/备忘栏——独立内容，可编辑，跟顶部置顶公告完全无关；备忘栏额外支持整块折叠 */
-  #sidebar-announce, #sidebar-memo {
+  #sidebar-announce {
     position: relative;
     padding: 10px 12px;
     background: var(--panel-alt);
@@ -316,21 +333,37 @@
     border-radius: 8px;
     font-size: 12px;
   }
-  #sidebar-announce .pin-bar-head, #sidebar-memo .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-  #sidebar-announce .pin-bar-head .pin-icon, #sidebar-memo .pin-bar-head .pin-icon { flex-shrink: 0; }
-  #sidebar-announce .pin-bar-head .pin-bar-label, #sidebar-memo .pin-bar-head .pin-bar-label { font-size: 11px; font-weight: 700; color: var(--muted); }
-  #sidebar-announce .pin-text, #sidebar-memo .pin-text {
+  #sidebar-announce .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  #sidebar-announce .pin-bar-head .pin-icon { flex-shrink: 0; }
+  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 15px; font-weight: 700; color: var(--muted); }
+  #sidebar-announce .pin-text {
     display: block;
     color: var(--text);
     word-break: break-word;
     white-space: pre-wrap;
     line-height: 1.5;
+    margin-bottom: 4px;
+  }
+  #sidebar-announce .pin-text.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
+  #sidebar-announce .pin-text a { color: var(--accent); text-decoration: underline; }
+  #announcement-expand-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 11px;
+    padding: 0;
     margin-bottom: 8px;
   }
-  #sidebar-announce .pin-text.empty, #sidebar-memo .pin-text.empty { color: var(--muted); font-style: italic; }
-  #sidebar-announce .pin-text a, #sidebar-memo .pin-text a { color: var(--accent); text-decoration: underline; }
-  #sidebar-announce .pin-bar-actions, #sidebar-memo .pin-bar-actions { display: flex; gap: 6px; }
-  #sidebar-announce .pin-edit-btn, #sidebar-memo .pin-edit-btn {
+  #announcement-expand-btn.visible { display: inline-block; }
+  #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
+  #sidebar-announce .pin-edit-btn {
     flex-shrink: 0;
     width: 22px;
     height: 22px;
@@ -344,13 +377,95 @@
     font-size: 11px;
     padding: 0;
   }
-  #sidebar-announce .pin-edit-btn:hover, #sidebar-memo .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #sidebar-announce .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
-  /* 备忘栏整块折叠（跟检品达人列表一样的折叠交互） */
-  #memo-panel-body { margin-top: 8px; }
-  #memo-panel-body.collapsed { display: none; }
+  #reminder-panel-body { margin-top: 8px; }
+  #reminder-panel-body.collapsed { display: none; }
+  #doc-links-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  #doc-links-body.collapsed { display: none; }
 
-  #announcement-edit-row, #memo-edit-row {
+  #pending-count-badge {
+    display: inline-block;
+    background: #8b5cf6;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: 2px;
+  }
+  #pending-count-badge:empty { display: none; }
+  /* 待处理面板挪到了聊天区域内部(置顶公告下方)，不再放在会被窄屏幕隐藏掉的右侧栏里——
+     这个面板的意义就是"随时都要看得到"，放在容易被隐藏的地方等于白做 */
+  #pending-panel-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel-alt);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    cursor: pointer;
+  }
+  #pending-panel-toggle:hover { color: var(--text); background: var(--panel-alt); }
+  #pending-panel-toggle .sidebar-toggle-arrow { transition: transform 0.15s; }
+  #pending-panel-toggle.collapsed .sidebar-toggle-arrow { transform: rotate(-90deg); }
+  #pending-panel-body {
+    padding: 10px 18px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  #pending-panel-body.collapsed { display: none; }
+  #pending-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+  .pending-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; }
+  .pending-item {
+    background: var(--panel);
+    border: 1px solid #8b5cf6;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pending-item:hover { border-color: #7c3aed; }
+  .pending-item .pending-item-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .pending-item .pending-item-text {
+    color: var(--text);
+    word-break: break-word;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pending-item .pending-resolve-btn {
+    width: 100%;
+    font-size: 11px;
+    padding: 4px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .pending-item .pending-resolve-btn:hover { color: #8b5cf6; border-color: #8b5cf6; background: transparent; }
+
+  #announcement-edit-row {
     display: none;
     flex-direction: column;
     gap: 8px;
@@ -360,8 +475,8 @@
     border: 1px solid var(--border);
     border-radius: 8px;
   }
-  #announcement-edit-row.active, #memo-edit-row.active { display: flex; }
-  #announcement-edit-row #announcement-input, #memo-edit-row #memo-input {
+  #announcement-edit-row.active { display: flex; }
+  #announcement-edit-row #announcement-input {
     width: 100%;
     font-size: 13px;
     font-family: inherit;
@@ -370,19 +485,23 @@
     max-height: 100px;
     overflow-y: auto;
   }
-  #announcement-edit-row #announcement-password-input, #memo-edit-row #memo-password-input { width: 100%; font-size: 13px; }
-  #announcement-edit-row .pin-edit-actions-row, #memo-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
-  #announcement-edit-row .pin-edit-actions-row button, #memo-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
-  #announcement-error-msg, #memo-error-msg {
+  #announcement-edit-row #announcement-password-input { width: 100%; font-size: 13px; }
+  #announcement-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
+  #announcement-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
+  #announcement-error-msg {
     width: 100%;
     font-size: 12px;
     color: #e5534b;
     display: none;
   }
-  #announcement-error-msg.active, #memo-error-msg.active { display: block; }
+  #announcement-error-msg.active { display: block; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
+  /* 自己发的消息气泡本身是蓝色的(--bubble-me 和 --accent 是同一个颜色)，
+     @提及要是也用accent蓝色，就会跟气泡背景融成一片完全看不见——
+     这里单独给"me"消息里的提及换一套基于白色的配色，保证看得清 */
+  .msg.me .mention { color: #fff; text-decoration: underline; }
   .msg.mentioned-me .bubble { outline: 2px solid #f0a94e; outline-offset: 1px; }
 
   @keyframes mention-flash {
@@ -648,6 +767,21 @@
     white-space: nowrap;
   }
   .reaction-badge:not(.has-count) .reaction-names { display: none; }
+  /* 待处理徽章用紫色系——跟点赞/疑问的橙色、删除类操作的红色都区分开，
+     一眼能看出"这个是需要处理的"，不会跟"危险操作"的红色混在一起 */
+  .pending-badge.reacted {
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.15);
+    border-color: #8b5cf6;
+  }
+  /* 被标记待处理的消息，气泡本身也带一点提示色，不用打开侧边栏也能一眼看出这条还没处理 */
+  .msg.msg-pending .bubble { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.5); }
+
+  @keyframes jump-highlight-flash {
+    0%, 100% { background: transparent; }
+    30% { background: rgba(240, 169, 78, 0.35); }
+  }
+  .msg.jump-highlight .bubble { animation: jump-highlight-flash 1.5s ease; }
 
   @keyframes reaction-pop {
     0%   { transform: scale(1); }
@@ -957,7 +1091,7 @@
 
   /* 常用文本分类（二级菜单） */
   #quick-categories { flex: 1; overflow-y: auto; margin-bottom: 10px; }
-  .quick-category { margin-bottom: 8px; }
+  .quick-category { margin-bottom: 4px; }
   .quick-category-header {
     width: 100%;
     display: flex;
@@ -966,7 +1100,7 @@
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 6px 10px;
     color: var(--text);
     font-size: 13px;
     font-weight: 600;
@@ -976,6 +1110,13 @@
   .quick-category-header .quick-category-count { color: var(--muted); font-weight: 400; margin-left: 4px; }
   .quick-category-header .quick-category-arrow { transition: transform 0.15s; color: var(--muted); }
   .quick-category.expanded .quick-category-header .quick-category-arrow { transform: rotate(90deg); }
+  /* 空分类（一条常用语都没有）弱化显示，把视觉注意力留给真正有内容的分类 */
+  .quick-category.is-empty .quick-category-header {
+    border-style: dashed;
+    opacity: 0.55;
+    font-weight: 400;
+    padding: 4px 10px;
+  }
   .quick-category-list {
     list-style: none;
     margin: 6px 0 0;
@@ -998,6 +1139,81 @@
   }
   .quick-category.expanded .quick-category-empty.active { display: block; }
 
+  /* 分类管理 */
+  .quick-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .quick-header-row h3 { margin: 0; }
+  #quick-category-manage-btn {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 0;
+  }
+  #quick-category-manage-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #quick-category-manage-row {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #quick-category-manage-row.active { display: flex; }
+  .quick-category-manage-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .quick-category-rename-input { flex: 1; font-size: 12px; padding: 6px 8px; }
+  .quick-category-del-btn {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid #e5534b;
+    border-radius: 6px;
+    color: #e5534b;
+    font-size: 12px;
+    padding: 0;
+  }
+  .quick-category-del-btn:hover { background: rgba(229, 83, 75, 0.1); }
+  .quick-category-del-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .quick-category-add-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+  .quick-category-add-row input { flex: 1; font-size: 12px; padding: 6px 8px; }
+  .quick-category-add-row button {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
   #quick-add-btn {
     width: 100%;
     background: transparent;
@@ -1009,11 +1225,31 @@
   #quick-add-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
   #quick-add-row { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
   #quick-add-row.active { display: flex; }
-  #quick-add-row input { font-size: 13px; padding: 8px 10px; }
+  #quick-add-row textarea {
+    font-size: 13px;
+    padding: 8px 10px;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 150px;
+    overflow-y: auto;
+  }
   #quick-add-row .quick-add-actions { display: flex; gap: 6px; }
   #quick-add-row .quick-add-actions button { flex: 1; font-size: 12px; padding: 6px; margin-top: 0; }
   #quick-add-row .quick-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
   #quick-add-row .quick-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  .quick-add-category-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .quick-add-category-row select {
+    flex: 1;
+    font-size: 12px;
+    padding: 5px 8px;
+  }
 
   /* 实用工具入口（比如骏河屋判定台），点了之后全屏打开 */
   .tool-entry-btn {
@@ -1032,6 +1268,91 @@
   .tool-entry-btn:hover { border-color: var(--accent); background: var(--panel-alt); }
   .tool-entry-btn .tool-entry-icon { font-size: 16px; flex-shrink: 0; }
   .tool-entry-btn .tool-entry-label { flex: 1; }
+
+  /* 提醒事项 */
+  #reminder-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .reminder-item {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+  .reminder-item .reminder-schedule {
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .reminder-item .reminder-text {
+    color: var(--text);
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .reminder-item .reminder-actions { display: flex; gap: 6px; }
+  .reminder-item .pin-edit-btn {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 0;
+  }
+  .reminder-item .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  .reminder-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; margin-bottom: 8px; }
+
+  #reminder-edit-row {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  #reminder-edit-row.active { display: flex; }
+  .reminder-time-row { display: flex; align-items: center; gap: 8px; }
+  .reminder-time-row #reminder-time-input { width: auto; flex: 0 0 auto; font-size: 13px; }
+  .reminder-time-row .reminder-time-hint { font-size: 11px; color: var(--muted); }
+  #reminder-weekday-picker {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  #reminder-weekday-picker label {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 6px;
+    cursor: pointer;
+  }
+  #reminder-weekday-picker input { width: auto; accent-color: var(--accent); }
+  #reminder-edit-row #reminder-text-input {
+    width: 100%;
+    font-size: 13px;
+    font-family: inherit;
+    resize: none;
+  }
+  #reminder-edit-row #reminder-password-input { width: 100%; font-size: 13px; }
+  #reminder-error-msg {
+    width: 100%;
+    font-size: 12px;
+    color: #e5534b;
+    display: none;
+  }
+  #reminder-error-msg.active { display: block; }
 
   #tool-overlay {
     display: none;
@@ -1106,9 +1427,15 @@
         <span class="pin-bar-label">公告栏</span>
       </div>
       <span class="pin-text" id="announcement-text"></span>
+      <button id="announcement-expand-btn" type="button">展开全文</button>
       <div class="pin-bar-actions">
-        <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
-        <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
+        <div class="pin-gear-wrap">
+          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作">⚙️</button>
+          <div id="announcement-gear-menu" class="pin-gear-menu">
+            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
+            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
+          </div>
+        </div>
       </div>
       <div id="announcement-history-panel">
         <div class="pin-history-title">公告栏修改记录</div>
@@ -1127,31 +1454,23 @@
 
     <div class="sidebar-divider"></div>
 
-    <button id="memo-panel-toggle" class="sidebar-toggle collapsed" type="button">
-      <span>📝 备忘栏</span>
+    <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>📚 参考文档</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
-    <div id="memo-panel-body" class="collapsed">
-      <div id="sidebar-memo">
-        <span class="pin-text" id="memo-text"></span>
-        <div class="pin-bar-actions">
-          <button class="pin-edit-btn" id="memo-edit-open-btn" title="编辑">✏️</button>
-          <button class="pin-edit-btn" id="memo-history-toggle" type="button" title="修改记录">📋</button>
-        </div>
-        <div id="memo-history-panel">
-          <div class="pin-history-title">备忘栏修改记录</div>
-          <div id="memo-history-list"></div>
-        </div>
-      </div>
-      <div id="memo-edit-row">
-        <textarea id="memo-input" placeholder="设置备忘栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-        <input id="memo-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-        <div class="pin-edit-actions-row">
-          <button id="memo-save-btn">保存</button>
-          <button class="pin-edit-btn" id="memo-cancel-btn">取消</button>
-        </div>
-        <span id="memo-error-msg"></span>
-      </div>
+    <div id="doc-links-body" class="collapsed">
+      <a href="https://mingdong.feishu.cn/wiki/OhqdwF4iDig1utkjWLdcgDd4nxe?from=from_copylink" target="_blank" rel="noopener noreferrer" id="problem-record-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📋</span>
+        <span class="tool-entry-label">问题件记录</span>
+      </a>
+      <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📊</span>
+        <span class="tool-entry-label">复数追加记录</span>
+      </a>
+      <a href="https://mingdong.feishu.cn/wiki/Wt4mw4qBlieSKwkW9ufcy7v6nQh?from=from_copylink" target="_blank" rel="noopener noreferrer" id="inspection-standard-link" class="tool-entry-btn">
+        <span class="tool-entry-icon">📐</span>
+        <span class="tool-entry-label">检品标准流程规范</span>
+      </a>
     </div>
   </div>
   <div id="chat-col">
@@ -1167,8 +1486,13 @@
     <div id="pinned-bar">
       <span class="pin-icon">📌</span>
       <span class="pin-text" id="pinned-text"></span>
-      <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
-      <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
+      <div class="pin-gear-wrap">
+        <button class="pin-edit-btn" id="pin-gear-btn" type="button" title="更多操作">⚙️</button>
+        <div id="pin-gear-menu" class="pin-gear-menu">
+          <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
+          <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
+        </div>
+      </div>
       <div id="pin-history-panel">
         <div class="pin-history-title">置顶公告修改记录</div>
         <div id="pin-history-list"></div>
@@ -1180,6 +1504,13 @@
       <button id="pin-save-btn">保存</button>
       <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
       <span id="pin-error-msg"></span>
+    </div>
+    <button id="pending-panel-toggle" type="button">
+      <span>🚩 待处理事项 <span id="pending-count-badge"></span></span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="pending-panel-body">
+      <div id="pending-list"></div>
     </div>
     <div id="messages"></div>
     <div id="typing"></div>
@@ -1211,14 +1542,64 @@
     </div>
   </div>
   <div id="quick-sidebar">
-    <h3>常用文本</h3>
+    <div class="quick-header-row">
+      <h3>常用文本</h3>
+      <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="管理分类">⚙️</button>
+    </div>
+    <div id="quick-category-manage-row">
+      <div id="quick-category-manage-list"></div>
+      <div class="quick-category-add-row">
+        <input id="quick-category-add-input" type="text" placeholder="新分类名称..." maxlength="10" />
+        <button id="quick-category-add-btn">+ 添加分类</button>
+      </div>
+    </div>
     <div id="quick-categories"></div>
     <button id="quick-add-btn">+ 添加常用语</button>
     <div id="quick-add-row">
-      <input id="quick-add-input" type="text" placeholder="输入常用语内容...（含&quot;代拍/代购/煤炉&quot;会自动归类）" maxlength="200" />
+      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
+      <div class="quick-add-category-row">
+        <label for="quick-add-category-select">分类：</label>
+        <select id="quick-add-category-select"></select>
+      </div>
       <div class="quick-add-actions">
         <button id="quick-save-btn">保存</button>
         <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
+      <span>⏰ 提醒事项</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="reminder-panel-body" class="collapsed">
+      <div id="reminder-list"></div>
+      <button id="reminder-add-open-btn" class="tool-entry-btn" type="button">
+        <span class="tool-entry-icon">➕</span>
+        <span class="tool-entry-label">添加提醒</span>
+      </button>
+      <div id="reminder-edit-row">
+        <div class="reminder-time-row">
+          <input type="time" id="reminder-time-input" />
+          <span class="reminder-time-hint">（日本时间）</span>
+        </div>
+        <div id="reminder-weekday-picker">
+          <label><input type="checkbox" value="1" checked />一</label>
+          <label><input type="checkbox" value="2" checked />二</label>
+          <label><input type="checkbox" value="3" checked />三</label>
+          <label><input type="checkbox" value="4" checked />四</label>
+          <label><input type="checkbox" value="5" checked />五</label>
+          <label><input type="checkbox" value="6" checked />六</label>
+          <label><input type="checkbox" value="0" checked />日</label>
+        </div>
+        <textarea id="reminder-text-input" placeholder="提醒内容..." rows="2"></textarea>
+        <input type="password" id="reminder-password-input" placeholder="编辑密码" autocomplete="off" />
+        <div class="pin-edit-actions-row">
+          <button id="reminder-save-btn">保存</button>
+          <button class="pin-edit-btn" id="reminder-cancel-btn">取消</button>
+        </div>
+        <span id="reminder-error-msg"></span>
       </div>
     </div>
 
@@ -1282,9 +1663,13 @@
   const pinHistoryToggle = document.getElementById('pin-history-toggle');
   const pinHistoryPanel = document.getElementById('pin-history-panel');
   const pinHistoryList = document.getElementById('pin-history-list');
+  const pinGearBtn = document.getElementById('pin-gear-btn');
+  const pinGearMenu = document.getElementById('pin-gear-menu');
   const announcementHistoryToggle = document.getElementById('announcement-history-toggle');
   const announcementHistoryPanel = document.getElementById('announcement-history-panel');
   const announcementHistoryList = document.getElementById('announcement-history-list');
+  const announcementGearBtn = document.getElementById('announcement-gear-btn');
+  const announcementGearMenu = document.getElementById('announcement-gear-menu');
   const announceOverlay = document.getElementById('announce-overlay');
   const announceFromEl = document.getElementById('announce-from');
   const announceTextEl = document.getElementById('announce-text');
@@ -1295,6 +1680,7 @@
   const typingEl = document.getElementById('typing');
   const pinnedTextEl = document.getElementById('pinned-text');
   const announcementTextEl = document.getElementById('announcement-text');
+  const announcementExpandBtn = document.getElementById('announcement-expand-btn');
   const announcementEditOpenBtn = document.getElementById('announcement-edit-open-btn');
   const announcementEditRow = document.getElementById('announcement-edit-row');
   const announcementInput = document.getElementById('announcement-input');
@@ -1302,19 +1688,14 @@
   const announcementErrorMsg = document.getElementById('announcement-error-msg');
   const announcementSaveBtn = document.getElementById('announcement-save-btn');
   const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
-  const memoPanelToggle = document.getElementById('memo-panel-toggle');
-  const memoPanelBody = document.getElementById('memo-panel-body');
-  const memoTextEl = document.getElementById('memo-text');
-  const memoEditOpenBtn = document.getElementById('memo-edit-open-btn');
-  const memoEditRow = document.getElementById('memo-edit-row');
-  const memoInput = document.getElementById('memo-input');
-  const memoPasswordInput = document.getElementById('memo-password-input');
-  const memoErrorMsg = document.getElementById('memo-error-msg');
-  const memoSaveBtn = document.getElementById('memo-save-btn');
-  const memoCancelBtn = document.getElementById('memo-cancel-btn');
-  const memoHistoryToggle = document.getElementById('memo-history-toggle');
-  const memoHistoryPanel = document.getElementById('memo-history-panel');
-  const memoHistoryList = document.getElementById('memo-history-list');
+  const reminderPanelToggle = document.getElementById('reminder-panel-toggle');
+  const reminderPanelBody = document.getElementById('reminder-panel-body');
+  const pendingPanelToggle = document.getElementById('pending-panel-toggle');
+  const pendingPanelBody = document.getElementById('pending-panel-body');
+  const pendingListEl = document.getElementById('pending-list');
+  const pendingCountBadge = document.getElementById('pending-count-badge');
+  const docLinksToggle = document.getElementById('doc-links-toggle');
+  const docLinksBody = document.getElementById('doc-links-body');
   const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
   const pinnedEditRow = document.getElementById('pinned-edit-row');
   const pinnedInput = document.getElementById('pinned-input');
@@ -1325,13 +1706,29 @@
   const mentionMenu = document.getElementById('mention-menu');
   const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
+  const quickCategoryManageBtn = document.getElementById('quick-category-manage-btn');
+  const quickCategoryManageRow = document.getElementById('quick-category-manage-row');
+  const quickCategoryManageList = document.getElementById('quick-category-manage-list');
+  const quickCategoryAddInput = document.getElementById('quick-category-add-input');
+  const quickCategoryAddBtn = document.getElementById('quick-category-add-btn');
   const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
+  const reminderListEl = document.getElementById('reminder-list');
+  const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
+  const reminderEditRow = document.getElementById('reminder-edit-row');
+  const reminderTimeInput = document.getElementById('reminder-time-input');
+  const reminderWeekdayPicker = document.getElementById('reminder-weekday-picker');
+  const reminderTextInput = document.getElementById('reminder-text-input');
+  const reminderPasswordInput = document.getElementById('reminder-password-input');
+  const reminderErrorMsg = document.getElementById('reminder-error-msg');
+  const reminderSaveBtn = document.getElementById('reminder-save-btn');
+  const reminderCancelBtn = document.getElementById('reminder-cancel-btn');
   const toolOverlay = document.getElementById('tool-overlay');
   const toolOverlayTitle = document.getElementById('tool-overlay-title');
   const toolOverlayFrame = document.getElementById('tool-overlay-frame');
   const toolOverlayCloseBtn = document.getElementById('tool-overlay-close-btn');
   const quickAddRow = document.getElementById('quick-add-row');
   const quickAddInput = document.getElementById('quick-add-input');
+  const quickAddCategorySelect = document.getElementById('quick-add-category-select');
   const quickSaveBtn = document.getElementById('quick-save-btn');
   const quickCancelBtn = document.getElementById('quick-cancel-btn');
   const replyPreviewBar = document.getElementById('reply-preview-bar');
@@ -1402,6 +1799,15 @@
         messagesEl.innerHTML = '';
         data.messages.forEach((m) => renderMessage(m, { live: false }));
         scrollToBottom();
+        // 历史消息里可能已经有之前标记过、还没处理完的待处理项，扫一遍填进侧边栏列表里，
+        // 不然刚进聊天室的人看不到"之前就已经有的"待处理事项
+        pendingMessages.clear();
+        data.messages.forEach((m) => {
+          if (m.type === 'message' && m.pending && typeof m.id === 'number') {
+            pendingMessages.set(m.id, { by: m.pending.by, at: m.pending.at, username: m.username, text: m.text });
+          }
+        });
+        renderPendingList();
       } else if (data.type === 'message') {
         renderMessage(data, { live: true });
         scrollToBottom();
@@ -1441,19 +1847,18 @@
           announcementErrorMsg.classList.add('active');
           announcementPasswordInput.focus();
         }
-      } else if (data.type === 'memo') {
-        setMemoText(data.text || '');
-        closeMemoEdit();
+      } else if (data.type === 'reminder_list') {
+        renderReminderList(Array.isArray(data.reminders) ? data.reminders : []);
+        closeReminderEdit();
         closeDeleteConfirm();
-        if (Array.isArray(data.history)) renderMemoHistory(data.history);
-      } else if (data.type === 'memo_error') {
-        if (lastMemoAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+      } else if (data.type === 'reminder_error') {
+        if (lastReminderAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
           deleteConfirmError.textContent = data.message || '密码错误';
           deleteConfirmPassword.focus();
         } else {
-          memoErrorMsg.textContent = data.message || '密码错误';
-          memoErrorMsg.classList.add('active');
-          memoPasswordInput.focus();
+          reminderErrorMsg.textContent = data.message || '密码错误';
+          reminderErrorMsg.classList.add('active');
+          reminderPasswordInput.focus();
         }
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
@@ -1462,6 +1867,8 @@
             .find((btn) => btn.dataset.emoji === data.emoji);
           if (reactionBtn) applyLiveReactionUpdate(reactionBtn, Array.isArray(data.users) ? data.users : []);
         }
+      } else if (data.type === 'pending_update') {
+        applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
       } else if (data.type === 'typing') {
         typingEl.textContent = `${data.username} 正在输入...`;
         clearTimeout(typingEl._t);
@@ -1657,6 +2064,21 @@
         updateReactionButton(reactionBtn, Array.isArray(reactions[emoji]) ? reactions[emoji] : []);
         badgesContainer.appendChild(reactionBtn);
       });
+
+      // "标记待处理"——跟点赞/疑问不一样，这个不是多人各自表态的东西，是个开关：
+      // 标了就说明"这条还没处理完"，谁都能标、谁都能取消，处理完了随手点掉就行
+      const pendingBtn = document.createElement('button');
+      pendingBtn.className = 'reaction-badge pending-badge';
+      pendingBtn.innerHTML = `<span class="reaction-icon">🚩</span><span class="reaction-names"></span>`;
+      pendingBtn.title = '标记待处理';
+      pendingBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'toggle_pending', messageId: data.id }));
+        }
+      });
+      updatePendingButton(pendingBtn, wrap, data.pending || null);
+      badgesContainer.appendChild(pendingBtn);
+
       bubble.appendChild(badgesContainer);
     }
 
@@ -1664,6 +2086,16 @@
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
     messagesEl.appendChild(wrap);
+  }
+
+  // 待处理按钮和消息气泡本身的高亮状态，统一在这里更新（初始渲染和实时更新都走这个函数）
+  function updatePendingButton(pendingBtn, wrapEl, pending) {
+    const isPending = !!pending;
+    pendingBtn.classList.toggle('reacted', isPending);
+    pendingBtn.classList.toggle('has-count', isPending);
+    pendingBtn.querySelector('.reaction-names').textContent = isPending ? `${pending.by} 标记` : '';
+    pendingBtn.title = isPending ? `${pending.by} 标记为待处理，点击标记完成` : '标记待处理';
+    wrapEl.classList.toggle('msg-pending', isPending);
   }
 
   function updateReactionButton(reactionBtn, users) {
@@ -2158,10 +2590,100 @@
     onlineListToggle.classList.toggle('collapsed', collapsed);
   });
 
-  memoPanelToggle.addEventListener('click', () => {
-    const collapsed = memoPanelBody.classList.toggle('collapsed');
-    memoPanelToggle.classList.toggle('collapsed', collapsed);
+  reminderPanelToggle.addEventListener('click', () => {
+    const collapsed = reminderPanelBody.classList.toggle('collapsed');
+    reminderPanelToggle.classList.toggle('collapsed', collapsed);
   });
+
+  docLinksToggle.addEventListener('click', () => {
+    const collapsed = docLinksBody.classList.toggle('collapsed');
+    docLinksToggle.classList.toggle('collapsed', collapsed);
+  });
+
+  pendingPanelToggle.addEventListener('click', () => {
+    const collapsed = pendingPanelBody.classList.toggle('collapsed');
+    pendingPanelToggle.classList.toggle('collapsed', collapsed);
+  });
+
+  // ===== 待处理事项：防止订单/消息被刷下去之后没人处理、被遗忘 =====
+  // key是messageId，value是 { by, at, username, text }，只存"当前还在待处理状态"的
+  const pendingMessages = new Map();
+
+  function formatPendingTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderPendingList() {
+    pendingListEl.innerHTML = '';
+    const count = pendingMessages.size;
+    pendingCountBadge.textContent = count > 0 ? String(count) : '';
+
+    if (count === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'pending-empty-hint';
+      empty.textContent = '暂无待处理事项';
+      pendingListEl.appendChild(empty);
+      return;
+    }
+
+    // 最新标记的排最上面，方便一眼看到最近谁又标了新的
+    const sorted = Array.from(pendingMessages.entries()).sort((a, b) => b[1].at - a[1].at);
+    sorted.forEach(([messageId, info]) => {
+      const item = document.createElement('div');
+      item.className = 'pending-item';
+
+      const meta = document.createElement('div');
+      meta.className = 'pending-item-meta';
+      meta.innerHTML = `<span>${info.username}</span><span>${info.by} 标记 · ${formatPendingTime(info.at)}</span>`;
+      item.appendChild(meta);
+
+      const textEl = document.createElement('div');
+      textEl.className = 'pending-item-text';
+      textEl.textContent = info.text || '（图片/文件消息）';
+      item.appendChild(textEl);
+
+      const resolveBtn = document.createElement('button');
+      resolveBtn.className = 'pending-resolve-btn';
+      resolveBtn.textContent = '✓ 标记完成';
+      resolveBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // 别触发外层item的"跳转到消息"点击
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'toggle_pending', messageId }));
+        }
+      });
+      item.appendChild(resolveBtn);
+
+      // 点条目本身(除了完成按钮)跳转到聊天记录里对应的那条消息
+      item.addEventListener('click', () => {
+        const target = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('jump-highlight');
+          setTimeout(() => target.classList.remove('jump-highlight'), 1500);
+        }
+      });
+
+      pendingListEl.appendChild(item);
+    });
+  }
+
+  // 收到某条消息的pending状态变化（不管是自己标的还是广播来的），统一维护pendingMessages这个集合
+  function applyPendingUpdate(messageId, pending, username, text) {
+    if (pending) {
+      pendingMessages.set(messageId, { by: pending.by, at: pending.at, username, text });
+    } else {
+      pendingMessages.delete(messageId);
+    }
+    renderPendingList();
+
+    // 如果这条消息当前正显示在聊天记录里，顺手把气泡上的高亮和徽章状态也同步更新
+    const wrapEl = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+    if (wrapEl) {
+      const pendingBtn = wrapEl.querySelector('.pending-badge');
+      if (pendingBtn) updatePendingButton(pendingBtn, wrapEl, pending);
+    }
+  }
 
   function setPinnedText(text) {
     currentPinnedText = text || '';
@@ -2239,10 +2761,6 @@
     renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
   }
 
-  function renderMemoHistory(historyList) {
-    renderHistoryList(historyList, memoHistoryList, '（空 - 当时清除了备忘栏内容）', handleDeleteMemoHistoryEntry);
-  }
-
   // ===== 删除历史记录的自定义确认弹窗（不用confirm/prompt，Electron里prompt不可靠） =====
   const deleteConfirmOverlay = document.getElementById('delete-confirm-overlay');
   const deleteConfirmDesc = document.getElementById('delete-confirm-desc');
@@ -2254,9 +2772,16 @@
 
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
-    const preview = entry.text ? entry.text.slice(0, 40) : '(空)';
-    const label = kind === 'pin' ? '置顶公告' : (kind === 'memo' ? '备忘栏' : '公告栏');
-    deleteConfirmDesc.textContent = `${label}历史记录：\n"${preview}"`;
+    let label;
+    let preview;
+    if (kind === 'reminder') {
+      label = '提醒事项';
+      preview = `${formatReminderSchedule(entry)} ${entry.text}`.slice(0, 60);
+    } else {
+      label = kind === 'pin' ? '置顶公告' : '公告栏';
+      preview = entry.text ? entry.text.slice(0, 40) : '(空)';
+    }
+    deleteConfirmDesc.textContent = `${label}：\n"${preview}"`;
     deleteConfirmPassword.value = '';
     deleteConfirmError.textContent = '';
     deleteConfirmOverlay.classList.add('active');
@@ -2284,16 +2809,16 @@
     if (kind === 'pin') {
       lastPinAction = 'delete';
       ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
-    } else if (kind === 'memo') {
-      lastMemoAction = 'delete';
-      ws.send(JSON.stringify({ type: 'memo_delete_history', id: entry.id, password }));
+    } else if (kind === 'reminder') {
+      lastReminderAction = 'delete';
+      ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
     } else {
       lastAnnouncementAction = 'delete';
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
-    // 成功了会收到 pinned/announcement 广播，里面会顺带关掉这个弹窗；
-    // 密码错误等失败情况会收到 pin_error/announcement_error，直接在弹窗里显示，不用alert()
+    // 成功了会收到 pinned/announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
+    // 密码错误等失败情况会收到 xxx_error，直接在弹窗里显示，不用alert()
   }
 
   deleteConfirmCancelBtn.addEventListener('click', closeDeleteConfirm);
@@ -2314,9 +2839,151 @@
     openDeleteConfirm('announcement', entry);
   }
 
-  function handleDeleteMemoHistoryEntry(entry) {
-    openDeleteConfirm('memo', entry);
+  // ===== 提醒事项（列表，多条，都可以自己增删改，不用改代码/重新部署） =====
+  let lastReminderAction = 'edit'; // 'edit' 或 'delete'
+  let editingReminderId = null; // null = 当前是"新增"模式；有值 = 正在编辑这一条
+
+  const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+  function formatReminderSchedule(reminder) {
+    const timeStr = `${String(reminder.hour).padStart(2, '0')}:${String(reminder.minute).padStart(2, '0')}`;
+    if (!reminder.weekdays || reminder.weekdays.length === 7) {
+      return `每天 ${timeStr}`;
+    }
+    const sorted = [...reminder.weekdays].sort();
+    if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5])) {
+      return `工作日 ${timeStr}`;
+    }
+    if (JSON.stringify(sorted) === JSON.stringify([1, 2, 3, 4, 5, 6])) {
+      return `周一至周六 ${timeStr}`;
+    }
+    const dayLabels = sorted.map((d) => WEEKDAY_LABELS[d]).join('、');
+    return `每周${dayLabels} ${timeStr}`;
   }
+
+  function renderReminderList(list) {
+    reminderListEl.innerHTML = '';
+    if (!Array.isArray(list) || list.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'reminder-empty-hint';
+      empty.textContent = '暂无提醒事项';
+      reminderListEl.appendChild(empty);
+      return;
+    }
+    list.forEach((r) => {
+      const item = document.createElement('div');
+      item.className = 'reminder-item';
+
+      const schedule = document.createElement('div');
+      schedule.className = 'reminder-schedule';
+      schedule.textContent = formatReminderSchedule(r);
+      item.appendChild(schedule);
+
+      const text = document.createElement('div');
+      text.className = 'reminder-text';
+      text.textContent = r.text;
+      item.appendChild(text);
+
+      const actions = document.createElement('div');
+      actions.className = 'reminder-actions';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'pin-edit-btn';
+      editBtn.title = '编辑';
+      editBtn.textContent = '✏️';
+      editBtn.addEventListener('click', () => openReminderEdit(r));
+      actions.appendChild(editBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'pin-edit-btn';
+      delBtn.title = '删除';
+      delBtn.textContent = '🗑️';
+      delBtn.addEventListener('click', () => openDeleteConfirm('reminder', r));
+      actions.appendChild(delBtn);
+
+      item.appendChild(actions);
+      reminderListEl.appendChild(item);
+    });
+  }
+
+  function openReminderEdit(existing) {
+    editingReminderId = existing ? existing.id : null;
+    if (existing) {
+      reminderTimeInput.value = `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`;
+      reminderTextInput.value = existing.text;
+      const selectedDays = existing.weekdays || [0, 1, 2, 3, 4, 5, 6];
+      reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = selectedDays.includes(Number(cb.value));
+      });
+    } else {
+      reminderTimeInput.value = '';
+      reminderTextInput.value = '';
+      reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+    }
+    reminderPasswordInput.value = '';
+    reminderErrorMsg.classList.remove('active');
+    reminderEditRow.classList.add('active');
+    reminderTimeInput.focus();
+  }
+
+  function closeReminderEdit() {
+    reminderEditRow.classList.remove('active');
+    editingReminderId = null;
+  }
+
+  function saveReminder() {
+    const timeVal = reminderTimeInput.value; // "HH:MM"
+    if (!timeVal) {
+      reminderErrorMsg.textContent = '请选择提醒时间';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    const [hourStr, minuteStr] = timeVal.split(':');
+    const hour = Number(hourStr);
+    const minute = Number(minuteStr);
+
+    const checkedDays = Array.from(reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]:checked'))
+      .map((cb) => Number(cb.value));
+    if (checkedDays.length === 0) {
+      reminderErrorMsg.textContent = '至少要选一天';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    // 全选7天就当"每天"处理（不用特意传数组），跟服务端逻辑保持一致
+    const weekdays = checkedDays.length === 7 ? null : checkedDays;
+
+    const text = reminderTextInput.value.trim();
+    if (!text) {
+      reminderErrorMsg.textContent = '请输入提醒内容';
+      reminderErrorMsg.classList.add('active');
+      return;
+    }
+    const password = reminderPasswordInput.value;
+    if (!password) {
+      reminderErrorMsg.textContent = '请输入编辑密码';
+      reminderErrorMsg.classList.add('active');
+      reminderPasswordInput.focus();
+      return;
+    }
+    reminderErrorMsg.classList.remove('active');
+    lastReminderAction = 'edit';
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      if (editingReminderId) {
+        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password }));
+      } else {
+        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password }));
+      }
+    }
+    // 同样不在这里关闭——等服务器广播reminder_list回来再关，密码错了会在原地提示
+  }
+
+  reminderAddOpenBtn.addEventListener('click', () => openReminderEdit(null));
+  reminderCancelBtn.addEventListener('click', closeReminderEdit);
+  reminderSaveBtn.addEventListener('click', saveReminder);
+  reminderPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveReminder();
+    if (e.key === 'Escape') closeReminderEdit();
+  });
 
   function setupHistoryToggle(toggleBtn, panelEl) {
     toggleBtn.addEventListener('click', (e) => {
@@ -2333,7 +3000,15 @@
   }
   setupHistoryToggle(pinHistoryToggle, pinHistoryPanel);
   setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
-  setupHistoryToggle(memoHistoryToggle, memoHistoryPanel);
+  // 齿轮图标本身也是同一套"点击展开/点外面收起"逻辑，直接复用
+  setupHistoryToggle(pinGearBtn, pinGearMenu);
+  setupHistoryToggle(announcementGearBtn, announcementGearMenu);
+  // 在齿轮菜单里点了"编辑"或"记录"之后，齿轮菜单本身也应该跟着收起来，
+  // 不然点开编辑框/记录面板之后，齿轮小菜单还悬在那里，看着乱
+  pinEditOpenBtn.addEventListener('click', () => pinGearMenu.classList.remove('active'));
+  pinHistoryToggle.addEventListener('click', () => pinGearMenu.classList.remove('active'));
+  announcementEditOpenBtn.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
+  announcementHistoryToggle.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
 
   function openPinEdit() {
     pinnedInput.value = currentPinnedText;
@@ -2395,11 +3070,28 @@
     if (currentAnnouncementText) {
       announcementTextEl.innerHTML = renderRichText(currentAnnouncementText);
       announcementTextEl.classList.remove('empty');
+      announcementExpandBtn.textContent = '展开全文';
+      // 判断要不要显示"展开全文"按钮：先不截断量出完整高度，再截断量出截断后的高度，
+      // 两者一比就知道内容是不是真的被截掉了——直接读"已经截断状态下"的scrollHeight不太可靠，
+      // -webkit-line-clamp这个属性在这种场景下scrollHeight有时候量不准
+      announcementTextEl.classList.remove('clamped');
+      const fullHeight = announcementTextEl.scrollHeight;
+      announcementTextEl.classList.add('clamped');
+      const clampedHeight = announcementTextEl.clientHeight;
+      const isOverflowing = fullHeight > clampedHeight + 2;
+      announcementExpandBtn.classList.toggle('visible', isOverflowing);
     } else {
       announcementTextEl.textContent = '暂无内容，点击"编辑"设置一条';
       announcementTextEl.classList.add('empty');
+      announcementTextEl.classList.remove('clamped');
+      announcementExpandBtn.classList.remove('visible');
     }
   }
+
+  announcementExpandBtn.addEventListener('click', () => {
+    const nowClamped = announcementTextEl.classList.toggle('clamped');
+    announcementExpandBtn.textContent = nowClamped ? '展开全文' : '收起';
+  });
 
   function autoResizeAnnouncementInput() {
     announcementInput.style.height = 'auto';
@@ -2455,91 +3147,58 @@
     if (e.key === 'Escape') closeAnnouncementEdit();
   });
 
-  // ===== 备忘栏（侧栏那个，跟置顶公告、公告栏都完全独立，逻辑对称复制过来） =====
-  let currentMemoText = '';
-  let lastMemoAction = 'edit'; // 'edit' 或 'delete'
-
-  function setMemoText(text) {
-    currentMemoText = text || '';
-    if (currentMemoText) {
-      memoTextEl.innerHTML = renderRichText(currentMemoText);
-      memoTextEl.classList.remove('empty');
-    } else {
-      memoTextEl.textContent = '暂无内容，点击"编辑"设置一条';
-      memoTextEl.classList.add('empty');
-    }
-  }
-
-  function autoResizeMemoInput() {
-    memoInput.style.height = 'auto';
-    memoInput.style.height = Math.min(memoInput.scrollHeight, 100) + 'px';
-  }
-
-  function openMemoEdit() {
-    memoInput.value = currentMemoText;
-    memoPasswordInput.value = '';
-    memoErrorMsg.classList.remove('active');
-    memoEditRow.classList.add('active');
-    memoInput.focus();
-    autoResizeMemoInput();
-  }
-
-  function closeMemoEdit() {
-    memoEditRow.classList.remove('active');
-    memoPasswordInput.value = '';
-    memoErrorMsg.classList.remove('active');
-    memoErrorMsg.textContent = '';
-  }
-
-  function saveMemoText() {
-    const text = memoInput.value.trim();
-    const password = memoPasswordInput.value;
-    if (!password) {
-      memoErrorMsg.textContent = '请输入编辑密码';
-      memoErrorMsg.classList.add('active');
-      memoPasswordInput.focus();
-      return;
-    }
-    memoErrorMsg.classList.remove('active');
-    lastMemoAction = 'edit';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'memo', text, password }));
-    }
-  }
-
-  memoEditOpenBtn.addEventListener('click', openMemoEdit);
-  memoCancelBtn.addEventListener('click', closeMemoEdit);
-  memoSaveBtn.addEventListener('click', saveMemoText);
-  memoInput.addEventListener('input', autoResizeMemoInput);
-  memoInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      saveMemoText();
-    }
-    if (e.key === 'Escape') closeMemoEdit();
-  });
-  memoPasswordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveMemoText();
-    if (e.key === 'Escape') closeMemoEdit();
-  });
-
   // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
-  const QUICK_CATEGORIES = ['代拍', '代购', '煤炉', '常用语'];
+  const QUICK_CATEGORY_STORAGE_KEY = 'chatQuickCategories';
+  const DEFAULT_QUICK_CATEGORIES = ['代拍', '代购', '煤炉', '常用语'];
 
-  function categorizePhrase(phrase) {
-    for (const cat of QUICK_CATEGORIES) {
-      if (cat === '常用语') continue; // 兜底分类放最后判断
-      if (phrase.includes(cat)) return cat;
-    }
-    return '常用语';
+  function loadQuickCategories() {
+    try {
+      const raw = localStorage.getItem(QUICK_CATEGORY_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) { /* ignore */ }
+    return DEFAULT_QUICK_CATEGORIES.slice();
   }
 
+  function saveQuickCategories(list) {
+    try {
+      localStorage.setItem(QUICK_CATEGORY_STORAGE_KEY, JSON.stringify(list));
+    } catch (e) { /* ignore（比如隐私模式下localStorage不可用） */ }
+  }
+
+  let quickCategories = loadQuickCategories();
+
+  // 分类名字/数量都可能被用户自己改，所以"兜底分类"不能写死认"常用语"这个名字，
+  // 改成"最后一个分类当兜底"——不管用户怎么改名/排序，永远是最后一个接住没匹配到关键词的内容
+  function categorizePhrase(phrase) {
+    for (let i = 0; i < quickCategories.length - 1; i++) {
+      if (phrase.includes(quickCategories[i])) return quickCategories[i];
+    }
+    return quickCategories[quickCategories.length - 1];
+  }
+
+  // 常用语现在存的是 { text, category } 对象，不是纯字符串了——
+  // 分类要明确记下来，不能每次都靠"文字里有没有出现分类名字"重新猜，
+  // 不然分类改名/自定义分类的时候，内容会跟着"猜丢"掉到兜底分类里。
+  // 这里对老数据（纯字符串数组）做一次性迁移：没有明确分类的，用关键词规则猜一个当初始值。
   function loadQuickPhrases() {
     try {
       const raw = localStorage.getItem(QUICK_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => {
+            if (typeof item === 'string') {
+              return { text: item, category: categorizePhrase(item) };
+            }
+            return item;
+          });
+        }
+      }
     } catch (e) { /* ignore */ }
-    return DEFAULT_QUICK_PHRASES.slice();
+    return DEFAULT_QUICK_PHRASES.map((text) => ({ text, category: categorizePhrase(text) }));
   }
 
   function saveQuickPhrases(list) {
@@ -2549,9 +3208,13 @@
   }
 
   let quickPhrases = loadQuickPhrases();
-  // 记住每个分类展开/收起的状态，默认全部收起，点了才展开
+  // 上面加载的时候，如果是老数据格式(纯字符串)，已经在内存里迁移成新格式了，
+  // 但还没写回localStorage——这里立刻存一次，让迁移"落盘"，避免每次刷新都用当时最新的分类列表重新猜一遍，
+  // 那样如果分类改过名字，旧数据的归属就会跟着"漂移"，不稳定
+  saveQuickPhrases(quickPhrases);
+  // 记住每个分类展开/收起的状态，默认全部收起，点了才展开；
+  // 不用预先初始化每个分类的key了——分类是动态的，读取不存在的key会拿到undefined，当成"收起"处理，效果一样
   const quickCategoryExpanded = {};
-  QUICK_CATEGORIES.forEach((cat) => { quickCategoryExpanded[cat] = false; });
 
   function insertPhraseToInput(phrase) {
     textInput.value = phrase;
@@ -2565,16 +3228,20 @@
     quickCategoriesEl.innerHTML = '';
 
     const grouped = {};
-    QUICK_CATEGORIES.forEach((cat) => { grouped[cat] = []; });
-    quickPhrases.forEach((phrase, index) => {
-      const cat = categorizePhrase(phrase);
-      grouped[cat].push({ phrase, index });
+    quickCategories.forEach((cat) => { grouped[cat] = []; });
+    quickPhrases.forEach((item, index) => {
+      // 用存储的分类字段，不再每次重新猜；万一这条记录的分类已经不存在了(比如分类被删掉了)，
+      // 兜底放到最后一个分类里，避免这条内容直接从列表里"消失"
+      const cat = grouped[item.category] ? item.category : quickCategories[quickCategories.length - 1];
+      grouped[cat].push({ phrase: item.text, index });
     });
 
-    QUICK_CATEGORIES.forEach((cat) => {
+    quickCategories.forEach((cat) => {
       const items = grouped[cat];
       const catEl = document.createElement('div');
-      catEl.className = 'quick-category' + (quickCategoryExpanded[cat] ? ' expanded' : '');
+      catEl.className = 'quick-category' +
+        (quickCategoryExpanded[cat] ? ' expanded' : '') +
+        (items.length === 0 ? ' is-empty' : '');
 
       const header = document.createElement('button');
       header.className = 'quick-category-header';
@@ -2622,10 +3289,126 @@
     });
   }
 
+  // ===== 分类管理（改名字/新增/删除分类本身，不是分类下面的具体常用语） =====
+  function renderQuickCategoryManageList() {
+    quickCategoryManageList.innerHTML = '';
+    quickCategories.forEach((cat, index) => {
+      const item = document.createElement('div');
+      item.className = 'quick-category-manage-item';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'quick-category-rename-input';
+      input.value = cat;
+      input.maxLength = 10;
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+      });
+      input.addEventListener('blur', () => {
+        const newName = input.value.trim();
+        if (!newName || newName === quickCategories[index]) {
+          input.value = quickCategories[index]; // 空的或者没改，还原
+          return;
+        }
+        if (quickCategories.includes(newName)) {
+          alert('已经有一个同名的分类了，换个名字试试');
+          input.value = quickCategories[index];
+          return;
+        }
+        const oldName = quickCategories[index];
+        // 如果这个分类当前是展开状态，改名后展开状态也要跟着挪到新名字上，不然会突然收起
+        if (quickCategoryExpanded[oldName]) {
+          quickCategoryExpanded[newName] = true;
+          delete quickCategoryExpanded[oldName];
+        }
+        quickCategories[index] = newName;
+        saveQuickCategories(quickCategories);
+        // 原来分类在这个名字下的常用语，也要跟着把.category字段改成新名字，
+        // 不然它们会变成"分类不存在"，下次渲染时被当成孤儿掉到兜底分类里
+        quickPhrases.forEach((item) => {
+          if (item.category === oldName) item.category = newName;
+        });
+        saveQuickPhrases(quickPhrases);
+        renderQuickCategoryManageList();
+        renderQuickList();
+      });
+      item.appendChild(input);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'quick-category-del-btn';
+      delBtn.textContent = '🗑️';
+      delBtn.title = '删除这个分类';
+      delBtn.disabled = quickCategories.length <= 1; // 至少保留一个分类兜底，不然没地方放常用语了
+      delBtn.addEventListener('click', () => {
+        if (quickCategories.length <= 1) return;
+        const removedCat = quickCategories[index];
+        quickCategories.splice(index, 1);
+        saveQuickCategories(quickCategories);
+        // 删掉分类不会连带删掉里面的常用语，把它们的.category字段明确迁移到兜底分类（最后一个分类）去
+        const fallbackCat = quickCategories[quickCategories.length - 1];
+        quickPhrases.forEach((item) => {
+          if (item.category === removedCat) item.category = fallbackCat;
+        });
+        saveQuickPhrases(quickPhrases);
+        renderQuickCategoryManageList();
+        renderQuickList();
+      });
+      item.appendChild(delBtn);
+
+      quickCategoryManageList.appendChild(item);
+    });
+  }
+
+  function addQuickCategory() {
+    const name = quickCategoryAddInput.value.trim();
+    if (!name) return;
+    if (quickCategories.includes(name)) {
+      alert('已经有一个同名的分类了');
+      return;
+    }
+    // 新分类插到"兜底分类"前面，不然新分类会被当成兜底、原来的兜底分类反而失去兜底作用
+    quickCategories.splice(quickCategories.length - 1, 0, name);
+    saveQuickCategories(quickCategories);
+    quickCategoryAddInput.value = '';
+    renderQuickCategoryManageList();
+    renderQuickList();
+  }
+
+  quickCategoryManageBtn.addEventListener('click', () => {
+    const active = quickCategoryManageRow.classList.toggle('active');
+    if (active) renderQuickCategoryManageList();
+  });
+  quickCategoryAddBtn.addEventListener('click', addQuickCategory);
+  quickCategoryAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addQuickCategory();
+  });
+
+  function autoResizeQuickAddInput() {
+    quickAddInput.style.height = 'auto';
+    quickAddInput.style.height = Math.min(quickAddInput.scrollHeight, 150) + 'px';
+  }
+
+  function populateQuickAddCategorySelect() {
+    quickAddCategorySelect.innerHTML = '';
+    quickCategories.forEach((cat) => {
+      const opt = document.createElement('option');
+      opt.value = cat;
+      opt.textContent = cat;
+      quickAddCategorySelect.appendChild(opt);
+    });
+  }
+
+  // 用户有没有自己手动选过分类——选过就不再用关键词自动帮她改掉了，尊重手动选择
+  let quickAddCategoryManuallyChosen = false;
+
   function openQuickAdd() {
     quickAddRow.classList.add('active');
     quickAddInput.value = '';
+    populateQuickAddCategorySelect();
+    quickAddCategorySelect.value = quickCategories[quickCategories.length - 1]; // 默认先选兜底分类
+    quickAddCategoryManuallyChosen = false;
     quickAddInput.focus();
+    autoResizeQuickAddInput();
   }
 
   function closeQuickAdd() {
@@ -2635,10 +3418,12 @@
   function saveQuickAdd() {
     const text = quickAddInput.value.trim();
     if (text) {
-      quickPhrases.push(text);
+      // 用下拉框里明确选中的分类——不管是用户自己选的，还是没手动选时自动建议出来的，
+      // 反正保存的时候是"确定的值"，不再是每次重新猜
+      const category = quickAddCategorySelect.value || categorizePhrase(text);
+      quickPhrases.push({ text, category });
       saveQuickPhrases(quickPhrases);
-      // 新加的内容按关键词自动归到对应分类，顺手展开那个分类方便立刻看到
-      quickCategoryExpanded[categorizePhrase(text)] = true;
+      quickCategoryExpanded[category] = true;
       renderQuickList();
     }
     closeQuickAdd();
@@ -2647,12 +3432,27 @@
   quickAddBtn.addEventListener('click', openQuickAdd);
   quickCancelBtn.addEventListener('click', closeQuickAdd);
   quickSaveBtn.addEventListener('click', saveQuickAdd);
+  quickAddCategorySelect.addEventListener('change', () => {
+    quickAddCategoryManuallyChosen = true;
+  });
+  quickAddInput.addEventListener('input', () => {
+    autoResizeQuickAddInput();
+    // 还没手动选过分类的话，边打字边按关键词live更新建议的分类，方便省事；
+    // 一旦手动选过，就不再自动覆盖了，尊重用户自己的选择
+    if (!quickAddCategoryManuallyChosen) {
+      quickAddCategorySelect.value = categorizePhrase(quickAddInput.value);
+    }
+  });
   quickAddInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveQuickAdd();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveQuickAdd();
+    }
     if (e.key === 'Escape') closeQuickAdd();
   });
 
   renderQuickList();
+  renderPendingList();
 
   // ===== 实用工具全屏面板（比如骏河屋检品判定台）=====
   // iframe的src故意留空，点开才设置——避免每个人一进聊天室，
@@ -2670,7 +3470,9 @@
   }
 
   toolSurugayaBtn.addEventListener('click', () => {
-    openToolOverlay('/surugaya-checker.html', '骏河屋检品判定台');
+    // 这是骏河屋官方自己的网站，没法像我们自己的工具那样嵌进全屏iframe里
+    // （外部网站基本都会挡掉被别的网站嵌入），所以改成新标签页直接打开
+    window.open('https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html', '_blank', 'noopener,noreferrer');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {
@@ -2689,7 +3491,6 @@
     appEl.classList.add('active');
     setPinnedText('');
     setAnnouncementText('');
-    setMemoText('');
     myUsernameEl.textContent = username;
     myUsernameEl.title = `当前登录：${username}`;
     try {

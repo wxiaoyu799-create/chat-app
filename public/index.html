@@ -1505,7 +1505,7 @@
       <span id="pin-error-msg"></span>
     </div>
     <button id="pending-panel-toggle" type="button">
-      <span>📌 待处理事项 <span id="pending-count-badge"></span></span>
+      <span>🚩 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="pending-panel-body">
@@ -2068,7 +2068,7 @@
       // 标了就说明"这条还没处理完"，谁都能标、谁都能取消，处理完了随手点掉就行
       const pendingBtn = document.createElement('button');
       pendingBtn.className = 'reaction-badge pending-badge';
-      pendingBtn.innerHTML = `<span class="reaction-icon">📌</span><span class="reaction-names"></span>`;
+      pendingBtn.innerHTML = `<span class="reaction-icon">🚩</span><span class="reaction-names"></span>`;
       pendingBtn.title = '标记待处理';
       pendingBtn.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {

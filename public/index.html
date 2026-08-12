@@ -395,12 +395,41 @@
     margin-left: 2px;
   }
   #pending-count-badge:empty { display: none; }
-  #pending-panel-body { margin-top: 8px; }
+  /* 待处理面板挪到了聊天区域内部(置顶公告下方)，不再放在会被窄屏幕隐藏掉的右侧栏里——
+     这个面板的意义就是"随时都要看得到"，放在容易被隐藏的地方等于白做 */
+  #pending-panel-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel-alt);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    cursor: pointer;
+  }
+  #pending-panel-toggle:hover { color: var(--text); background: var(--panel-alt); }
+  #pending-panel-toggle .sidebar-toggle-arrow { transition: transform 0.15s; }
+  #pending-panel-toggle.collapsed .sidebar-toggle-arrow { transform: rotate(-90deg); }
+  #pending-panel-body {
+    padding: 10px 18px;
+    background: var(--panel-alt);
+    border-bottom: 1px solid var(--border);
+    max-height: 220px;
+    overflow-y: auto;
+  }
   #pending-panel-body.collapsed { display: none; }
-  #pending-list { display: flex; flex-direction: column; gap: 6px; }
+  #pending-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
   .pending-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; }
   .pending-item {
-    background: var(--panel-alt);
+    background: var(--panel);
     border: 1px solid #e5534b;
     border-radius: 8px;
     padding: 8px 10px;
@@ -1475,6 +1504,13 @@
       <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
       <span id="pin-error-msg"></span>
     </div>
+    <button id="pending-panel-toggle" type="button">
+      <span>📌 待处理事项 <span id="pending-count-badge"></span></span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="pending-panel-body">
+      <div id="pending-list"></div>
+    </div>
     <div id="messages"></div>
     <div id="typing"></div>
     <div id="mention-menu"></div>
@@ -1564,16 +1600,6 @@
         </div>
         <span id="reminder-error-msg"></span>
       </div>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
-    <button id="pending-panel-toggle" class="sidebar-toggle" type="button">
-      <span>📌 待处理事项 <span id="pending-count-badge"></span></span>
-      <span class="sidebar-toggle-arrow">▶</span>
-    </button>
-    <div id="pending-panel-body">
-      <div id="pending-list"></div>
     </div>
 
     <div class="sidebar-divider"></div>

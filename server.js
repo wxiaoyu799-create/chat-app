@@ -277,79 +277,6 @@ async function deleteAnnouncementHistoryEntry(targetId) {
   }
 }
 
-// 备忘栏：跟置顶公告、公告栏都各自独立，互不关联，同样共用一个编辑密码，
-// 逻辑跟公告栏完全对称（编辑+历史记录+删除+数据库持久化），复制这一套过来改个名字
-let memoText = '';
-const MEMO_MAX_LENGTH = 600;
-const MEMO_HISTORY_MAX = 50;
-let memoHistory = [{ text: memoText, by: '系统默认', startTime: Date.now(), endTime: null }];
-
-async function ensureMemoTable() {
-  if (!dbPool) return;
-  await dbPool.query(`
-    CREATE TABLE IF NOT EXISTS memo_history (
-      id BIGSERIAL PRIMARY KEY,
-      text TEXT NOT NULL,
-      by_user TEXT NOT NULL,
-      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
-      end_time TIMESTAMPTZ
-    );
-  `);
-}
-
-async function loadMemoStateFromDB() {
-  if (!dbPool) return;
-  try {
-    await ensureMemoTable();
-    const { rows } = await dbPool.query('SELECT * FROM memo_history ORDER BY start_time ASC;');
-    if (rows.length === 0) {
-      const inserted = await dbPool.query(
-        'INSERT INTO memo_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
-        ['', '系统默认']
-      );
-      memoHistory = inserted.rows.map(rowToHistoryEntry);
-    } else {
-      memoHistory = rows.map(rowToHistoryEntry);
-    }
-    memoText = memoHistory[memoHistory.length - 1].text;
-    console.log(`已从数据库加载备忘栏历史，共 ${memoHistory.length} 条记录`);
-  } catch (err) {
-    console.error('[加载备忘栏历史失败，暂时改用内存默认值]', err.message);
-  }
-}
-
-async function recordMemoChange(newText, byUsername) {
-  const now = Date.now();
-  const last = memoHistory[memoHistory.length - 1];
-  if (last && last.endTime === null) last.endTime = now;
-  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
-  memoHistory.push(newEntry);
-  if (memoHistory.length > MEMO_HISTORY_MAX) memoHistory.shift();
-
-  if (!dbPool) return;
-  try {
-    await dbPool.query(
-      "UPDATE memo_history SET end_time = now() WHERE end_time IS NULL;"
-    );
-    const inserted = await dbPool.query(
-      'INSERT INTO memo_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
-      [newText, byUsername]
-    );
-    newEntry.id = inserted.rows[0].id;
-  } catch (err) {
-    console.error('[备忘栏历史写入数据库失败]', err.message);
-  }
-}
-
-async function deleteMemoHistoryEntry(targetId) {
-  if (!dbPool) return;
-  try {
-    await dbPool.query('DELETE FROM memo_history WHERE id = $1;', [targetId]);
-  } catch (err) {
-    console.error('[删除备忘栏历史记录失败]', err.message);
-  }
-}
-
 async function deletePinnedHistoryEntry(targetId) {
   if (!dbPool) return;
   try {
@@ -421,7 +348,6 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
-      ws.send(JSON.stringify({ type: 'memo', text: memoText, history: memoHistory }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
@@ -486,6 +412,7 @@ wss.on('connection', (ws) => {
         mentionsAll: isAll,
         quote,
         reactions: {},
+        pending: null, // 待处理标记：null=没标记，{by, at}=有人标了还没处理完
         time: Date.now(),
       };
       pushHistory(msg);
@@ -514,6 +441,21 @@ wss.on('connection', (ws) => {
         list.splice(idx, 1);
       }
       broadcast({ type: 'reaction_update', messageId, emoji, users: list });
+      return;
+    }
+
+    if (data.type === 'toggle_pending') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const messageId = data.messageId;
+      if (typeof messageId !== 'number') return;
+      const msg = history.find((m) => m.type === 'message' && m.id === messageId);
+      // 找不到说明这条消息已经被挤出历史记录了（超过 MAX_HISTORY 条），忽略即可
+      if (!msg) return;
+      // 待处理是个开关：谁都能标、谁都能取消，不需要密码——这是团队协作用的，
+      // 跟置顶公告那种"内容管理"性质不一样，越轻量越好用
+      msg.pending = msg.pending ? null : { by: client.username, at: Date.now() };
+      broadcast({ type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username });
       return;
     }
 
@@ -600,41 +542,6 @@ wss.on('connection', (ws) => {
       announcementHistory.splice(idx, 1);
       await deleteAnnouncementHistoryEntry(targetId); // 内存已经删了，这里等数据库那边也真删完
       broadcast({ type: 'announcement', text: announcementText, history: announcementHistory });
-      return;
-    }
-
-    if (data.type === 'memo') {
-      const client = clients.get(ws);
-      if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'memo_error', message: '密码错误，无法修改备忘栏' }));
-        return;
-      }
-      memoText = String(data.text || '').slice(0, MEMO_MAX_LENGTH);
-      await recordMemoChange(memoText, client.username);
-      broadcast({ type: 'memo', text: memoText, by: client.username, history: memoHistory });
-      return;
-    }
-
-    if (data.type === 'memo_delete_history') {
-      const client = clients.get(ws);
-      if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'memo_error', message: '密码错误，无法删除记录' }));
-        return;
-      }
-      const targetId = data.id;
-      const idx = memoHistory.findIndex((entry) => String(entry.id) === String(targetId));
-      if (idx === -1) return;
-      if (memoHistory[idx].endTime === null) {
-        ws.send(JSON.stringify({ type: 'memo_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
-        return;
-      }
-      memoHistory.splice(idx, 1);
-      await deleteMemoHistoryEntry(targetId);
-      broadcast({ type: 'memo', text: memoText, history: memoHistory });
       return;
     }
 
@@ -852,6 +759,7 @@ function fireReminderBroadcast(text) {
     mentionsAll: true,
     quote: null,
     reactions: {},
+    pending: null,
     time: Date.now(),
   };
   pushHistory(msg);
@@ -877,7 +785,6 @@ setInterval(checkReminders, 30 * 1000);
 async function startServer() {
   await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
   await loadAnnouncementStateFromDB();
-  await loadMemoStateFromDB();
   await loadRemindersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {

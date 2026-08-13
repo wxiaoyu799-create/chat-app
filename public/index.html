@@ -1610,9 +1610,9 @@
       <span class="tool-entry-icon">🔍</span>
       <span class="tool-entry-label">骏河屋检品判定台</span>
     </button>
-    <button id="tool-consistency-btn" class="tool-entry-btn" type="button">
-      <span class="tool-entry-icon">🖼️</span>
-      <span class="tool-entry-label">商品一致性对比</span>
+    <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
+      <span class="tool-entry-icon">🤖</span>
+      <span class="tool-entry-label">AI检品工具</span>
     </button>
     <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
       <span class="tool-entry-icon">🧮</span>
@@ -1720,7 +1720,7 @@
   const quickCategoryAddInput = document.getElementById('quick-category-add-input');
   const quickCategoryAddBtn = document.getElementById('quick-category-add-btn');
   const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
-  const toolConsistencyBtn = document.getElementById('tool-consistency-btn');
+  const toolAiInspectionBtn = document.getElementById('tool-ai-inspection-btn');
   const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
@@ -3484,8 +3484,9 @@
     // （外部网站基本都会挡掉被别的网站嵌入），所以改成新标签页直接打开
     window.open('https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html', '_blank', 'noopener,noreferrer');
   });
-  toolConsistencyBtn.addEventListener('click', () => {
-    openToolOverlay('/consistency-checker.html', '商品一致性对比');
+  toolAiInspectionBtn.addEventListener('click', () => {
+    // ChatGPT官网跟骏河屋一样会拦截被其他网站嵌入(iframe)，同样只能新标签页打开
+    window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
   });
   toolCalculatorBtn.addEventListener('click', () => {
     openToolOverlay('/calculator-detail.html', '计算器（带明细）');

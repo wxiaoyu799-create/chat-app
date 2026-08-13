@@ -1610,6 +1610,14 @@
       <span class="tool-entry-icon">🔍</span>
       <span class="tool-entry-label">骏河屋检品判定台</span>
     </button>
+    <button id="tool-consistency-btn" class="tool-entry-btn" type="button">
+      <span class="tool-entry-icon">🖼️</span>
+      <span class="tool-entry-label">商品一致性对比</span>
+    </button>
+    <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
+      <span class="tool-entry-icon">🧮</span>
+      <span class="tool-entry-label">计算器（带明细）</span>
+    </button>
   </div>
 </div>
 
@@ -1712,6 +1720,8 @@
   const quickCategoryAddInput = document.getElementById('quick-category-add-input');
   const quickCategoryAddBtn = document.getElementById('quick-category-add-btn');
   const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
+  const toolConsistencyBtn = document.getElementById('tool-consistency-btn');
+  const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -3473,6 +3483,12 @@
     // 这是骏河屋官方自己的网站，没法像我们自己的工具那样嵌进全屏iframe里
     // （外部网站基本都会挡掉被别的网站嵌入），所以改成新标签页直接打开
     window.open('https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html', '_blank', 'noopener,noreferrer');
+  });
+  toolConsistencyBtn.addEventListener('click', () => {
+    openToolOverlay('/consistency-checker.html', '商品一致性对比');
+  });
+  toolCalculatorBtn.addEventListener('click', () => {
+    openToolOverlay('/calculator-detail.html', '计算器（带明细）');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

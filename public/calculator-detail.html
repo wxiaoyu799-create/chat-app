@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>计算器（带明细）</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --ok: #2e9e5b;
+    --warn: #d98a1f;
+    --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header { margin-bottom: 18px; }
+  header h1 { font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  header p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.6; }
+
+  .total-panel {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .total-panel .total-label { font-size: 13px; opacity: 0.85; margin-bottom: 4px; }
+  .total-panel .total-value { font-size: 40px; font-weight: 700; word-break: break-all; }
+  .total-panel .total-count { font-size: 12px; opacity: 0.75; margin-top: 6px; }
+
+  .input-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .input-row input {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+    font-family: inherit;
+  }
+  #label-input { flex: 1; min-width: 0; }
+  #amount-input { flex: 1; min-width: 0; }
+  #add-btn {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #add-btn:hover { background: var(--accent-dark); }
+  .input-hint { font-size: 12px; color: var(--muted); }
+  #expr-error {
+    display: none;
+    font-size: 12px;
+    color: var(--danger);
+    margin-top: 4px;
+  }
+  #expr-error.active { display: block; }
+
+  .detail-section h2 {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  #detail-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .detail-empty {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 16px;
+    text-align: center;
+    background: var(--panel);
+    border-radius: 10px;
+  }
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .detail-item .item-index {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--panel-alt);
+    color: var(--muted);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .detail-item .item-main { flex: 1; min-width: 0; }
+  .detail-item .item-label { font-size: 13px; color: var(--text); word-break: break-word; }
+  .detail-item .item-label.empty { color: var(--muted); font-style: italic; }
+  .detail-item .item-expr { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .detail-item .item-value {
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .detail-item .item-value.negative { color: var(--danger); }
+  .detail-item .item-remove {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .detail-item .item-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .actions button:hover { border-color: var(--accent); color: var(--accent); }
+  #clear-btn:hover { border-color: var(--danger); color: var(--danger); }
+  #copy-hint { font-size: 12px; color: var(--muted); }
+  #copy-fallback-area {
+    display: none;
+    width: 100%;
+    margin-top: 10px;
+    border: 1.5px solid var(--warn);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fffbeb;
+    resize: vertical;
+  }
+  #copy-fallback-area.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧮 计算器（带明细）</h1>
+  <p>每一笔金额都会记录在明细里，方便核对加了哪些项目、有没有漏加或加错。支持备注，金额框里也可以直接写算式（比如 3*500 或 1200/2）。</p>
+</header>
+
+<div class="total-panel">
+  <div class="total-label">合计</div>
+  <div class="total-value" id="total-value">0</div>
+  <div class="total-count" id="total-count">还没有明细，添加第一笔试试</div>
+</div>
+
+<div class="input-panel">
+  <div class="input-row">
+    <input id="label-input" type="text" placeholder="备注（可选，比如"运费"）" maxlength="30" />
+  </div>
+  <div class="input-row">
+    <input id="amount-input" type="text" placeholder="金额，支持算式，比如 3*500" inputmode="decimal" />
+    <button id="add-btn">+ 添加</button>
+  </div>
+  <div class="input-hint">负数可以直接输入 -500 这种，用来记退款/折扣</div>
+  <div id="expr-error"></div>
+</div>
+
+<div class="detail-section">
+  <h2>明细</h2>
+  <div id="detail-list"></div>
+</div>
+
+<div class="actions">
+  <button id="clear-btn">清空全部</button>
+  <button id="copy-btn">复制明细</button>
+  <span id="copy-hint"></span>
+</div>
+
+<textarea id="copy-fallback-area" readonly></textarea>
+
+<script>
+  const state = { items: [] };
+  let nextId = 1;
+
+  const labelInput = document.getElementById('label-input');
+  const amountInput = document.getElementById('amount-input');
+  const addBtn = document.getElementById('add-btn');
+  const exprError = document.getElementById('expr-error');
+  const detailList = document.getElementById('detail-list');
+  const totalValueEl = document.getElementById('total-value');
+  const totalCountEl = document.getElementById('total-count');
+  const clearBtn = document.getElementById('clear-btn');
+  const copyBtn = document.getElementById('copy-btn');
+  const copyHint = document.getElementById('copy-hint');
+
+  // 只允许数字、小数点、括号和加减乘除符号，避免把奇怪的东西丢进去算——
+  // 这是纯本地计算，不发到服务器，用Function()做简单四则运算就够了，
+  // 白名单校验是为了防止手滑输入乱七八糟的字符导致奇怪的结果，不是防攻击
+  function evaluateExpression(str) {
+    const cleaned = str.trim();
+    if (!cleaned) return null;
+    if (!/^[0-9+\-*/.() ]+$/.test(cleaned)) return null;
+    try {
+      const result = Function(`"use strict"; return (${cleaned})`)();
+      if (typeof result !== 'number' || !isFinite(result)) return null;
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function formatNumber(n) {
+    // 整数不带小数点，小数最多保留2位，避免出现浮点数误差(比如0.1+0.2那种)
+    const rounded = Math.round(n * 100) / 100;
+    return rounded % 1 === 0 ? String(rounded) : rounded.toFixed(2);
+  }
+
+  function renderList() {
+    detailList.innerHTML = '';
+    if (state.items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'detail-empty';
+      empty.textContent = '暂无明细';
+      detailList.appendChild(empty);
+    } else {
+      state.items.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'detail-item';
+
+        const indexEl = document.createElement('div');
+        indexEl.className = 'item-index';
+        indexEl.textContent = idx + 1;
+        row.appendChild(indexEl);
+
+        const main = document.createElement('div');
+        main.className = 'item-main';
+        const labelEl = document.createElement('div');
+        labelEl.className = 'item-label' + (item.label ? '' : ' empty');
+        labelEl.textContent = item.label || '（未备注）';
+        main.appendChild(labelEl);
+        if (item.expression !== String(item.value)) {
+          const exprEl = document.createElement('div');
+          exprEl.className = 'item-expr';
+          exprEl.textContent = item.expression + ' = ' + formatNumber(item.value);
+          main.appendChild(exprEl);
+        }
+        row.appendChild(main);
+
+        const valueEl = document.createElement('div');
+        valueEl.className = 'item-value' + (item.value < 0 ? ' negative' : '');
+        valueEl.textContent = (item.value >= 0 ? '+' : '') + formatNumber(item.value);
+        row.appendChild(valueEl);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'item-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = '删除这一条';
+        removeBtn.addEventListener('click', () => {
+          state.items = state.items.filter((i) => i.id !== item.id);
+          renderList();
+        });
+        row.appendChild(removeBtn);
+
+        detailList.appendChild(row);
+      });
+    }
+
+    const total = state.items.reduce((sum, i) => sum + i.value, 0);
+    totalValueEl.textContent = formatNumber(total);
+    totalCountEl.textContent = state.items.length === 0
+      ? '还没有明细，添加第一笔试试'
+      : `共 ${state.items.length} 笔`;
+  }
+
+  function addItem() {
+    const label = labelInput.value.trim();
+    const rawAmount = amountInput.value.trim();
+    const value = evaluateExpression(rawAmount);
+
+    if (value === null) {
+      exprError.textContent = rawAmount ? '这个金额看不懂，只能填数字和 + - * / 这几种符号' : '请输入金额';
+      exprError.classList.add('active');
+      amountInput.focus();
+      return;
+    }
+    exprError.classList.remove('active');
+
+    state.items.push({ id: nextId++, label, expression: rawAmount, value });
+    labelInput.value = '';
+    amountInput.value = '';
+    renderList();
+    amountInput.focus(); // 方便连续快速录入下一笔
+  }
+
+  addBtn.addEventListener('click', addItem);
+  amountInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addItem();
+  });
+  labelInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') amountInput.focus();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (state.items.length === 0) return;
+    if (!confirm('确定要清空全部明细吗？这个操作没法撤销。')) return;
+    state.items = [];
+    renderList();
+  });
+
+  function buildResultText() {
+    const total = state.items.reduce((sum, i) => sum + i.value, 0);
+    const lines = ['【计算明细】'];
+    state.items.forEach((item, idx) => {
+      const label = item.label || `第${idx + 1}笔`;
+      lines.push(`${label}：${(item.value >= 0 ? '+' : '')}${formatNumber(item.value)}`);
+    });
+    lines.push('——————');
+    lines.push(`合计：${formatNumber(total)}`);
+    return lines.join('\n');
+  }
+
+  copyBtn.addEventListener('click', () => {
+    if (state.items.length === 0) {
+      copyHint.textContent = '还没有明细可以复制';
+      setTimeout(() => { copyHint.textContent = ''; }, 2000);
+      return;
+    }
+    const text = buildResultText();
+    const original = copyBtn.textContent;
+    const fallbackArea = document.getElementById('copy-fallback-area');
+
+    // 剪贴板API在部分环境下会拒绝写入权限，这时候退化成把内容放进一个
+    // 一直留在页面上的文本框里并自动选中——不会像临时创建又立刻删除的元素那样，
+    // 选中状态在用户来得及按Ctrl+C之前就已经失效
+    function showFallback() {
+      fallbackArea.value = text;
+      fallbackArea.classList.add('active');
+      fallbackArea.focus();
+      fallbackArea.select();
+      copyHint.textContent = '自动复制失败，内容已经放到下面的框里，点一下框内文字再按 Ctrl+C';
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '已复制';
+        copyHint.textContent = '';
+        fallbackArea.classList.remove('active');
+        setTimeout(() => { copyBtn.textContent = original; }, 1500);
+      }).catch(showFallback);
+    } else {
+      showFallback();
+    }
+  });
+
+  renderList();
+</script>
+
+</body>
+</html>

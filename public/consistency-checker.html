@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品一致性对比</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --ok: #2e9e5b;
+    --warn: #d98a1f;
+    --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  header { margin-bottom: 20px; }
+  header h1 { font-size: 22px; margin: 0 0 6px; }
+  header p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.6; }
+
+  .image-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 640px) {
+    .image-panels { grid-template-columns: 1fr; }
+  }
+  .image-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .image-panel h2 {
+    font-size: 15px;
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .image-panel h2 .count {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    background: var(--panel-alt);
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 10px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .drop-zone.drag-over { border-color: var(--accent); background: var(--panel-alt); }
+  .drop-zone button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .drop-zone button:hover { background: var(--accent-dark); }
+  .drop-zone .hint { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+
+  .thumb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px;
+  }
+  .thumb-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-item .thumb-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border: none;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .count-alert {
+    display: none;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .count-alert.mismatch {
+    display: block;
+    background: rgba(217, 138, 31, 0.12);
+    border: 1px solid var(--warn);
+    color: #92600f;
+  }
+  .count-alert.match {
+    display: block;
+    background: rgba(46, 158, 91, 0.12);
+    border: 1px solid var(--ok);
+    color: #1e6e3f;
+  }
+
+  .checklist {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .checklist h2 { font-size: 15px; margin: 0 0 12px; }
+  .check-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .check-item:last-of-type { border-bottom: none; }
+  .check-item label { font-size: 13px; flex-shrink: 0; }
+  .toggle-group { display: flex; gap: 4px; }
+  .toggle-group button {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .toggle-group button[data-val="yes"].active { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .toggle-group button[data-val="no"].active { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .toggle-group button[data-val="unknown"].active { background: var(--muted); border-color: var(--muted); color: #fff; }
+
+  #notes {
+    width: 100%;
+    margin-top: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    resize: vertical;
+    min-height: 50px;
+  }
+
+  #generate-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 20px;
+  }
+  #generate-btn:hover { background: var(--accent-dark); }
+
+  .result-section { display: none; }
+  .result-section.active { display: block; }
+  .verdict-stamp {
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 6px 16px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+  }
+  .verdict-stamp.consistent { background: rgba(46, 158, 91, 0.15); color: #1e6e3f; }
+  .verdict-stamp.risky { background: rgba(217, 138, 31, 0.15); color: #92600f; }
+  .verdict-stamp.inconsistent { background: rgba(229, 83, 75, 0.15); color: #a8332c; }
+
+  #result-text {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+  }
+  #copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #copy-hint {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔍 商品一致性对比</h1>
+  <p>把商家页面上的图片和实物到手后拍的图片分别放进两侧对比，人工确认每一项是否一致，最后生成一段可以直接复制使用的对比结果。</p>
+</header>
+
+<div class="image-panels">
+  <div class="image-panel" id="panel-seller" tabindex="0">
+    <h2>商家图片 <span class="count" id="seller-count">0 张</span></h2>
+    <div class="drop-zone" id="seller-dropzone">
+      <button type="button" id="seller-add-btn">+ 添加图片</button>
+      <input type="file" id="seller-input" accept="image/*" multiple hidden>
+      <p class="hint">也可以直接粘贴（Ctrl+V）或拖拽图片进来</p>
+    </div>
+    <div class="thumb-grid" id="seller-thumbs"></div>
+  </div>
+
+  <div class="image-panel" id="panel-actual" tabindex="0">
+    <h2>实物图片 <span class="count" id="actual-count">0 张</span></h2>
+    <div class="drop-zone" id="actual-dropzone">
+      <button type="button" id="actual-add-btn">+ 添加图片</button>
+      <input type="file" id="actual-input" accept="image/*" multiple hidden>
+      <p class="hint">也可以直接粘贴（Ctrl+V）或拖拽图片进来</p>
+    </div>
+    <div class="thumb-grid" id="actual-thumbs"></div>
+  </div>
+</div>
+
+<div class="count-alert" id="count-alert"></div>
+
+<div class="checklist">
+  <h2>对比确认（人工目测，逐项打勾）</h2>
+  <div class="check-item" data-key="quantity">
+    <label>数量是否一致</label>
+    <div class="toggle-group">
+      <button data-val="yes">一致</button>
+      <button data-val="no">不一致</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <div class="check-item" data-key="color">
+    <label>颜色/配色是否一致</label>
+    <div class="toggle-group">
+      <button data-val="yes">一致</button>
+      <button data-val="no">不一致</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <div class="check-item" data-key="condition">
+    <label>成色/新旧程度是否一致</label>
+    <div class="toggle-group">
+      <button data-val="yes">一致</button>
+      <button data-val="no">不一致</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <div class="check-item" data-key="accessory">
+    <label>配件是否齐全一致</label>
+    <div class="toggle-group">
+      <button data-val="yes">一致</button>
+      <button data-val="no">不一致</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <div class="check-item" data-key="packaging">
+    <label>包装是否一致</label>
+    <div class="toggle-group">
+      <button data-val="yes">一致</button>
+      <button data-val="no">不一致</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <div class="check-item" data-key="damage">
+    <label>有无网页未标注的破损/瑕疵</label>
+    <div class="toggle-group">
+      <button data-val="yes">无</button>
+      <button data-val="no">有</button>
+      <button data-val="unknown">待确认</button>
+    </div>
+  </div>
+  <textarea id="notes" placeholder="其他备注（可选），比如具体哪里不一致、瑕疵位置等..."></textarea>
+</div>
+
+<button id="generate-btn">生成对比结果</button>
+
+<div class="result-section" id="result-section">
+  <div class="verdict-stamp" id="verdict-stamp"></div>
+  <div id="result-text"></div>
+  <button id="copy-btn">复制结果</button>
+  <span id="copy-hint"></span>
+</div>
+
+<script>
+  const state = { seller: [], actual: [] };
+  const checkState = {};
+
+  function setupPanel(key) {
+    const input = document.getElementById(`${key}-input`);
+    const addBtn = document.getElementById(`${key}-add-btn`);
+    const dropzone = document.getElementById(`${key}-dropzone`);
+    const panel = document.getElementById(`panel-${key}`);
+
+    addBtn.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      addImages(key, input.files);
+      input.value = '';
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      addImages(key, e.dataTransfer.files);
+    });
+
+    // 支持在这个面板区域内直接粘贴剪贴板里的图片
+    panel.addEventListener('paste', (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      const files = [];
+      for (const item of items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) addImages(key, files);
+    });
+  }
+
+  function addImages(key, fileList) {
+    Array.from(fileList || []).forEach((file) => {
+      if (!file.type || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        state[key].push({ id: `${Date.now()}-${Math.random()}`, url: e.target.result });
+        renderThumbs(key);
+        checkCountMatch();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeImage(key, id) {
+    state[key] = state[key].filter((item) => item.id !== id);
+    renderThumbs(key);
+    checkCountMatch();
+  }
+
+  function renderThumbs(key) {
+    const grid = document.getElementById(`${key}-thumbs`);
+    grid.innerHTML = '';
+    state[key].forEach((item) => {
+      const div = document.createElement('div');
+      div.className = 'thumb-item';
+      const img = document.createElement('img');
+      img.src = item.url;
+      div.appendChild(img);
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'thumb-remove';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', () => removeImage(key, item.id));
+      div.appendChild(removeBtn);
+      grid.appendChild(div);
+    });
+    document.getElementById(`${key}-count`).textContent = `${state[key].length} 张`;
+  }
+
+  function checkCountMatch() {
+    const alertEl = document.getElementById('count-alert');
+    const sellerCount = state.seller.length;
+    const actualCount = state.actual.length;
+    if (sellerCount === 0 && actualCount === 0) {
+      alertEl.className = 'count-alert';
+      return;
+    }
+    if (sellerCount === actualCount) {
+      alertEl.className = 'count-alert match';
+      alertEl.textContent = `✓ 图片张数一致，双方都是 ${sellerCount} 张`;
+    } else {
+      alertEl.className = 'count-alert mismatch';
+      alertEl.textContent = `⚠️ 图片张数不一致：商家 ${sellerCount} 张，实物 ${actualCount} 张——提醒一下，不代表商品数量一定有问题，仅供参考`;
+    }
+  }
+
+  setupPanel('seller');
+  setupPanel('actual');
+
+  document.querySelectorAll('.check-item').forEach((item) => {
+    const key = item.dataset.key;
+    checkState[key] = null;
+    item.querySelectorAll('.toggle-group button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        item.querySelectorAll('.toggle-group button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        checkState[key] = btn.dataset.val;
+      });
+    });
+  });
+
+  const CHECK_LABELS = {
+    quantity: '数量',
+    color: '颜色/配色',
+    condition: '成色/新旧程度',
+    accessory: '配件',
+    packaging: '包装',
+    damage: '破损/瑕疵',
+  };
+
+  document.getElementById('generate-btn').addEventListener('click', () => {
+    const notes = document.getElementById('notes').value.trim();
+    const sellerCount = state.seller.length;
+    const actualCount = state.actual.length;
+
+    const inconsistentItems = [];
+    const unknownItems = [];
+    Object.keys(CHECK_LABELS).forEach((key) => {
+      const val = checkState[key];
+      if (val === 'no') inconsistentItems.push(CHECK_LABELS[key]);
+      if (val === null || val === 'unknown') unknownItems.push(CHECK_LABELS[key]);
+    });
+
+    let verdict, verdictClass, verdictText;
+    if (inconsistentItems.length > 0) {
+      verdict = 'inconsistent';
+      verdictClass = 'inconsistent';
+      verdictText = '存在不一致';
+    } else if (unknownItems.length > 0) {
+      verdict = 'risky';
+      verdictClass = 'risky';
+      verdictText = '部分项目待确认';
+    } else {
+      verdict = 'consistent';
+      verdictClass = 'consistent';
+      verdictText = '整体一致';
+    }
+
+    const lines = [];
+    lines.push(`【商品一致性对比结果】${verdictText}`);
+    lines.push('');
+    lines.push(`图片张数：商家 ${sellerCount} 张，实物 ${actualCount} 张${sellerCount === actualCount ? '（一致）' : '（不一致）'}`);
+    lines.push('');
+    Object.keys(CHECK_LABELS).forEach((key) => {
+      const val = checkState[key];
+      const label = CHECK_LABELS[key];
+      const valText = val === 'yes' ? '✓ 一致' : val === 'no' ? '✗ 不一致' : '－ 待确认';
+      lines.push(`${label}：${valText}`);
+    });
+    if (notes) {
+      lines.push('');
+      lines.push(`备注：${notes}`);
+    }
+
+    document.getElementById('verdict-stamp').className = `verdict-stamp ${verdictClass}`;
+    document.getElementById('verdict-stamp').textContent = verdictText;
+    document.getElementById('result-text').textContent = lines.join('\n');
+    document.getElementById('result-section').classList.add('active');
+    document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  document.getElementById('copy-btn').addEventListener('click', () => {
+    const text = document.getElementById('result-text').textContent;
+    const btn = document.getElementById('copy-btn');
+    const hint = document.getElementById('copy-hint');
+    const original = btn.textContent;
+
+    function selectResultText() {
+      const range = document.createRange();
+      range.selectNode(document.getElementById('result-text'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+
+    // 剪贴板API在部分环境下会被浏览器拒绝写入权限（不是bug，是环境限制），
+    // 这种情况下退化成"帮你选中文字"，并且明确告诉用户接下来手动按Ctrl+C，
+    // 不能让用户以为"点了没反应"
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '已复制';
+        hint.textContent = '';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      }).catch(() => {
+        selectResultText();
+        btn.textContent = '已为你选中文字';
+        hint.textContent = '请按 Ctrl+C（Mac是Cmd+C）手动复制';
+        setTimeout(() => { btn.textContent = original; hint.textContent = ''; }, 3000);
+      });
+    } else {
+      selectResultText();
+      btn.textContent = '已为你选中文字';
+      hint.textContent = '请按 Ctrl+C（Mac是Cmd+C）手动复制';
+      setTimeout(() => { btn.textContent = original; hint.textContent = ''; }, 3000);
+    }
+  });
+</script>
+
+</body>
+</html>

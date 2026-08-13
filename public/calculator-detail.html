@@ -59,26 +59,41 @@
   .input-row input {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 14px;
+    padding: 14px 16px;
+    font-size: 28px;
     background: #fff;
     color: var(--text);
     font-family: inherit;
   }
   #label-input { flex: 1; min-width: 0; }
-  #amount-input { flex: 1; min-width: 0; }
+  #label-input { font-size: 16px; padding: 10px 12px; } /* 备注这行不是"输入金额"的主输入，保持原来大小方便多打字 */
+  #amount-input { flex: 1; min-width: 0; font-weight: 600; }
   #add-btn {
     flex-shrink: 0;
     background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 8px;
-    padding: 10px 18px;
-    font-size: 14px;
+    padding: 10px 20px;
+    font-size: 18px;
     font-weight: 600;
     cursor: pointer;
   }
   #add-btn:hover { background: var(--accent-dark); }
+  .operator-row { gap: 8px; }
+  .op-btn {
+    flex: 1;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .op-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .op-btn:active { transform: scale(0.96); }
   .input-hint { font-size: 12px; color: var(--muted); }
   #expr-error {
     display: none;
@@ -202,8 +217,14 @@
     <input id="label-input" type="text" placeholder="备注（可选，比如"运费"）" maxlength="30" />
   </div>
   <div class="input-row">
-    <input id="amount-input" type="text" placeholder="金额，支持算式，比如 3*500" inputmode="decimal" />
+    <input id="amount-input" type="text" placeholder="金额，支持算式，比如 3×500" inputmode="decimal" />
     <button id="add-btn">+ 添加</button>
+  </div>
+  <div class="input-row operator-row">
+    <button type="button" class="op-btn" data-op="+">+</button>
+    <button type="button" class="op-btn" data-op="-">－</button>
+    <button type="button" class="op-btn" data-op="×">×</button>
+    <button type="button" class="op-btn" data-op="÷">÷</button>
   </div>
   <div class="input-hint">负数可以直接输入 -500 这种，用来记退款/折扣</div>
   <div id="expr-error"></div>
@@ -237,11 +258,14 @@
   const copyBtn = document.getElementById('copy-btn');
   const copyHint = document.getElementById('copy-hint');
 
+  const opButtons = document.querySelectorAll('.op-btn');
+
   // 只允许数字、小数点、括号和加减乘除符号，避免把奇怪的东西丢进去算——
   // 这是纯本地计算，不发到服务器，用Function()做简单四则运算就够了，
-  // 白名单校验是为了防止手滑输入乱七八糟的字符导致奇怪的结果，不是防攻击
+  // 白名单校验是为了防止手滑输入乱七八糟的字符导致奇怪的结果，不是防攻击。
+  // ×÷是计算器按钮插入的符号，JS本身不认识，算之前先换成*和/
   function evaluateExpression(str) {
-    const cleaned = str.trim();
+    const cleaned = str.trim().replace(/×/g, '*').replace(/÷/g, '/');
     if (!cleaned) return null;
     if (!/^[0-9+\-*/.() ]+$/.test(cleaned)) return null;
     try {
@@ -252,6 +276,23 @@
       return null;
     }
   }
+
+  // 点运算符按钮，把符号插入到输入框当前光标位置（不是简单地加在末尾），
+  // 这样中途改算式（比如在数字中间补个符号）更符合直觉
+  opButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const op = btn.dataset.op;
+      const start = amountInput.selectionStart ?? amountInput.value.length;
+      const end = amountInput.selectionEnd ?? amountInput.value.length;
+      const before = amountInput.value.slice(0, start);
+      const after = amountInput.value.slice(end);
+      amountInput.value = before + op + after;
+      const newPos = start + op.length;
+      amountInput.focus();
+      amountInput.setSelectionRange(newPos, newPos);
+      exprError.classList.remove('active');
+    });
+  });
 
   function formatNumber(n) {
     // 整数不带小数点，小数最多保留2位，避免出现浮点数误差(比如0.1+0.2那种)

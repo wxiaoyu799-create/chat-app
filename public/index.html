@@ -28,6 +28,29 @@
     --link-on-bubble: #2952b5;
   }
   * { box-sizing: border-box; }
+  /* 全部图标（emoji）统一降低饱和度，看起来更柔和，不那么跳脱；
+     只对"专门装图标的容器"生效，不影响正常文字颜色 */
+  .pin-icon,
+  .tool-entry-icon,
+  .reaction-icon,
+  .announce-icon,
+  .delete-confirm-icon,
+  .mention-all-icon,
+  .msg-file-icon,
+  .file-preview-icon,
+  .icon-soft,
+  .pin-edit-btn,
+  .reply-cancel-btn,
+  #image-pick-btn,
+  #file-pick-btn,
+  .item-remove-btn,
+  .quick-del-btn,
+  .quick-category-del-btn,
+  .ph-delete-btn,
+  .pending-resolve-btn,
+  #tool-overlay-close-btn {
+    filter: saturate(55%);
+  }
   html, body {
     height: 100%;
     margin: 0;
@@ -256,6 +279,15 @@
     box-shadow: 0 2px 6px rgba(20, 30, 50, 0.06);
     font-size: 13px;
   }
+  /* 没有内容时收起成一个紧凑的小图标条，不占满一整行、不显示占位空白文字，
+     齿轮还留着，方便随时点开添加内容 */
+  #pinned-bar.is-empty {
+    display: inline-flex;
+    align-self: flex-start;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  #pinned-bar.is-empty .pin-text { display: none; }
   #pinned-bar .pin-icon { flex-shrink: 0; }
   #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
   #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
@@ -1404,7 +1436,7 @@
 
 <div id="login">
   <div class="card">
-    <h1>💬 CC</h1>
+    <h1><span class="icon-soft">💬</span> CC</h1>
     <p>输入昵称加入聊天</p>
     <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
     <button id="join-btn">加入 CC</button>
@@ -1455,7 +1487,7 @@
     <div class="sidebar-divider"></div>
 
     <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
-      <span>📚 参考文档</span>
+      <span><span class="icon-soft">📚</span> 参考文档</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="doc-links-body" class="collapsed">
@@ -1479,7 +1511,7 @@
         <div class="username-block">
           <span class="my-username" id="my-username"></span>
         </div>
-        <h2>💬 CC</h2>
+        <h2><span class="icon-soft">💬</span> CC</h2>
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
@@ -1506,7 +1538,7 @@
       <span id="pin-error-msg"></span>
     </div>
     <button id="pending-panel-toggle" type="button">
-      <span>🚩 待处理事项 <span id="pending-count-badge"></span></span>
+      <span><span class="icon-soft">🚩</span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="pending-panel-body">
@@ -1570,7 +1602,7 @@
     <div class="sidebar-divider"></div>
 
     <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
-      <span>⏰ 提醒事项</span>
+      <span><span class="icon-soft">⏰</span> 提醒事项</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="reminder-panel-body" class="collapsed">
@@ -1686,6 +1718,7 @@
   const onlineListToggle = document.getElementById('online-list-toggle');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
+  const pinnedBarEl = document.getElementById('pinned-bar');
   const pinnedTextEl = document.getElementById('pinned-text');
   const announcementTextEl = document.getElementById('announcement-text');
   const announcementExpandBtn = document.getElementById('announcement-expand-btn');
@@ -2700,9 +2733,13 @@
     if (currentPinnedText) {
       pinnedTextEl.innerHTML = renderRichText(currentPinnedText);
       pinnedTextEl.classList.remove('empty');
+      pinnedBarEl.classList.remove('is-empty');
     } else {
-      pinnedTextEl.textContent = '暂无公告，点击"编辑"设置一条';
+      // 没内容的时候不再显示"暂无公告，点击编辑设置一条"这种占位文字撑满一整行，
+      // 直接收起来，只留图标和齿轮，点齿轮一样能编辑
+      pinnedTextEl.textContent = '';
       pinnedTextEl.classList.add('empty');
+      pinnedBarEl.classList.add('is-empty');
     }
   }
 

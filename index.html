@@ -51,6 +51,30 @@
   #tool-overlay-close-btn {
     filter: saturate(55%);
   }
+  /* 模块彩色图标徽章——外层圆角背景块，每个模块一个颜色，看起来柔和又有区分度。
+     图标本体在徽章里要恢复完整饱和度(不能延用外面那套"整体降饱和度"的灰乎乎效果)，
+     不然"鲜艳背景 + 灰暗图标"两者互相拖累，整体看起来还是很淡，起不到"多彩"的效果 */
+  .module-icon-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    flex-shrink: 0;
+  }
+  .module-icon-badge .pin-icon,
+  .module-icon-badge .icon-soft,
+  .module-icon-badge .tool-entry-icon {
+    font-size: 15px;
+    filter: saturate(100%);
+  }
+  .badge-blue { background: #B5D4F4; }
+  .badge-teal { background: #9FE1CB; }
+  .badge-coral { background: #F5C4B3; }
+  .badge-pink { background: #F4C0D1; }
+  .badge-purple { background: #CECBF6; }
+  .badge-green { background: #C0DD97; }
   html, body {
     height: 100%;
     margin: 0;
@@ -220,6 +244,7 @@
   .msg.me { align-self: flex-end; align-items: flex-end; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg .name { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
+  .msg .name-time { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; opacity: 0.75; }
   .msg .bubble {
     position: relative;
     padding: 8px 12px;
@@ -300,19 +325,19 @@
   #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
   #sidebar-announce .pin-edit-btn {
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    background: var(--panel-alt);
+    border: none;
+    border-radius: 8px;
     color: var(--muted);
     font-size: 11px;
     padding: 0;
   }
-  #sidebar-announce .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #sidebar-announce .pin-edit-btn:hover { color: var(--text); background: var(--border); }
 
   #reminder-panel-body { margin-top: 8px; }
   #reminder-panel-body.collapsed { display: none; }
@@ -651,7 +676,11 @@
     font-size: 11px;
     padding: 2px 4px;
     cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
   }
+  .msg:hover .reply-btn { opacity: 1; pointer-events: auto; }
   .msg .reply-btn:hover { color: var(--accent); background: transparent; }
   .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 20px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
@@ -1100,14 +1129,14 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    background: var(--panel-alt);
+    border: none;
+    border-radius: 8px;
     color: var(--muted);
     font-size: 12px;
     padding: 0;
   }
-  #quick-category-manage-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #quick-category-manage-btn:hover { color: var(--text); background: var(--border); }
   #quick-category-manage-row {
     display: none;
     flex-direction: column;
@@ -1238,19 +1267,19 @@
   }
   .reminder-item .reminder-actions { display: flex; gap: 6px; }
   .reminder-item .pin-edit-btn {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
+    background: var(--panel-alt);
+    border: none;
+    border-radius: 8px;
     color: var(--muted);
     font-size: 11px;
     padding: 0;
   }
-  .reminder-item .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  .reminder-item .pin-edit-btn:hover { color: var(--text); background: var(--border); }
   .reminder-empty-hint { color: var(--muted); font-size: 12px; font-style: italic; margin-bottom: 8px; }
 
   #reminder-edit-row {
@@ -1369,7 +1398,7 @@
 
     <div id="sidebar-announce">
       <div class="pin-bar-head">
-        <span class="pin-icon">📢</span>
+        <span class="module-icon-badge badge-blue"><span class="pin-icon">📢</span></span>
         <span class="pin-bar-label">公告栏</span>
       </div>
       <span class="pin-text" id="announcement-text"></span>
@@ -1401,7 +1430,7 @@
     <div class="sidebar-divider"></div>
 
     <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="icon-soft">📚</span> 参考文档</span>
+      <span><span class="module-icon-badge badge-teal"><span class="icon-soft">📚</span></span> 参考文档</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="doc-links-body" class="collapsed">
@@ -1430,7 +1459,7 @@
       <span class="status" id="conn-status">连接中...</span>
     </header>
     <button id="pending-panel-toggle" type="button">
-      <span><span class="icon-soft">🚩</span> 待处理事项 <span id="pending-count-badge"></span></span>
+      <span><span class="module-icon-badge badge-purple"><span class="icon-soft">🚩</span></span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="pending-panel-body">
@@ -1494,7 +1523,7 @@
     <div class="sidebar-divider"></div>
 
     <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="icon-soft">⏰</span> 提醒事项</span>
+      <span><span class="module-icon-badge badge-coral"><span class="icon-soft">⏰</span></span> 提醒事项</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="reminder-panel-body" class="collapsed">
@@ -1531,15 +1560,15 @@
 
     <h3>实用工具</h3>
     <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
-      <span class="tool-entry-icon">🔍</span>
+      <span class="module-icon-badge badge-pink"><span class="tool-entry-icon">🔍</span></span>
       <span class="tool-entry-label">骏河屋检品判定台</span>
     </button>
     <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
-      <span class="tool-entry-icon">🤖</span>
+      <span class="module-icon-badge badge-green"><span class="tool-entry-icon">🤖</span></span>
       <span class="tool-entry-label">AI检品工具</span>
     </button>
     <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
-      <span class="tool-entry-icon">🧮</span>
+      <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🧮</span></span>
       <span class="tool-entry-label">计算器（带明细）</span>
     </button>
   </div>
@@ -1877,6 +1906,10 @@
     const name = document.createElement('div');
     name.className = 'name';
     name.textContent = data.username;
+    const timeInName = document.createElement('span');
+    timeInName.className = 'name-time';
+    timeInName.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    name.appendChild(timeInName);
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
@@ -1970,10 +2003,6 @@
     const metaRow = document.createElement('div');
     metaRow.className = 'meta-row';
 
-    const time = document.createElement('span');
-    time.className = 'time';
-    time.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
     const replyBtn = document.createElement('button');
     replyBtn.className = 'reply-btn';
     replyBtn.textContent = '↩ 回复';
@@ -1982,7 +2011,6 @@
       startReply(data.username, replyText);
     });
 
-    metaRow.appendChild(time);
     metaRow.appendChild(replyBtn);
 
     if (typeof data.id === 'number') {

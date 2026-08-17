@@ -683,12 +683,23 @@
     gap: 2px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
-    opacity: 0.55; /* 没人反应过的时候淡一点，不抢眼，但仍然可以点 */
+    /* 默认完全隐藏、不响应点击——平时裸露太多图标显得乱，只有鼠标放到这条消息上才冒出来；
+       已经有人点过的（.has-count）是例外，那种要始终看得到，不然没法知道"这条已经有反应了" */
+    opacity: 0;
+    pointer-events: none;
+  }
+  .msg:hover .reaction-badge {
+    opacity: 0.55;
+    pointer-events: auto;
   }
   .reaction-badge .reaction-icon { font-size: 13px; line-height: 1; }
   .reaction-badge:hover { transform: scale(1.15); border-color: var(--accent); opacity: 1; background: var(--panel); }
   .reaction-badge:active { transform: scale(0.9); }
-  .reaction-badge.has-count { opacity: 1; padding-right: 7px; }
+  .reaction-badge.has-count {
+    opacity: 1;
+    pointer-events: auto;
+    padding-right: 7px;
+  }
   .reaction-badge.reacted {
     color: #f0a94e;
     background: rgba(240, 169, 78, 0.18);

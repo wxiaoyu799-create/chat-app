@@ -1833,6 +1833,31 @@
     return linkified.replace(/\u0000LINK(\d+)\u0000/g, (match, idx) => placeholders[Number(idx)]);
   }
 
+  // 每个人的用户名/气泡颜色——不是每条消息都换一个颜色，是"同一个人固定一个颜色"，
+  // 靠用户名算哈希来稳定选色，同一个用户名永远选到同一个颜色，不会跳变。
+  // 颜色板特意挑的都是柔和的浅色调，深浅搭配好看又不刺眼，不是纯随机RGB容易撞出难看的颜色
+  const USER_COLOR_PALETTE = [
+    { bg: '#E6F1FB', text: '#0C447C' }, // 蓝
+    { bg: '#E1F5EE', text: '#0F6E56' }, // 青
+    { bg: '#FAECE7', text: '#993C1D' }, // 珊瑚
+    { bg: '#FBEAF0', text: '#993556' }, // 粉
+    { bg: '#EEEDFE', text: '#3C3489' }, // 紫
+    { bg: '#FAEEDA', text: '#854F0B' }, // 琥珀
+    { bg: '#EAF3DE', text: '#3B6D11' }, // 绿
+    { bg: '#FCEBEB', text: '#A32D2D' }, // 红
+  ];
+  const userColorCache = {};
+  function getUserColor(name) {
+    if (userColorCache[name]) return userColorCache[name];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = (hash * 31 + name.charCodeAt(i)) | 0;
+    }
+    const color = USER_COLOR_PALETTE[Math.abs(hash) % USER_COLOR_PALETTE.length];
+    userColorCache[name] = color;
+    return color;
+  }
+
   function renderMessage(data, opts) {
     const isLive = !!(opts && opts.live);
     if (data.type === 'system') {
@@ -1855,6 +1880,14 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
+
+    // 别人发的消息才按用户名上色——自己发的消息固定用原来的蓝色，
+    // 这样在一堆彩色消息里，"哪些是我自己发的"还是能一眼认出来，不会被弄花了
+    if (!isMe && data.username) {
+      const userColor = getUserColor(data.username);
+      name.style.color = userColor.text;
+      bubble.style.background = userColor.bg;
+    }
 
     if (data.quote) {
       const quoteBlock = document.createElement('div');

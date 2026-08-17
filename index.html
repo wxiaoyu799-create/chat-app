@@ -1435,15 +1435,15 @@
     </button>
     <div id="doc-links-body" class="collapsed">
       <a href="https://mingdong.feishu.cn/wiki/OhqdwF4iDig1utkjWLdcgDd4nxe?from=from_copylink" target="_blank" rel="noopener noreferrer" id="problem-record-link" class="tool-entry-btn">
-        <span class="tool-entry-icon">📋</span>
+        <span class="module-icon-badge badge-purple"><span class="tool-entry-icon">📋</span></span>
         <span class="tool-entry-label">问题件记录</span>
       </a>
       <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
-        <span class="tool-entry-icon">📊</span>
+        <span class="module-icon-badge badge-green"><span class="tool-entry-icon">📊</span></span>
         <span class="tool-entry-label">复数追加记录</span>
       </a>
       <a href="https://mingdong.feishu.cn/wiki/Wt4mw4qBlieSKwkW9ufcy7v6nQh?from=from_copylink" target="_blank" rel="noopener noreferrer" id="inspection-standard-link" class="tool-entry-btn">
-        <span class="tool-entry-icon">📐</span>
+        <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📐</span></span>
         <span class="tool-entry-label">检品标准流程规范</span>
       </a>
     </div>
@@ -1803,6 +1803,32 @@
         }
       } else if (data.type === 'pending_update') {
         applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
+      } else if (data.type === 'mention_reminder') {
+        // 20分钟前被@、还没点赞确认的二次提醒——复用跟"被@了"完全一样的通知效果
+        // （声音、桌面通知、标签页标题闪烁），但不在聊天记录里重复插入一条消息，
+        // 避免聊天记录里出现"同一条消息出现两次"这种奇怪的观感
+        playMentionSound();
+        triggerWindowMentionFlash();
+        showDesktopNotification(
+          `${data.fromUsername} @了你（20分钟未确认）`,
+          data.text || ''
+        );
+        const flashLabel = '💬 你有条@消息还没确认';
+        if (document.hidden) {
+          clearInterval(titleFlashTimer);
+          let toggled = false;
+          titleFlashTimer = setInterval(() => {
+            document.title = toggled ? originalTitle : flashLabel;
+            toggled = !toggled;
+          }, 1000);
+          document.addEventListener('visibilitychange', function onVisible() {
+            if (!document.hidden) {
+              clearInterval(titleFlashTimer);
+              document.title = originalTitle;
+              document.removeEventListener('visibilitychange', onVisible);
+            }
+          });
+        }
       } else if (data.type === 'typing') {
         typingEl.textContent = `${data.username} 正在输入...`;
         clearTimeout(typingEl._t);

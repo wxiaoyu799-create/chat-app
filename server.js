@@ -120,6 +120,59 @@ function rowToHistoryEntry(row) {
   };
 }
 
+// @提及超时未确认的二次提醒：被@的人如果20分钟内完全没有回应过这条消息
+// （没点👍、没点❓、没回复过、也没标为待办），就单独给这个人再推一次提醒——
+// 这四种行为都算"确认看到了"，任意一种都不需要再提醒，避免真的很忙、
+// 暂时没看群的人错过重要消息，也避免已经处理过的人被反复打扰
+const MENTION_REMINDER_DELAY = 20 * 60 * 1000; // 20分钟
+
+// 判断某个被@的人有没有以这四种方式之一"确认"过这条消息
+function hasAcknowledgedMention(msg, targetUser) {
+  const thumbsUp = (msg.reactions && Array.isArray(msg.reactions['👍'])) ? msg.reactions['👍'] : [];
+  const question = (msg.reactions && Array.isArray(msg.reactions['❓'])) ? msg.reactions['❓'] : [];
+  if (thumbsUp.includes(targetUser) || question.includes(targetUser)) return true;
+
+  // 标为待办：得是这个人自己标的才算数，别人标的不能替他"确认"
+  if (msg.pending && msg.pending.by === targetUser) return true;
+
+  // 回复过这条消息：在这条消息之后，这个人发过一条引用回复指向这条消息
+  // （引用回复里只存了原消息的用户名+文字内容，没存原消息ID，所以用这两个字段匹配，
+  // 极小概率同一个人连发两条一模一样的话才会有歧义，可以接受）
+  const repliedByTarget = history.some((m) =>
+    m.type === 'message' &&
+    m.username === targetUser &&
+    m.time > msg.time &&
+    m.quote &&
+    m.quote.username === msg.username &&
+    m.quote.text === msg.text
+  );
+  if (repliedByTarget) return true;
+
+  return false;
+}
+
+function scheduleMentionReminder(msg) {
+  if (!Array.isArray(msg.mentions) || msg.mentions.length === 0) return;
+  setTimeout(() => {
+    // 消息可能已经被挤出内存历史了（超过 MAX_HISTORY 条），这种情况就不追了
+    const current = history.find((m) => m.type === 'message' && m.id === msg.id);
+    if (!current) return;
+    const notAcknowledged = current.mentions.filter((u) => !hasAcknowledgedMention(current, u));
+    if (notAcknowledged.length === 0) return;
+
+    for (const [ws, client] of clients.entries()) {
+      if (notAcknowledged.includes(client.username) && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'mention_reminder',
+          messageId: current.id,
+          fromUsername: current.username,
+          text: current.text,
+        }));
+      }
+    }
+  }, MENTION_REMINDER_DELAY);
+}
+
 // 置顶公告编辑密码：优先读取环境变量 PIN_EDIT_PASSWORD（部署到Render时在后台设置），
 // 本地没配置环境变量时用这个默认值兜底，方便本地测试，正式使用务必在Render上单独设置
 const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
@@ -329,6 +382,7 @@ wss.on('connection', (ws) => {
       };
       pushHistory(msg);
       broadcast(msg); // 包括发送者自己（用于统一渲染顺序）
+      scheduleMentionReminder(msg);
       return;
     }
 

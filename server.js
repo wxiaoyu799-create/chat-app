@@ -26,7 +26,7 @@ if (dbPool) {
     console.error('[数据库连接池错误]', err.message);
   });
 } else {
-  console.log('未配置 DATABASE_URL，置顶公告历史将只保存在内存中（重启会清空）');
+  console.log('未配置 DATABASE_URL，公告栏/提醒事项等历史记录将只保存在内存中（重启会清空）');
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -109,49 +109,6 @@ const clients = new Map();
 // 最近消息历史（内存中，重启后清空——这部分保持原样不接数据库）
 const MAX_HISTORY = 100;
 let history = [];
-// 置顶公告默认内容（数据库里一条记录都没有时，用这个当第一条）
-const DEFAULT_PINNED_TEXT = '请大家关注CC聊天工具，保持沟通顺畅，有问题随时沟通';
-// 下面两个是内存里的"当前快照"，用来快速响应/广播给客户端；
-// 真正的持久化存储在数据库里（如果配置了 DATABASE_URL 的话），
-// 这两个变量在服务器启动时会从数据库加载出最新状态。
-let pinnedText = DEFAULT_PINNED_TEXT;
-const PINNED_HISTORY_MAX = 50;
-let pinnedHistory = [{ text: pinnedText, by: '系统默认', startTime: Date.now(), endTime: null }];
-
-async function ensurePinnedTable() {
-  if (!dbPool) return;
-  await dbPool.query(`
-    CREATE TABLE IF NOT EXISTS pinned_history (
-      id BIGSERIAL PRIMARY KEY,
-      text TEXT NOT NULL,
-      by_user TEXT NOT NULL,
-      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
-      end_time TIMESTAMPTZ
-    );
-  `);
-}
-
-async function loadPinnedStateFromDB() {
-  if (!dbPool) return; // 没配置数据库，继续用内存里的默认值
-  try {
-    await ensurePinnedTable();
-    const { rows } = await dbPool.query('SELECT * FROM pinned_history ORDER BY start_time ASC;');
-    if (rows.length === 0) {
-      // 数据库是空的（第一次接入），把内存里的默认值写进去当第一条记录
-      const inserted = await dbPool.query(
-        'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
-        [DEFAULT_PINNED_TEXT, '系统默认']
-      );
-      pinnedHistory = inserted.rows.map(rowToHistoryEntry);
-    } else {
-      pinnedHistory = rows.map(rowToHistoryEntry);
-    }
-    pinnedText = pinnedHistory[pinnedHistory.length - 1].text;
-    console.log(`已从数据库加载置顶公告历史，共 ${pinnedHistory.length} 条记录`);
-  } catch (err) {
-    console.error('[加载置顶公告历史失败，暂时改用内存默认值]', err.message);
-  }
-}
 
 function rowToHistoryEntry(row) {
   return {
@@ -163,41 +120,6 @@ function rowToHistoryEntry(row) {
   };
 }
 
-async function recordPinnedChange(newText, byUsername) {
-  const now = Date.now();
-  // 先更新内存里的快照，保证不管数据库有没有配置/有没有写成功，广播出去的内容始终是对的
-  const last = pinnedHistory[pinnedHistory.length - 1];
-  if (last && last.endTime === null) last.endTime = now;
-  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
-  pinnedHistory.push(newEntry);
-  if (pinnedHistory.length > PINNED_HISTORY_MAX) pinnedHistory.shift();
-
-  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录
-  try {
-    await dbPool.query(
-      "UPDATE pinned_history SET end_time = now() WHERE end_time IS NULL;"
-    );
-    const inserted = await dbPool.query(
-      'INSERT INTO pinned_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
-      [newText, byUsername]
-    );
-    newEntry.id = inserted.rows[0].id;
-  } catch (err) {
-    // 数据库写入失败也不影响这次修改本身生效（内存已经更新了），只是这条记录暂时没能持久化
-    console.error('[置顶公告历史写入数据库失败]', err.message);
-  }
-}
-
-async function deletePinnedHistoryEntry(targetId) {
-  if (!dbPool) return;
-  try {
-    await dbPool.query('DELETE FROM pinned_history WHERE id = $1;', [targetId]);
-  } catch (err) {
-    console.error('[删除置顶公告历史记录失败]', err.message);
-  }
-}
-// 置顶公告最大长度（原来是200，模板较长，放宽一些）
-const PINNED_MAX_LENGTH = 600;
 // 置顶公告编辑密码：优先读取环境变量 PIN_EDIT_PASSWORD（部署到Render时在后台设置），
 // 本地没配置环境变量时用这个默认值兜底，方便本地测试，正式使用务必在Render上单独设置
 const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
@@ -277,15 +199,6 @@ async function deleteAnnouncementHistoryEntry(targetId) {
   }
 }
 
-async function deletePinnedHistoryEntry(targetId) {
-  if (!dbPool) return;
-  try {
-    await dbPool.query('DELETE FROM pinned_history WHERE id = $1;', [targetId]);
-  } catch (err) {
-    console.error('[删除置顶公告历史记录失败]', err.message);
-  }
-}
-
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
 // 允许的消息表情回应（白名单，避免被塞入任意文本）
@@ -343,10 +256,9 @@ wss.on('connection', (ws) => {
       const username = String(data.username || '匿名用户').slice(0, 20).trim() || '匿名用户';
       clients.set(ws, { username });
 
-      // 发送历史消息 + 当前在线列表 + 置顶公告给新用户
+      // 发送历史消息 + 当前在线列表给新用户
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
-      ws.send(JSON.stringify({ type: 'pinned', text: pinnedText, history: pinnedHistory }));
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
 
@@ -456,54 +368,6 @@ wss.on('connection', (ws) => {
       // 跟置顶公告那种"内容管理"性质不一样，越轻量越好用
       msg.pending = msg.pending ? null : { by: client.username, at: Date.now() };
       broadcast({ type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username });
-      return;
-    }
-
-    if (data.type === 'pin') {
-      const client = clients.get(ws);
-      if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'pin_error', message: '密码错误，无法修改置顶公告' }));
-        return;
-      }
-      pinnedText = String(data.text || '').slice(0, PINNED_MAX_LENGTH);
-      // 这里改成 await 了：等数据库真正写完、拿到确定的ID之后再广播，
-      // 不然客户端可能会收到一个"临时ID"，等数据库写完真实ID后就对不上了
-      // （之前这里是fire-and-forget，结果导致公告栏删除功能出现过ID不一致的bug，这里保持一致改成await更安全）
-      await recordPinnedChange(pinnedText, client.username);
-      const pinMsg = { type: 'pinned', text: pinnedText, by: client.username, history: pinnedHistory };
-      broadcast(pinMsg); // 包括操作者自己，保证所有端一致
-      if (pinnedText) {
-        const sys = {
-          type: 'system',
-          text: `${client.username} 更新了置顶公告`,
-          time: Date.now(),
-        };
-        pushHistory(sys);
-        broadcast(sys, ws);
-      }
-      return;
-    }
-
-    if (data.type === 'pin_delete_history') {
-      const client = clients.get(ws);
-      if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'pin_error', message: '密码错误，无法删除记录' }));
-        return;
-      }
-      const targetId = data.id;
-      const idx = pinnedHistory.findIndex((entry) => String(entry.id) === String(targetId));
-      if (idx === -1) return;
-      if (pinnedHistory[idx].endTime === null) {
-        ws.send(JSON.stringify({ type: 'pin_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
-        return;
-      }
-      pinnedHistory.splice(idx, 1);
-      await deletePinnedHistoryEntry(targetId);
-      broadcast({ type: 'pinned', text: pinnedText, history: pinnedHistory });
       return;
     }
 
@@ -783,7 +647,6 @@ function checkReminders() {
 setInterval(checkReminders, 30 * 1000);
 
 async function startServer() {
-  await loadPinnedStateFromDB(); // 没配数据库/加载失败都不会卡住启动，函数内部已经兜底处理
   await loadAnnouncementStateFromDB();
   await loadRemindersFromDB();
 
@@ -791,7 +654,7 @@ async function startServer() {
     console.log(`聊天服务器已启动`);
     console.log(`本机访问: http://localhost:${PORT}`);
     console.log(`局域网访问: http://<你的局域网IP>:${PORT}`);
-    console.log(dbPool ? '数据库已连接，置顶公告历史会持久化' : '数据库未配置，置顶公告历史仅保存在内存中');
+    console.log(dbPool ? '数据库已连接，公告栏/提醒事项等历史记录会持久化' : '数据库未配置，公告栏/提醒事项等历史记录仅保存在内存中');
   });
 }
 

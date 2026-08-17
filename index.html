@@ -146,35 +146,6 @@
     max-width: 160px;
   }
 
-  /* 置顶公告修改记录：折叠入口 + 展开面板 */
-  #pin-history-toggle {
-    background: transparent;
-    border: none;
-    color: var(--muted);
-    font-size: 11px;
-    padding: 0;
-    text-align: left;
-    cursor: pointer;
-  }
-  #pin-history-toggle:hover { color: var(--accent); background: transparent; }
-  #pin-history-panel {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 6px;
-    width: 320px;
-    max-width: 80vw;
-    max-height: 360px;
-    overflow-y: auto;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
-    padding: 12px 14px;
-    z-index: 20;
-  }
-  #pin-history-panel.active { display: block; }
   #announcement-history-panel {
     display: none;
     position: absolute;
@@ -266,49 +237,11 @@
   .system-msg { text-align: center; color: var(--system); font-size: 12px; margin: 6px 0; }
   #typing { font-size: 12px; color: var(--muted); min-height: 16px; padding: 0 18px; }
 
-  /* 置顶公告——横条样式，在聊天区顶部（可编辑+看历史记录） */
   .sidebar-divider { height: 1px; background: var(--border); margin: 14px 0; }
-  #pinned-bar {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 6px rgba(20, 30, 50, 0.06);
-    font-size: 13px;
-  }
-  /* 没有内容时收起成一个紧凑的小图标条，不占满一整行、不显示占位空白文字，
-     齿轮还留着，方便随时点开添加内容 */
-  #pinned-bar.is-empty {
-    display: inline-flex;
-    align-self: flex-start;
-    padding: 6px 10px;
-    gap: 6px;
-  }
-  #pinned-bar.is-empty .pin-text { display: none; }
-  #pinned-bar .pin-icon { flex-shrink: 0; }
-  #pinned-bar .pin-text { flex: 1; color: var(--text); word-break: break-word; white-space: pre-wrap; }
-  #pinned-bar .pin-text.empty { color: var(--muted); font-style: italic; }
-  #pinned-bar .pin-text a { color: var(--accent); text-decoration: underline; }
-  #pinned-bar .pin-edit-btn {
-    flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-size: 11px;
-    padding: 0;
-  }
-  #pinned-bar .pin-edit-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
 
-  /* 齿轮菜单——把"编辑"和"记录"两个按钮收起来，点齿轮图标才展开，平时尽量不占地方 */
+  /* 齿轮菜单——把"编辑"和"记录"两个按钮收起来，点齿轮图标才展开，平时尽量不占地方；
+     这套是公告栏在用的通用样式（.pin-gear-wrap/.pin-gear-menu这两个class名字虽然带"pin"，
+     但其实是"图钉/置顶"这个概念的通用命名，不是"pinned-bar专属"，公告栏复用了同一套） */
   .pin-gear-wrap { position: relative; flex-shrink: 0; }
   .pin-gear-menu {
     display: none;
@@ -325,36 +258,6 @@
     z-index: 15;
   }
   .pin-gear-menu.active { display: flex; }
-
-  #pinned-edit-row {
-    display: none;
-    gap: 8px;
-    padding: 10px 18px;
-    background: var(--panel-alt);
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-    align-items: center;
-  }
-  #pinned-edit-row.active { display: flex; }
-  #pinned-edit-row #pinned-input {
-    flex: 1;
-    min-width: 160px;
-    font-size: 13px;
-    font-family: inherit;
-    resize: none;
-    line-height: 1.4;
-    max-height: 100px;
-    overflow-y: auto;
-  }
-  #pinned-edit-row #pinned-password-input { width: 110px; flex: 0 0 auto; font-size: 13px; }
-  #pinned-edit-row button { font-size: 12px; padding: 8px 12px; }
-  #pin-error-msg {
-    width: 100%;
-    font-size: 12px;
-    color: #e5534b;
-    display: none;
-  }
-  #pin-error-msg.active { display: block; }
 
   /* 左侧栏的公告栏——独立内容，可编辑，跟顶部置顶公告完全无关 */
   #sidebar-announce {
@@ -1515,28 +1418,6 @@
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
-    <div id="pinned-bar">
-      <span class="pin-icon">📌</span>
-      <span class="pin-text" id="pinned-text"></span>
-      <div class="pin-gear-wrap">
-        <button class="pin-edit-btn" id="pin-gear-btn" type="button" title="更多操作">⚙️</button>
-        <div id="pin-gear-menu" class="pin-gear-menu">
-          <button class="pin-edit-btn" id="pin-edit-open-btn" title="编辑">✏️</button>
-          <button class="pin-edit-btn" id="pin-history-toggle" type="button" title="修改记录">📋</button>
-        </div>
-      </div>
-      <div id="pin-history-panel">
-        <div class="pin-history-title">置顶公告修改记录</div>
-        <div id="pin-history-list"></div>
-      </div>
-    </div>
-    <div id="pinned-edit-row">
-      <textarea id="pinned-input" placeholder="设置置顶公告，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-      <input id="pinned-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-      <button id="pin-save-btn">保存</button>
-      <button class="pin-edit-btn" id="pin-cancel-btn">取消</button>
-      <span id="pin-error-msg"></span>
-    </div>
     <button id="pending-panel-toggle" type="button">
       <span><span class="icon-soft">🚩</span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
@@ -1700,11 +1581,6 @@
   const sendBtn = document.getElementById('send-btn');
   const connStatus = document.getElementById('conn-status');
   const myUsernameEl = document.getElementById('my-username');
-  const pinHistoryToggle = document.getElementById('pin-history-toggle');
-  const pinHistoryPanel = document.getElementById('pin-history-panel');
-  const pinHistoryList = document.getElementById('pin-history-list');
-  const pinGearBtn = document.getElementById('pin-gear-btn');
-  const pinGearMenu = document.getElementById('pin-gear-menu');
   const announcementHistoryToggle = document.getElementById('announcement-history-toggle');
   const announcementHistoryPanel = document.getElementById('announcement-history-panel');
   const announcementHistoryList = document.getElementById('announcement-history-list');
@@ -1718,8 +1594,6 @@
   const onlineListToggle = document.getElementById('online-list-toggle');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
-  const pinnedBarEl = document.getElementById('pinned-bar');
-  const pinnedTextEl = document.getElementById('pinned-text');
   const announcementTextEl = document.getElementById('announcement-text');
   const announcementExpandBtn = document.getElementById('announcement-expand-btn');
   const announcementEditOpenBtn = document.getElementById('announcement-edit-open-btn');
@@ -1737,13 +1611,6 @@
   const pendingCountBadge = document.getElementById('pending-count-badge');
   const docLinksToggle = document.getElementById('doc-links-toggle');
   const docLinksBody = document.getElementById('doc-links-body');
-  const pinEditOpenBtn = document.getElementById('pin-edit-open-btn');
-  const pinnedEditRow = document.getElementById('pinned-edit-row');
-  const pinnedInput = document.getElementById('pinned-input');
-  const pinnedPasswordInput = document.getElementById('pinned-password-input');
-  const pinErrorMsg = document.getElementById('pin-error-msg');
-  const pinSaveBtn = document.getElementById('pin-save-btn');
-  const pinCancelBtn = document.getElementById('pin-cancel-btn');
   const mentionMenu = document.getElementById('mention-menu');
   const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
@@ -1792,7 +1659,6 @@
   const fileFileInput = document.getElementById('file-file-input');
 
   let onlineUsers = [];
-  let currentPinnedText = '';
   const originalTitle = document.title;
   let titleFlashTimer = null;
   let audioCtx = null;
@@ -1861,21 +1727,6 @@
         scrollToBottom();
       } else if (data.type === 'online') {
         renderOnlineList(data.users);
-      } else if (data.type === 'pinned') {
-        setPinnedText(data.text || '');
-        // 保存成功了（不管是不是自己改的），把编辑框关掉、密码框清空、错误提示清掉
-        closePinEdit();
-        closeDeleteConfirm(); // 如果这次是删除操作触发的，成功后顺带关掉删除弹窗
-        if (Array.isArray(data.history)) renderPinHistory(data.history);
-      } else if (data.type === 'pin_error') {
-        if (lastPinAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
-          deleteConfirmError.textContent = data.message || '密码错误';
-          deleteConfirmPassword.focus();
-        } else {
-          pinErrorMsg.textContent = data.message || '密码错误';
-          pinErrorMsg.classList.add('active');
-          pinnedPasswordInput.focus();
-        }
       } else if (data.type === 'announcement') {
         setAnnouncementText(data.text || '');
         closeAnnouncementEdit();
@@ -2728,25 +2579,6 @@
     }
   }
 
-  function setPinnedText(text) {
-    currentPinnedText = text || '';
-    if (currentPinnedText) {
-      pinnedTextEl.innerHTML = renderRichText(currentPinnedText);
-      pinnedTextEl.classList.remove('empty');
-      pinnedBarEl.classList.remove('is-empty');
-    } else {
-      // 没内容的时候不再显示"暂无公告，点击编辑设置一条"这种占位文字撑满一整行，
-      // 直接收起来，只留图标和齿轮，点齿轮一样能编辑
-      pinnedTextEl.textContent = '';
-      pinnedTextEl.classList.add('empty');
-      pinnedBarEl.classList.add('is-empty');
-    }
-  }
-
-  function autoResizePinnedInput() {
-    pinnedInput.style.height = 'auto';
-    pinnedInput.style.height = Math.min(pinnedInput.scrollHeight, 100) + 'px';
-  }
 
   // ===== 公告类修改历史（留证用，按生效时间段折叠展示）——置顶公告和公告栏共用这套渲染逻辑 =====
   function formatHistoryDate(ts) {
@@ -2800,10 +2632,6 @@
     });
   }
 
-  function renderPinHistory(historyList) {
-    renderHistoryList(historyList, pinHistoryList, '（空 - 当时清除了置顶公告）', handleDeletePinHistoryEntry);
-  }
-
   function renderAnnouncementHistory(historyList) {
     renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
   }
@@ -2815,7 +2643,7 @@
   const deleteConfirmError = document.getElementById('delete-confirm-error');
   const deleteConfirmOkBtn = document.getElementById('delete-confirm-ok-btn');
   const deleteConfirmCancelBtn = document.getElementById('delete-confirm-cancel-btn');
-  let pendingDeleteAction = null; // { kind: 'pin' | 'announcement', entry }
+  let pendingDeleteAction = null; // { kind: 'reminder' | 'announcement', entry }
 
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
@@ -2825,7 +2653,7 @@
       label = '提醒事项';
       preview = `${formatReminderSchedule(entry)} ${entry.text}`.slice(0, 60);
     } else {
-      label = kind === 'pin' ? '置顶公告' : '公告栏';
+      label = '公告栏';
       preview = entry.text ? entry.text.slice(0, 40) : '(空)';
     }
     deleteConfirmDesc.textContent = `${label}：\n"${preview}"`;
@@ -2853,10 +2681,7 @@
       deleteConfirmError.textContent = '连接已断开，请稍后重试';
       return;
     }
-    if (kind === 'pin') {
-      lastPinAction = 'delete';
-      ws.send(JSON.stringify({ type: 'pin_delete_history', id: entry.id, password }));
-    } else if (kind === 'reminder') {
+    if (kind === 'reminder') {
       lastReminderAction = 'delete';
       ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
     } else {
@@ -2864,7 +2689,7 @@
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
-    // 成功了会收到 pinned/announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
+    // 成功了会收到 announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
     // 密码错误等失败情况会收到 xxx_error，直接在弹窗里显示，不用alert()
   }
 
@@ -2877,10 +2702,6 @@
   deleteConfirmOverlay.addEventListener('click', (e) => {
     if (e.target === deleteConfirmOverlay) closeDeleteConfirm();
   });
-
-  function handleDeletePinHistoryEntry(entry) {
-    openDeleteConfirm('pin', entry);
-  }
 
   function handleDeleteAnnouncementHistoryEntry(entry) {
     openDeleteConfirm('announcement', entry);
@@ -3045,72 +2866,17 @@
       }
     });
   }
-  setupHistoryToggle(pinHistoryToggle, pinHistoryPanel);
   setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
   // 齿轮图标本身也是同一套"点击展开/点外面收起"逻辑，直接复用
-  setupHistoryToggle(pinGearBtn, pinGearMenu);
   setupHistoryToggle(announcementGearBtn, announcementGearMenu);
   // 在齿轮菜单里点了"编辑"或"记录"之后，齿轮菜单本身也应该跟着收起来，
   // 不然点开编辑框/记录面板之后，齿轮小菜单还悬在那里，看着乱
-  pinEditOpenBtn.addEventListener('click', () => pinGearMenu.classList.remove('active'));
-  pinHistoryToggle.addEventListener('click', () => pinGearMenu.classList.remove('active'));
   announcementEditOpenBtn.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
   announcementHistoryToggle.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
 
-  function openPinEdit() {
-    pinnedInput.value = currentPinnedText;
-    pinnedPasswordInput.value = '';
-    pinErrorMsg.classList.remove('active');
-    pinnedEditRow.classList.add('active');
-    pinnedInput.focus();
-    autoResizePinnedInput();
-  }
-
-  function closePinEdit() {
-    pinnedEditRow.classList.remove('active');
-    pinnedPasswordInput.value = '';
-    pinErrorMsg.classList.remove('active');
-    pinErrorMsg.textContent = '';
-  }
-
-  function savePinnedText() {
-    const text = pinnedInput.value.trim();
-    const password = pinnedPasswordInput.value;
-    if (!password) {
-      pinErrorMsg.textContent = '请输入编辑密码';
-      pinErrorMsg.classList.add('active');
-      pinnedPasswordInput.focus();
-      return;
-    }
-    pinErrorMsg.classList.remove('active');
-    lastPinAction = 'edit';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pin', text, password }));
-    }
-    // 不在这里直接关闭编辑框——密码对不对由服务器说了算，
-    // 保存成功后会收到 'pinned' 广播自动关闭，密码错了会收到 'pin_error' 提示重试
-  }
-
-  pinEditOpenBtn.addEventListener('click', openPinEdit);
-  pinCancelBtn.addEventListener('click', closePinEdit);
-  pinSaveBtn.addEventListener('click', savePinnedText);
-  pinnedInput.addEventListener('input', autoResizePinnedInput);
-  pinnedInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      savePinnedText();
-    }
-    if (e.key === 'Escape') closePinEdit();
-  });
-  pinnedPasswordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') savePinnedText();
-    if (e.key === 'Escape') closePinEdit();
-  });
-
-  // ===== 公告栏（侧栏那个，跟置顶公告完全独立） =====
+  // ===== 公告栏（侧栏那个） =====
   let currentAnnouncementText = '';
   let lastAnnouncementAction = 'edit'; // 'edit' 或 'delete'，决定announcement_error回来时提示方式
-  let lastPinAction = 'edit'; // 同上，给置顶公告用
 
   function setAnnouncementText(text) {
     currentAnnouncementText = text || '';
@@ -3543,7 +3309,6 @@
     username = val;
     loginEl.style.display = 'none';
     appEl.classList.add('active');
-    setPinnedText('');
     setAnnouncementText('');
     myUsernameEl.textContent = username;
     myUsernameEl.title = `当前登录：${username}`;

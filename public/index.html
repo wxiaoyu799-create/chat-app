@@ -51,29 +51,30 @@
   #tool-overlay-close-btn {
     filter: saturate(55%);
   }
-  /* 模块彩色图标徽章——外层圆角背景块，每个模块一个颜色，看起来柔和又有区分度；
-     这层背景故意不套降饱和度滤镜（滤镜会连背景色一起变灰），只有里面的图标本体保持柔和，
-     两层叠在一起就是"背景鲜艳、图标柔和"的效果，两边诉求都照顾到了 */
+  /* 模块彩色图标徽章——外层圆角背景块，每个模块一个颜色，看起来柔和又有区分度。
+     图标本体在徽章里要恢复完整饱和度(不能延用外面那套"整体降饱和度"的灰乎乎效果)，
+     不然"鲜艳背景 + 灰暗图标"两者互相拖累，整体看起来还是很淡，起不到"多彩"的效果 */
   .module-icon-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
     flex-shrink: 0;
   }
   .module-icon-badge .pin-icon,
   .module-icon-badge .icon-soft,
   .module-icon-badge .tool-entry-icon {
-    font-size: 13px;
+    font-size: 15px;
+    filter: saturate(100%);
   }
-  .badge-blue { background: #E6F1FB; }
-  .badge-teal { background: #E1F5EE; }
-  .badge-coral { background: #FAECE7; }
-  .badge-pink { background: #FBEAF0; }
-  .badge-purple { background: #EEEDFE; }
-  .badge-green { background: #EAF3DE; }
+  .badge-blue { background: #B5D4F4; }
+  .badge-teal { background: #9FE1CB; }
+  .badge-coral { background: #F5C4B3; }
+  .badge-pink { background: #F4C0D1; }
+  .badge-purple { background: #CECBF6; }
+  .badge-green { background: #C0DD97; }
   html, body {
     height: 100%;
     margin: 0;
@@ -243,6 +244,7 @@
   .msg.me { align-self: flex-end; align-items: flex-end; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg .name { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
+  .msg .name-time { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; opacity: 0.75; }
   .msg .bubble {
     position: relative;
     padding: 8px 12px;
@@ -1904,6 +1906,10 @@
     const name = document.createElement('div');
     name.className = 'name';
     name.textContent = data.username;
+    const timeInName = document.createElement('span');
+    timeInName.className = 'name-time';
+    timeInName.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    name.appendChild(timeInName);
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
@@ -1997,10 +2003,6 @@
     const metaRow = document.createElement('div');
     metaRow.className = 'meta-row';
 
-    const time = document.createElement('span');
-    time.className = 'time';
-    time.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-
     const replyBtn = document.createElement('button');
     replyBtn.className = 'reply-btn';
     replyBtn.textContent = '↩ 回复';
@@ -2009,7 +2011,6 @@
       startReply(data.username, replyText);
     });
 
-    metaRow.appendChild(time);
     metaRow.appendChild(replyBtn);
 
     if (typeof data.id === 'number') {

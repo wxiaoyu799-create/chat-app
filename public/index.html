@@ -1456,6 +1456,14 @@
         <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📐</span></span>
         <span class="tool-entry-label">检品标准流程规范</span>
       </a>
+      <a href="https://www.jpgoodbuy.com/yii/web/index.php?r=admin%2Flogin%2Flogin&amp;from=https%3A%2F%2Fwww.jpgoodbuy.com%2Fyii%2Fweb%2Findex.php%3Fr%3Dadmin%2Fpurchase%2Fpurchase-list" target="_blank" rel="noopener noreferrer" id="purchase-admin-link" class="tool-entry-btn">
+        <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🛒</span></span>
+        <span class="tool-entry-label">代购后台</span>
+      </a>
+      <a href="https://www.qbt.jp/yii/web/index.php?r=shopAdmin/order/auction-order-list" target="_blank" rel="noopener noreferrer" id="auction-admin-link" class="tool-entry-btn">
+        <span class="module-icon-badge badge-pink"><span class="tool-entry-icon">🔨</span></span>
+        <span class="tool-entry-label">代拍后台</span>
+      </a>
     </div>
   </div>
   <div id="chat-col">
@@ -1581,6 +1589,10 @@
       <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🧮</span></span>
       <span class="tool-entry-label">计算器（带明细）</span>
     </button>
+    <button id="tool-sagawa-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge badge-purple"><span class="tool-entry-icon">🚚</span></span>
+      <span class="tool-entry-label">佐川运费查询</span>
+    </button>
   </div>
 </div>
 
@@ -1672,6 +1684,7 @@
   const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
   const toolAiInspectionBtn = document.getElementById('tool-ai-inspection-btn');
   const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
+  const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -3411,6 +3424,12 @@
   });
   toolCalculatorBtn.addEventListener('click', () => {
     openToolOverlay('/calculator-detail.html', '计算器（带明细）');
+  });
+  toolSagawaBtn.addEventListener('click', () => {
+    // 尝试在App内嵌入打开——但这是佐川急便官方自己的网站，能不能被嵌入不是我们这边能控制的，
+    // 如果佐川官网也设置了拦截嵌入的策略（很多日本企业官网都这样），这里会打开一个空白/加载失败的页面，
+    // 到时候需要改成跟骏河屋/ChatGPT一样，换成新标签页打开
+    openToolOverlay('https://www2.sagawa-exp.co.jp/send/fare/input/?type=Normal#fare', '佐川运费查询');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

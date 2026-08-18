@@ -98,6 +98,29 @@
   }
   #switch-camera-btn:hover { background: var(--border); }
 
+  .zoom-row {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+  .zoom-row.show { display: flex; }
+  .zoom-row .zoom-icon { font-size: 15px; flex-shrink: 0; }
+  .zoom-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .zoom-row .zoom-value {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 34px;
+    text-align: right;
+  }
+
   #status-msg {
     display: none;
     border-radius: 10px;
@@ -162,6 +185,11 @@
   <button id="snap-btn">📸 确认拍摄</button>
   <button id="gallery-btn">🖼️ 从相册选择</button>
 </div>
+<div class="zoom-row" id="zoom-row">
+  <span class="zoom-icon">🔍</span>
+  <input type="range" id="zoom-slider" min="1" max="1" step="0.1" value="1" />
+  <span class="zoom-value" id="zoom-value">1.0x</span>
+</div>
 <button id="retake-btn" style="width:100%; margin-bottom:14px;">重新拍 / 重新选</button>
 
 <div class="action-row" id="action-row">
@@ -187,6 +215,9 @@
   const galleryBtn = document.getElementById('gallery-btn');
   const retakeBtn = document.getElementById('retake-btn');
   const switchCameraBtn = document.getElementById('switch-camera-btn');
+  const zoomRow = document.getElementById('zoom-row');
+  const zoomSlider = document.getElementById('zoom-slider');
+  const zoomValue = document.getElementById('zoom-value');
   const galleryInput = document.getElementById('gallery-input');
   const statusMsg = document.getElementById('status-msg');
   const actionRow = document.getElementById('action-row');
@@ -238,6 +269,8 @@
       const track = stream.getVideoTracks()[0];
       imageCapture = (typeof ImageCapture !== 'undefined') ? new ImageCapture(track) : null;
 
+      setupZoomControl(track);
+
       captureBtn.style.display = 'none';
       snapBtn.style.display = 'block';
       galleryBtn.style.display = 'none';
@@ -254,12 +287,49 @@
     }
   }
 
+  let currentTrack = null;
+
+  function setupZoomControl(track) {
+    currentTrack = track;
+    // 变焦（数字/光学变焦）不是所有摄像头都支持，得先问一下这个摄像头的硬件能力里有没有zoom这一项，
+    // 没有的话就把滑块整个藏起来，不能摆一个按了没反应的控件在那里
+    const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : null;
+    if (!capabilities || !capabilities.zoom) {
+      zoomRow.classList.remove('show');
+      return;
+    }
+    const { min, max, step } = capabilities.zoom;
+    zoomSlider.min = min;
+    zoomSlider.max = max;
+    zoomSlider.step = step || 0.1;
+    const settings = (typeof track.getSettings === 'function') ? track.getSettings() : {};
+    const current = (settings && typeof settings.zoom === 'number') ? settings.zoom : min;
+    zoomSlider.value = current;
+    zoomValue.textContent = current.toFixed(1) + 'x';
+    zoomRow.classList.add('show');
+  }
+
+  async function applyZoom(value) {
+    if (!currentTrack) return;
+    try {
+      await currentTrack.applyConstraints({ advanced: [{ zoom: Number(value) }] });
+      zoomValue.textContent = Number(value).toFixed(1) + 'x';
+    } catch (err) {
+      // 极少数摄像头虽然声明支持zoom能力，但实际设置时仍可能失败，
+      // 这种情况静默忽略就行，不用打断用户拍照流程弹出一堆报错
+    }
+  }
+
+  zoomSlider.addEventListener('input', (e) => applyZoom(e.target.value));
+
   function stopCamera() {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
       stream = null;
     }
     imageCapture = null;
+    currentTrack = null;
+    zoomRow.classList.remove('show');
   }
 
   async function snapPhoto() {

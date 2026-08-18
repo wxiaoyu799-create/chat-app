@@ -1199,15 +1199,6 @@
     padding: 6px 10px;
   }
 
-  #quick-add-btn {
-    width: 100%;
-    background: transparent;
-    border: 1px dashed var(--border);
-    color: var(--muted);
-    font-size: 13px;
-    padding: 8px;
-  }
-  #quick-add-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
   #quick-add-row { display: none; flex-direction: column; gap: 6px; margin-top: 8px; }
   #quick-add-row.active { display: flex; }
   #quick-add-row textarea {
@@ -1520,7 +1511,13 @@
   <div id="quick-sidebar">
     <div class="quick-header-row">
       <h3><span class="module-icon-badge badge-pink"><span class="icon-soft">💬</span></span> 常用文本</h3>
-      <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="管理分类">⚙️</button>
+      <div class="pin-gear-wrap">
+        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作">⚙️</button>
+        <div id="quick-gear-menu" class="pin-gear-menu">
+          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语">➕</button>
+          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类">🗂️</button>
+        </div>
+      </div>
     </div>
     <div id="quick-category-manage-row">
       <div id="quick-category-manage-list"></div>
@@ -1530,7 +1527,6 @@
       </div>
     </div>
     <div id="quick-categories"></div>
-    <button id="quick-add-btn">+ 添加常用语</button>
     <div id="quick-add-row">
       <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
       <div class="quick-add-category-row">
@@ -1686,6 +1682,8 @@
   const quickCategoriesEl = document.getElementById('quick-categories');
   const quickAddBtn = document.getElementById('quick-add-btn');
   const quickCategoryManageBtn = document.getElementById('quick-category-manage-btn');
+  const quickGearMenu = document.getElementById('quick-gear-menu');
+  const quickCategoryManageToggle = document.getElementById('quick-category-manage-toggle');
   const quickCategoryManageRow = document.getElementById('quick-category-manage-row');
   const quickCategoryManageList = document.getElementById('quick-category-manage-list');
   const quickCategoryAddInput = document.getElementById('quick-category-add-input');
@@ -3328,9 +3326,11 @@
     renderQuickList();
   }
 
-  quickCategoryManageBtn.addEventListener('click', () => {
+  setupHistoryToggle(quickCategoryManageBtn, quickGearMenu);
+  quickCategoryManageToggle.addEventListener('click', () => {
     const active = quickCategoryManageRow.classList.toggle('active');
     if (active) renderQuickCategoryManageList();
+    quickGearMenu.classList.remove('active');
   });
   quickCategoryAddBtn.addEventListener('click', addQuickCategory);
   quickCategoryAddInput.addEventListener('keydown', (e) => {
@@ -3383,7 +3383,10 @@
     closeQuickAdd();
   }
 
-  quickAddBtn.addEventListener('click', openQuickAdd);
+  quickAddBtn.addEventListener('click', () => {
+    openQuickAdd();
+    quickGearMenu.classList.remove('active');
+  });
   quickCancelBtn.addEventListener('click', closeQuickAdd);
   quickSaveBtn.addEventListener('click', saveQuickAdd);
   quickAddCategorySelect.addEventListener('change', () => {

@@ -134,6 +134,26 @@
   #status-msg.warn { background: rgba(217, 138, 31, 0.12); color: var(--warn); border: 1px solid rgba(217, 138, 31, 0.3); }
   #status-msg.error { background: rgba(229, 83, 75, 0.1); color: var(--danger); border: 1px solid rgba(229, 83, 75, 0.3); }
 
+  .search-row { margin-bottom: 10px; }
+  .search-row button {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--ok);
+    color: #fff;
+  }
+  .search-row button:hover { filter: brightness(0.95); }
+  .search-row button:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
   .action-row {
     display: none;
     gap: 8px;
@@ -167,7 +187,7 @@
 
 <header>
   <h1>📷 拍照搜图</h1>
-  <p>用摄像头拍照或选相册里的图，会自动保存一份到本地下载文件夹——多数搜图网站只支持"选择文件"上传，直接用这份就行；同时也会顺手尝试复制到剪贴板，遇到支持粘贴的网站可以直接 Ctrl+V。</p>
+  <p>用摄像头拍照或选相册里的图，拍完会自动准备好一个谷歌"以图搜图"链接，点绿色按钮直接新标签页打开搜索结果；同时也会自动保存一份到本地下载文件夹、顺手尝试复制到剪贴板，遇到只支持"选择文件"或者支持粘贴的网站也都能用。</p>
 </header>
 
 <div id="status-msg"></div>
@@ -191,6 +211,10 @@
   <span class="zoom-value" id="zoom-value">1.0x</span>
 </div>
 <button id="retake-btn" style="width:100%; margin-bottom:14px;">重新拍 / 重新选</button>
+
+<div class="search-row" id="search-row">
+  <button id="search-google-btn" disabled>⏳ 正在准备搜索链接…</button>
+</div>
 
 <div class="action-row" id="action-row">
   <button id="redownload-btn">再存一次到本地</button>
@@ -223,6 +247,7 @@
   const actionRow = document.getElementById('action-row');
   const redownloadBtn = document.getElementById('redownload-btn');
   const recopyBtn = document.getElementById('recopy-btn');
+  const searchGoogleBtn = document.getElementById('search-google-btn');
   const captureCanvas = document.getElementById('capture-canvas');
 
   let stream = null;
@@ -399,6 +424,36 @@
     });
   }
 
+  // 把图片传到咱们自己的服务器，拿到一个公开可访问的网址，
+  // 再拼成谷歌"以图搜图"的官方链接格式——谷歌那边收到这个链接后会自动去抓这张图来搜，
+  // 不用再手动上传一次。搜索结果页本身会拦截被嵌入（跟ChatGPT、佐川一样的限制），
+  // 所以只能新标签页打开，没法把结果也嵌在App里显示
+  let searchUrl = null;
+  async function prepareGoogleSearch(file) {
+    searchGoogleBtn.disabled = true;
+    searchGoogleBtn.textContent = '⏳ 正在准备搜索链接…';
+    try {
+      const formData = new FormData();
+      formData.append('image', file, file.name);
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+
+      const publicUrl = window.location.origin + data.url;
+      searchUrl = 'https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(publicUrl);
+      searchGoogleBtn.disabled = false;
+      searchGoogleBtn.textContent = '🔍 用谷歌搜这张图';
+    } catch (err) {
+      searchUrl = null;
+      searchGoogleBtn.disabled = true;
+      searchGoogleBtn.textContent = '搜索链接准备失败，可以手动去谷歌图片搜索上传';
+    }
+  }
+
+  searchGoogleBtn.addEventListener('click', () => {
+    if (searchUrl) window.open(searchUrl, '_blank', 'noopener,noreferrer');
+  });
+
   async function handleNewFile(file) {
     if (!file) return;
     currentFile = file;
@@ -416,6 +471,7 @@
     retakeBtn.style.display = 'block';
 
     downloadFile(file);
+    prepareGoogleSearch(file);
 
     try {
       await copyFileToClipboard(file);
@@ -430,6 +486,9 @@
   function reset() {
     stopCamera();
     currentFile = null;
+    searchUrl = null;
+    searchGoogleBtn.disabled = true;
+    searchGoogleBtn.textContent = '⏳ 正在准备搜索链接…';
     capturedPreview.style.display = 'none';
     cameraFeed.style.display = 'none';
     previewStage.classList.remove('has-media');

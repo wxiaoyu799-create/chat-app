@@ -98,6 +98,29 @@
   }
   #switch-camera-btn:hover { background: var(--border); }
 
+  .zoom-row {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+  .zoom-row.show { display: flex; }
+  .zoom-row .zoom-icon { font-size: 15px; flex-shrink: 0; }
+  .zoom-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+  .zoom-row .zoom-value {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 34px;
+    text-align: right;
+  }
+
   #status-msg {
     display: none;
     border-radius: 10px;
@@ -110,6 +133,26 @@
   #status-msg.success { background: rgba(46, 158, 91, 0.12); color: var(--ok); border: 1px solid rgba(46, 158, 91, 0.3); }
   #status-msg.warn { background: rgba(217, 138, 31, 0.12); color: var(--warn); border: 1px solid rgba(217, 138, 31, 0.3); }
   #status-msg.error { background: rgba(229, 83, 75, 0.1); color: var(--danger); border: 1px solid rgba(229, 83, 75, 0.3); }
+
+  .search-row { margin-bottom: 10px; }
+  .search-row button {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    background: var(--ok);
+    color: #fff;
+  }
+  .search-row button:hover { filter: brightness(0.95); }
+  .search-row button:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
 
   .action-row {
     display: none;
@@ -144,7 +187,7 @@
 
 <header>
   <h1>📷 拍照搜图</h1>
-  <p>用摄像头拍照或选相册里的图，会自动保存一份到本地下载文件夹——多数搜图网站只支持"选择文件"上传，直接用这份就行；同时也会顺手尝试复制到剪贴板，遇到支持粘贴的网站可以直接 Ctrl+V。</p>
+  <p>用摄像头拍照或选相册里的图，拍完会自动准备好一个谷歌"以图搜图"链接，点绿色按钮直接新标签页打开搜索结果；同时也会自动保存一份到本地下载文件夹、顺手尝试复制到剪贴板，遇到只支持"选择文件"或者支持粘贴的网站也都能用。</p>
 </header>
 
 <div id="status-msg"></div>
@@ -162,7 +205,16 @@
   <button id="snap-btn">📸 确认拍摄</button>
   <button id="gallery-btn">🖼️ 从相册选择</button>
 </div>
+<div class="zoom-row" id="zoom-row">
+  <span class="zoom-icon">🔍</span>
+  <input type="range" id="zoom-slider" min="1" max="1" step="0.1" value="1" />
+  <span class="zoom-value" id="zoom-value">1.0x</span>
+</div>
 <button id="retake-btn" style="width:100%; margin-bottom:14px;">重新拍 / 重新选</button>
+
+<div class="search-row" id="search-row">
+  <button id="search-google-btn" disabled>⏳ 正在准备搜索链接…</button>
+</div>
 
 <div class="action-row" id="action-row">
   <button id="redownload-btn">再存一次到本地</button>
@@ -187,11 +239,15 @@
   const galleryBtn = document.getElementById('gallery-btn');
   const retakeBtn = document.getElementById('retake-btn');
   const switchCameraBtn = document.getElementById('switch-camera-btn');
+  const zoomRow = document.getElementById('zoom-row');
+  const zoomSlider = document.getElementById('zoom-slider');
+  const zoomValue = document.getElementById('zoom-value');
   const galleryInput = document.getElementById('gallery-input');
   const statusMsg = document.getElementById('status-msg');
   const actionRow = document.getElementById('action-row');
   const redownloadBtn = document.getElementById('redownload-btn');
   const recopyBtn = document.getElementById('recopy-btn');
+  const searchGoogleBtn = document.getElementById('search-google-btn');
   const captureCanvas = document.getElementById('capture-canvas');
 
   let stream = null;
@@ -238,6 +294,8 @@
       const track = stream.getVideoTracks()[0];
       imageCapture = (typeof ImageCapture !== 'undefined') ? new ImageCapture(track) : null;
 
+      setupZoomControl(track);
+
       captureBtn.style.display = 'none';
       snapBtn.style.display = 'block';
       galleryBtn.style.display = 'none';
@@ -254,12 +312,49 @@
     }
   }
 
+  let currentTrack = null;
+
+  function setupZoomControl(track) {
+    currentTrack = track;
+    // 变焦（数字/光学变焦）不是所有摄像头都支持，得先问一下这个摄像头的硬件能力里有没有zoom这一项，
+    // 没有的话就把滑块整个藏起来，不能摆一个按了没反应的控件在那里
+    const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : null;
+    if (!capabilities || !capabilities.zoom) {
+      zoomRow.classList.remove('show');
+      return;
+    }
+    const { min, max, step } = capabilities.zoom;
+    zoomSlider.min = min;
+    zoomSlider.max = max;
+    zoomSlider.step = step || 0.1;
+    const settings = (typeof track.getSettings === 'function') ? track.getSettings() : {};
+    const current = (settings && typeof settings.zoom === 'number') ? settings.zoom : min;
+    zoomSlider.value = current;
+    zoomValue.textContent = current.toFixed(1) + 'x';
+    zoomRow.classList.add('show');
+  }
+
+  async function applyZoom(value) {
+    if (!currentTrack) return;
+    try {
+      await currentTrack.applyConstraints({ advanced: [{ zoom: Number(value) }] });
+      zoomValue.textContent = Number(value).toFixed(1) + 'x';
+    } catch (err) {
+      // 极少数摄像头虽然声明支持zoom能力，但实际设置时仍可能失败，
+      // 这种情况静默忽略就行，不用打断用户拍照流程弹出一堆报错
+    }
+  }
+
+  zoomSlider.addEventListener('input', (e) => applyZoom(e.target.value));
+
   function stopCamera() {
     if (stream) {
       stream.getTracks().forEach((t) => t.stop());
       stream = null;
     }
     imageCapture = null;
+    currentTrack = null;
+    zoomRow.classList.remove('show');
   }
 
   async function snapPhoto() {
@@ -329,6 +424,36 @@
     });
   }
 
+  // 把图片传到咱们自己的服务器，拿到一个公开可访问的网址，
+  // 再拼成谷歌"以图搜图"的官方链接格式——谷歌那边收到这个链接后会自动去抓这张图来搜，
+  // 不用再手动上传一次。搜索结果页本身会拦截被嵌入（跟ChatGPT、佐川一样的限制），
+  // 所以只能新标签页打开，没法把结果也嵌在App里显示
+  let searchUrl = null;
+  async function prepareGoogleSearch(file) {
+    searchGoogleBtn.disabled = true;
+    searchGoogleBtn.textContent = '⏳ 正在准备搜索链接…';
+    try {
+      const formData = new FormData();
+      formData.append('image', file, file.name);
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+
+      const publicUrl = window.location.origin + data.url;
+      searchUrl = 'https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(publicUrl);
+      searchGoogleBtn.disabled = false;
+      searchGoogleBtn.textContent = '🔍 用谷歌搜这张图';
+    } catch (err) {
+      searchUrl = null;
+      searchGoogleBtn.disabled = true;
+      searchGoogleBtn.textContent = '搜索链接准备失败，可以手动去谷歌图片搜索上传';
+    }
+  }
+
+  searchGoogleBtn.addEventListener('click', () => {
+    if (searchUrl) window.open(searchUrl, '_blank', 'noopener,noreferrer');
+  });
+
   async function handleNewFile(file) {
     if (!file) return;
     currentFile = file;
@@ -346,6 +471,7 @@
     retakeBtn.style.display = 'block';
 
     downloadFile(file);
+    prepareGoogleSearch(file);
 
     try {
       await copyFileToClipboard(file);
@@ -360,6 +486,9 @@
   function reset() {
     stopCamera();
     currentFile = null;
+    searchUrl = null;
+    searchGoogleBtn.disabled = true;
+    searchGoogleBtn.textContent = '⏳ 正在准备搜索链接…';
     capturedPreview.style.display = 'none';
     cameraFeed.style.display = 'none';
     previewStage.classList.remove('has-media');

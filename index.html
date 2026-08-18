@@ -1464,6 +1464,10 @@
         <span class="module-icon-badge badge-pink"><span class="tool-entry-icon">🔨</span></span>
         <span class="tool-entry-label">代拍后台</span>
       </a>
+      <a href="https://exmail.qq.com/cgi-bin/loginpage?t=dm_loginpage&amp;dmtype=bizmail&amp;s=session_timeout" target="_blank" rel="noopener noreferrer" id="purchase-email-link" class="tool-entry-btn">
+        <span class="module-icon-badge badge-teal"><span class="tool-entry-icon">📧</span></span>
+        <span class="tool-entry-label">代购邮箱</span>
+      </a>
     </div>
   </div>
   <div id="chat-col">
@@ -3426,10 +3430,8 @@
     openToolOverlay('/calculator-detail.html', '计算器（带明细）');
   });
   toolSagawaBtn.addEventListener('click', () => {
-    // 尝试在App内嵌入打开——但这是佐川急便官方自己的网站，能不能被嵌入不是我们这边能控制的，
-    // 如果佐川官网也设置了拦截嵌入的策略（很多日本企业官网都这样），这里会打开一个空白/加载失败的页面，
-    // 到时候需要改成跟骏河屋/ChatGPT一样，换成新标签页打开
-    openToolOverlay('https://www2.sagawa-exp.co.jp/send/fare/input/?type=Normal#fare', '佐川运费查询');
+    // 佐川官网确认会拦截被嵌入(ERR_BLOCKED_BY_RESPONSE)，改成新标签页打开
+    window.open('https://www2.sagawa-exp.co.jp/send/fare/input/?type=Normal#fare', '_blank', 'noopener,noreferrer');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

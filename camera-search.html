@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拍照搜图</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --ok: #2e9e5b;
+    --warn: #d98a1f;
+    --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  header { margin-bottom: 16px; }
+  header h1 { font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  header p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.6; }
+
+  .preview-stage {
+    width: 100%;
+    min-height: 220px;
+    background: var(--panel);
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    padding: 20px;
+    text-align: center;
+  }
+  .preview-stage.has-image { border-style: solid; padding: 0; background: #000; }
+  .preview-stage .big-icon { font-size: 44px; opacity: 0.5; }
+  .preview-stage .hint-text { color: var(--muted); font-size: 13px; }
+  #captured-preview { display: none; width: 100%; max-height: 420px; object-fit: contain; }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .controls button {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 13px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #capture-btn { background: var(--accent); color: #fff; }
+  #capture-btn:hover { background: var(--accent-dark); }
+  #gallery-btn {
+    background: var(--panel-alt);
+    color: var(--text);
+  }
+  #gallery-btn:hover { background: var(--border); }
+  #retake-btn {
+    display: none;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border) !important;
+  }
+  #retake-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #status-msg {
+    display: none;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+  #status-msg.show { display: block; }
+  #status-msg.success { background: rgba(46, 158, 91, 0.12); color: var(--ok); border: 1px solid rgba(46, 158, 91, 0.3); }
+  #status-msg.warn { background: rgba(217, 138, 31, 0.12); color: var(--warn); border: 1px solid rgba(217, 138, 31, 0.3); }
+  #status-msg.error { background: rgba(229, 83, 75, 0.1); color: var(--danger); border: 1px solid rgba(229, 83, 75, 0.3); }
+
+  .action-row {
+    display: none;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .action-row.show { display: flex; }
+  .action-row button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .action-row button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .hint-box {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📷 拍照搜图</h1>
+  <p>拍照或选相册里的图，会自动保存一份到本地下载文件夹——多数搜图网站只支持"选择文件"上传，直接用这份就行；同时也会顺手尝试复制到剪贴板，遇到支持粘贴的网站可以直接 Ctrl+V。</p>
+</header>
+
+<div id="status-msg"></div>
+
+<div class="preview-stage" id="preview-stage">
+  <span class="big-icon">📷</span>
+  <span class="hint-text">点下面的按钮拍照，或从相册选一张</span>
+  <img id="captured-preview" alt="拍摄或选择的照片" />
+</div>
+
+<div class="controls">
+  <button id="capture-btn">📷 拍照</button>
+  <button id="gallery-btn">🖼️ 从相册选择</button>
+</div>
+<button id="retake-btn" style="width:100%; margin-bottom:14px;">重新拍 / 重新选</button>
+
+<div class="action-row" id="action-row">
+  <button id="redownload-btn">再存一次到本地</button>
+  <button id="recopy-btn">再试一次复制到剪贴板</button>
+</div>
+
+<!-- capture="environment" 在手机上会直接唤起系统自带的相机App拍照（不是网页里嵌入的摄像头预览），
+     画质、对焦、防抖这些都是用手机原生相机的处理效果，比网页WebRTC摄像头预览要好得多 -->
+<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" />
+<input type="file" id="gallery-input" accept="image/*" style="display:none" />
+
+<div class="hint-box">
+  在手机上点"拍照"会直接打开手机自己的相机App，拍完确认就会自动带回这里处理，画质就是手机相机本身的效果。电脑上没有"系统相机"这个概念，点"拍照"通常会弹出普通的文件选择框（部分系统可能会提供网页摄像头拍照选项，具体看电脑系统）。
+</div>
+
+<script>
+  const previewStage = document.getElementById('preview-stage');
+  const capturedPreview = document.getElementById('captured-preview');
+  const captureBtn = document.getElementById('capture-btn');
+  const galleryBtn = document.getElementById('gallery-btn');
+  const retakeBtn = document.getElementById('retake-btn');
+  const cameraInput = document.getElementById('camera-input');
+  const galleryInput = document.getElementById('gallery-input');
+  const statusMsg = document.getElementById('status-msg');
+  const actionRow = document.getElementById('action-row');
+  const redownloadBtn = document.getElementById('redownload-btn');
+  const recopyBtn = document.getElementById('recopy-btn');
+
+  let currentFile = null;
+
+  function showStatus(text, type) {
+    statusMsg.textContent = text;
+    statusMsg.className = 'show ' + type;
+  }
+  function hideStatus() {
+    statusMsg.className = '';
+  }
+
+  function downloadFile(file) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    const ext = (file.type && file.type.includes('png')) ? 'png' : 'jpg';
+    a.download = `拍照搜图-${Date.now()}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  async function copyFileToClipboard(file) {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error('浏览器不支持图片剪贴板API');
+    }
+    // 剪贴板对图片格式要求比较严格，很多浏览器只认png，JPEG不一定能写入成功，
+    // 这里统一转成png再尝试，提高兼容性
+    const pngBlob = await convertToPng(file);
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': pngBlob }),
+    ]);
+  }
+
+  function convertToPng(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob); else reject(new Error('图片转换失败'));
+        }, 'image/png');
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => reject(new Error('图片读取失败'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function handleNewFile(file) {
+    if (!file) return;
+    currentFile = file;
+
+    capturedPreview.src = URL.createObjectURL(file);
+    capturedPreview.style.display = 'block';
+    previewStage.classList.add('has-image');
+    previewStage.querySelector('.big-icon').style.display = 'none';
+    previewStage.querySelector('.hint-text').style.display = 'none';
+    captureBtn.style.display = 'none';
+    galleryBtn.style.display = 'none';
+    retakeBtn.style.display = 'block';
+
+    // 本地保存是最主要、最保险的路径——大部分搜图网站只支持"选择文件"上传，
+    // 不支持直接粘贴，所以这一步默认自动做，不用用户额外点一下
+    downloadFile(file);
+
+    try {
+      await copyFileToClipboard(file);
+      showStatus('✓ 已保存到本地下载文件夹，也顺手复制到了剪贴板——网站支持粘贴的话可以直接 Ctrl+V，不支持的话去"选择文件"里找刚下载的这张图', 'success');
+      actionRow.classList.remove('show');
+    } catch (err) {
+      showStatus('✓ 已保存到本地下载文件夹，去网站"选择文件"里找刚下载的这张图上传就行（自动复制到剪贴板没成功：' + (err.message || '权限受限') + '，多数网站本来也只支持选文件，不影响使用）', 'warn');
+      actionRow.classList.add('show');
+    }
+  }
+
+  function reset() {
+    currentFile = null;
+    capturedPreview.style.display = 'none';
+    previewStage.classList.remove('has-image');
+    previewStage.querySelector('.big-icon').style.display = 'block';
+    previewStage.querySelector('.hint-text').style.display = 'block';
+    captureBtn.style.display = 'block';
+    galleryBtn.style.display = 'block';
+    retakeBtn.style.display = 'none';
+    actionRow.classList.remove('show');
+    hideStatus();
+    cameraInput.value = '';
+    galleryInput.value = '';
+  }
+
+  captureBtn.addEventListener('click', () => cameraInput.click());
+  galleryBtn.addEventListener('click', () => galleryInput.click());
+  retakeBtn.addEventListener('click', reset);
+
+  cameraInput.addEventListener('change', (e) => handleNewFile(e.target.files[0]));
+  galleryInput.addEventListener('change', (e) => handleNewFile(e.target.files[0]));
+
+  redownloadBtn.addEventListener('click', () => {
+    if (currentFile) downloadFile(currentFile);
+  });
+
+  recopyBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+    try {
+      await copyFileToClipboard(currentFile);
+      showStatus('✓ 复制到剪贴板成功了，可以直接粘贴了', 'success');
+      actionRow.classList.remove('show');
+    } catch (err) {
+      showStatus('还是没能自动复制（' + (err.message || '权限受限') + '），用本地下载的那份文件去网站"选择文件"上传就行', 'warn');
+    }
+  });
+</script>
+
+</body>
+</html>

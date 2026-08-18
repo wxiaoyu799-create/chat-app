@@ -1597,6 +1597,10 @@
       <span class="module-icon-badge badge-purple"><span class="tool-entry-icon">🚚</span></span>
       <span class="tool-entry-label">佐川运费查询</span>
     </button>
+    <button id="tool-camera-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📷</span></span>
+      <span class="tool-entry-label">拍照搜图</span>
+    </button>
   </div>
 </div>
 
@@ -1605,7 +1609,7 @@
     <span id="tool-overlay-title">骏河屋检品判定台</span>
     <button id="tool-overlay-close-btn" title="关闭，返回聊天室">✕ 返回聊天室</button>
   </div>
-  <iframe id="tool-overlay-frame" title="工具页面"></iframe>
+  <iframe id="tool-overlay-frame" title="工具页面" allow="camera; clipboard-write"></iframe>
 </div>
 
 <div id="announce-overlay">
@@ -1689,6 +1693,7 @@
   const toolAiInspectionBtn = document.getElementById('tool-ai-inspection-btn');
   const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
+  const toolCameraBtn = document.getElementById('tool-camera-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -3432,6 +3437,9 @@
   toolSagawaBtn.addEventListener('click', () => {
     // 佐川官网确认会拦截被嵌入(ERR_BLOCKED_BY_RESPONSE)，改成新标签页打开
     window.open('https://www2.sagawa-exp.co.jp/send/fare/input/?type=Normal#fare', '_blank', 'noopener,noreferrer');
+  });
+  toolCameraBtn.addEventListener('click', () => {
+    openToolOverlay('/camera-search.html', '拍照搜图');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

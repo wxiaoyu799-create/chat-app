@@ -41,8 +41,6 @@
   .icon-soft,
   .pin-edit-btn,
   .reply-cancel-btn,
-  #image-pick-btn,
-  #file-pick-btn,
   .item-remove-btn,
   .quick-del-btn,
   .quick-category-del-btn,
@@ -936,24 +934,36 @@
   /* 图片上传按钮 */
   #image-pick-btn {
     flex-shrink: 0;
-    background: transparent;
-    border: 1px solid var(--border);
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #B5D4F4;
+    border: none;
+    border-radius: 9px;
     color: var(--muted);
     font-size: 16px;
-    padding: 0 12px;
+    padding: 0;
   }
-  #image-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #image-pick-btn:hover { filter: brightness(0.95); }
 
   /* 文件上传按钮 */
   #file-pick-btn {
     flex-shrink: 0;
-    background: transparent;
-    border: 1px solid var(--border);
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #9FE1CB;
+    border: none;
+    border-radius: 9px;
     color: var(--muted);
     font-size: 16px;
-    padding: 0 12px;
+    padding: 0;
   }
-  #file-pick-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #file-pick-btn:hover { filter: brightness(0.95); }
 
   /* 消息气泡里的文件卡片 */
   .msg-file-card {
@@ -1389,7 +1399,7 @@
 <div id="app">
   <div id="sidebar">
     <button id="online-list-toggle" class="sidebar-toggle collapsed" type="button">
-      <span>检品达人 (<span id="online-count">0</span>)</span>
+      <span><span class="module-icon-badge badge-teal"><span class="icon-soft">👥</span></span> 检品达人 (<span id="online-count">0</span>)</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <ul id="online-list" class="collapsed"></ul>
@@ -1496,7 +1506,7 @@
   </div>
   <div id="quick-sidebar">
     <div class="quick-header-row">
-      <h3>常用文本</h3>
+      <h3><span class="module-icon-badge badge-pink"><span class="icon-soft">💬</span></span> 常用文本</h3>
       <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="管理分类">⚙️</button>
     </div>
     <div id="quick-category-manage-row">
@@ -3130,8 +3140,18 @@
   function insertPhraseToInput(phrase) {
     textInput.value = phrase;
     textInput.focus();
-    const len = textInput.value.length;
-    textInput.setSelectionRange(len, len);
+    // 常用语里经常带着占位用的示例数字（比如订单ID、运单号），
+    // 自动选中第一段连续数字，方便直接打字替换掉，不用自己再手动选中一遍；
+    // 没有数字的话，光标照旧放在最后面
+    const numberMatch = phrase.match(/\d{3,}/);
+    if (numberMatch) {
+      const start = numberMatch.index;
+      const end = start + numberMatch[0].length;
+      textInput.setSelectionRange(start, end);
+    } else {
+      const len = textInput.value.length;
+      textInput.setSelectionRange(len, len);
+    }
     autoResizeTextInput();
   }
 

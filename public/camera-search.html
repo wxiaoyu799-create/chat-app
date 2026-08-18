@@ -32,36 +32,26 @@
   header h1 { font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
   header p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.6; }
 
-  .camera-stage {
-    position: relative;
+  .preview-stage {
     width: 100%;
-    aspect-ratio: 4 / 3;
-    background: #000;
+    min-height: 220px;
+    background: var(--panel);
+    border: 1.5px dashed var(--border);
     border-radius: 14px;
-    overflow: hidden;
-    margin-bottom: 14px;
-  }
-  #camera-feed, #captured-preview {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  #captured-preview { display: none; }
-  .camera-placeholder {
-    position: absolute;
-    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    color: rgba(255,255,255,0.75);
-    font-size: 13px;
+    gap: 8px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    padding: 20px;
     text-align: center;
-    padding: 0 20px;
   }
-  .camera-placeholder .big-icon { font-size: 40px; }
+  .preview-stage.has-image { border-style: solid; padding: 0; background: #000; }
+  .preview-stage .big-icon { font-size: 44px; opacity: 0.5; }
+  .preview-stage .hint-text { color: var(--muted); font-size: 13px; }
+  #captured-preview { display: none; width: 100%; max-height: 420px; object-fit: contain; }
 
   .controls {
     display: flex;
@@ -80,23 +70,18 @@
   }
   #capture-btn { background: var(--accent); color: #fff; }
   #capture-btn:hover { background: var(--accent-dark); }
-  #capture-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  #gallery-btn {
+    background: var(--panel-alt);
+    color: var(--text);
+  }
+  #gallery-btn:hover { background: var(--border); }
   #retake-btn {
+    display: none;
     background: transparent;
     color: var(--text);
     border: 1px solid var(--border) !important;
-    display: none;
   }
   #retake-btn:hover { border-color: var(--accent); color: var(--accent); }
-  #switch-camera-btn {
-    flex: 0 0 auto;
-    width: 46px;
-    background: var(--panel-alt);
-    color: var(--muted);
-    font-size: 17px;
-    padding: 13px 0;
-  }
-  #switch-camera-btn:hover { background: var(--border); }
 
   #status-msg {
     display: none;
@@ -111,13 +96,13 @@
   #status-msg.warn { background: rgba(217, 138, 31, 0.12); color: var(--warn); border: 1px solid rgba(217, 138, 31, 0.3); }
   #status-msg.error { background: rgba(229, 83, 75, 0.1); color: var(--danger); border: 1px solid rgba(229, 83, 75, 0.3); }
 
-  .manual-copy-row {
+  .action-row {
     display: none;
     gap: 8px;
     margin-bottom: 10px;
   }
-  .manual-copy-row.show { display: flex; }
-  .manual-copy-row button {
+  .action-row.show { display: flex; }
+  .action-row button {
     flex: 1;
     background: transparent;
     border: 1px solid var(--border);
@@ -128,7 +113,7 @@
     cursor: pointer;
     font-family: inherit;
   }
-  .manual-copy-row button:hover { border-color: var(--accent); color: var(--accent); }
+  .action-row button:hover { border-color: var(--accent); color: var(--accent); }
 
   .hint-box {
     background: var(--panel);
@@ -144,54 +129,51 @@
 
 <header>
   <h1>📷 拍照搜图</h1>
-  <p>拍一张照片，自动复制到剪贴板，切到搜索网站直接粘贴（Ctrl+V）就能以图搜图，不用先存文件再上传。</p>
+  <p>拍照或选相册里的图，会自动保存一份到本地下载文件夹——多数搜图网站只支持"选择文件"上传，直接用这份就行；同时也会顺手尝试复制到剪贴板，遇到支持粘贴的网站可以直接 Ctrl+V。</p>
 </header>
 
 <div id="status-msg"></div>
 
-<div class="camera-stage">
-  <video id="camera-feed" autoplay playsinline muted></video>
-  <img id="captured-preview" alt="拍摄的照片" />
-  <div class="camera-placeholder" id="camera-placeholder">
-    <span class="big-icon">📷</span>
-    <span id="placeholder-text">正在打开摄像头…</span>
-  </div>
+<div class="preview-stage" id="preview-stage">
+  <span class="big-icon">📷</span>
+  <span class="hint-text">点下面的按钮拍照，或从相册选一张</span>
+  <img id="captured-preview" alt="拍摄或选择的照片" />
 </div>
 
 <div class="controls">
-  <button id="switch-camera-btn" title="切换前后摄像头">🔄</button>
-  <button id="capture-btn" disabled>拍照</button>
-  <button id="retake-btn">重拍</button>
+  <button id="capture-btn">📷 拍照</button>
+  <button id="gallery-btn">🖼️ 从相册选择</button>
+</div>
+<button id="retake-btn" style="width:100%; margin-bottom:14px;">重新拍 / 重新选</button>
+
+<div class="action-row" id="action-row">
+  <button id="redownload-btn">再存一次到本地</button>
+  <button id="recopy-btn">再试一次复制到剪贴板</button>
 </div>
 
-<div class="manual-copy-row" id="manual-copy-row">
-  <button id="manual-copy-btn">再试一次复制到剪贴板</button>
-  <button id="download-btn">下载这张照片</button>
-</div>
-
-<canvas id="capture-canvas" style="display:none;"></canvas>
+<!-- capture="environment" 在手机上会直接唤起系统自带的相机App拍照（不是网页里嵌入的摄像头预览），
+     画质、对焦、防抖这些都是用手机原生相机的处理效果，比网页WebRTC摄像头预览要好得多 -->
+<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" />
+<input type="file" id="gallery-input" accept="image/*" style="display:none" />
 
 <div class="hint-box">
-  第一次使用需要允许浏览器访问摄像头。拍完的照片会自动尝试复制到系统剪贴板；如果你的浏览器/环境不支持自动复制，也可以长按（手机）或右键（电脑）照片手动复制，或者点"下载这张照片"保存下来再上传。
+  在手机上点"拍照"会直接打开手机自己的相机App，拍完确认就会自动带回这里处理，画质就是手机相机本身的效果。电脑上没有"系统相机"这个概念，点"拍照"通常会弹出普通的文件选择框（部分系统可能会提供网页摄像头拍照选项，具体看电脑系统）。
 </div>
 
 <script>
-  const cameraFeed = document.getElementById('camera-feed');
+  const previewStage = document.getElementById('preview-stage');
   const capturedPreview = document.getElementById('captured-preview');
-  const cameraPlaceholder = document.getElementById('camera-placeholder');
-  const placeholderText = document.getElementById('placeholder-text');
   const captureBtn = document.getElementById('capture-btn');
+  const galleryBtn = document.getElementById('gallery-btn');
   const retakeBtn = document.getElementById('retake-btn');
-  const switchCameraBtn = document.getElementById('switch-camera-btn');
+  const cameraInput = document.getElementById('camera-input');
+  const galleryInput = document.getElementById('gallery-input');
   const statusMsg = document.getElementById('status-msg');
-  const manualCopyRow = document.getElementById('manual-copy-row');
-  const manualCopyBtn = document.getElementById('manual-copy-btn');
-  const downloadBtn = document.getElementById('download-btn');
-  const captureCanvas = document.getElementById('capture-canvas');
+  const actionRow = document.getElementById('action-row');
+  const redownloadBtn = document.getElementById('redownload-btn');
+  const recopyBtn = document.getElementById('recopy-btn');
 
-  let stream = null;
-  let facingMode = 'environment'; // 优先用后置摄像头，方便拍实物商品
-  let lastBlob = null;
+  let currentFile = null;
 
   function showStatus(text, type) {
     statusMsg.textContent = text;
@@ -201,130 +183,109 @@
     statusMsg.className = '';
   }
 
-  async function startCamera() {
-    hideStatus();
-    captureBtn.disabled = true;
-    placeholderText.textContent = '正在打开摄像头…';
-    cameraPlaceholder.style.display = 'flex';
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      placeholderText.textContent = '这个浏览器不支持访问摄像头';
-      showStatus('当前浏览器/环境不支持调用摄像头，换个浏览器试试，或者用"下载"方式导入已有照片', 'error');
-      return;
-    }
-
-    try {
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode },
-        audio: false,
-      });
-      cameraFeed.srcObject = stream;
-      cameraPlaceholder.style.display = 'none';
-      captureBtn.disabled = false;
-    } catch (err) {
-      let msg = '无法打开摄像头：' + (err.message || err.name || '未知错误');
-      if (err.name === 'NotAllowedError') {
-        msg = '摄像头权限被拒绝了，去浏览器设置里允许这个网站访问摄像头，然后刷新页面重试';
-      } else if (err.name === 'NotFoundError') {
-        msg = '没有找到可用的摄像头设备';
-      }
-      placeholderText.textContent = '摄像头打不开';
-      showStatus(msg, 'error');
-    }
-  }
-
-  function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      stream = null;
-    }
-  }
-
-  async function copyBlobToClipboard(blob) {
-    if (!navigator.clipboard || !window.ClipboardItem) {
-      throw new Error('浏览器不支持图片剪贴板API');
-    }
-    await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type]: blob }),
-    ]);
-  }
-
-  function capturePhoto() {
-    if (!stream) return;
-    const canvas = captureCanvas;
-    canvas.width = cameraFeed.videoWidth;
-    canvas.height = cameraFeed.videoHeight;
-    canvas.getContext('2d').drawImage(cameraFeed, 0, 0);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) {
-        showStatus('拍照失败，请重试', 'error');
-        return;
-      }
-      lastBlob = blob;
-      capturedPreview.src = URL.createObjectURL(blob);
-      capturedPreview.style.display = 'block';
-      cameraFeed.style.display = 'none';
-      captureBtn.style.display = 'none';
-      retakeBtn.style.display = 'block';
-      switchCameraBtn.style.display = 'none';
-      stopCamera();
-
-      try {
-        await copyBlobToClipboard(blob);
-        showStatus('✓ 已复制到剪贴板，切到搜索网站直接粘贴（Ctrl+V）就行', 'success');
-        manualCopyRow.classList.remove('show');
-      } catch (err) {
-        // 自动复制失败时的兜底：提示手动操作，同时给出"再试一次"和"下载"两个选项
-        showStatus('自动复制到剪贴板没成功（' + (err.message || '权限受限') + '），可以试试下面的按钮，或者长按/右键照片手动复制', 'warn');
-        manualCopyRow.classList.add('show');
-      }
-    }, 'image/png');
-  }
-
-  function retakePhoto() {
-    lastBlob = null;
-    capturedPreview.style.display = 'none';
-    cameraFeed.style.display = 'block';
-    captureBtn.style.display = 'block';
-    retakeBtn.style.display = 'none';
-    switchCameraBtn.style.display = 'block';
-    manualCopyRow.classList.remove('show');
-    hideStatus();
-    startCamera();
-  }
-
-  captureBtn.addEventListener('click', capturePhoto);
-  retakeBtn.addEventListener('click', retakePhoto);
-
-  switchCameraBtn.addEventListener('click', () => {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    startCamera();
-  });
-
-  manualCopyBtn.addEventListener('click', async () => {
-    if (!lastBlob) return;
-    try {
-      await copyBlobToClipboard(lastBlob);
-      showStatus('✓ 已复制到剪贴板，切到搜索网站直接粘贴（Ctrl+V）就行', 'success');
-      manualCopyRow.classList.remove('show');
-    } catch (err) {
-      showStatus('还是没能自动复制（' + (err.message || '权限受限') + '），长按/右键照片手动复制，或者点"下载"保存下来', 'warn');
-    }
-  });
-
-  downloadBtn.addEventListener('click', () => {
-    if (!lastBlob) return;
+  function downloadFile(file) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(lastBlob);
-    a.download = `拍照搜图-${Date.now()}.png`;
+    a.href = URL.createObjectURL(file);
+    const ext = (file.type && file.type.includes('png')) ? 'png' : 'jpg';
+    a.download = `拍照搜图-${Date.now()}.${ext}`;
     document.body.appendChild(a);
     a.click();
     a.remove();
+  }
+
+  async function copyFileToClipboard(file) {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error('浏览器不支持图片剪贴板API');
+    }
+    // 剪贴板对图片格式要求比较严格，很多浏览器只认png，JPEG不一定能写入成功，
+    // 这里统一转成png再尝试，提高兼容性
+    const pngBlob = await convertToPng(file);
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': pngBlob }),
+    ]);
+  }
+
+  function convertToPng(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob); else reject(new Error('图片转换失败'));
+        }, 'image/png');
+        URL.revokeObjectURL(img.src);
+      };
+      img.onerror = () => reject(new Error('图片读取失败'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function handleNewFile(file) {
+    if (!file) return;
+    currentFile = file;
+
+    capturedPreview.src = URL.createObjectURL(file);
+    capturedPreview.style.display = 'block';
+    previewStage.classList.add('has-image');
+    previewStage.querySelector('.big-icon').style.display = 'none';
+    previewStage.querySelector('.hint-text').style.display = 'none';
+    captureBtn.style.display = 'none';
+    galleryBtn.style.display = 'none';
+    retakeBtn.style.display = 'block';
+
+    // 本地保存是最主要、最保险的路径——大部分搜图网站只支持"选择文件"上传，
+    // 不支持直接粘贴，所以这一步默认自动做，不用用户额外点一下
+    downloadFile(file);
+
+    try {
+      await copyFileToClipboard(file);
+      showStatus('✓ 已保存到本地下载文件夹，也顺手复制到了剪贴板——网站支持粘贴的话可以直接 Ctrl+V，不支持的话去"选择文件"里找刚下载的这张图', 'success');
+      actionRow.classList.remove('show');
+    } catch (err) {
+      showStatus('✓ 已保存到本地下载文件夹，去网站"选择文件"里找刚下载的这张图上传就行（自动复制到剪贴板没成功：' + (err.message || '权限受限') + '，多数网站本来也只支持选文件，不影响使用）', 'warn');
+      actionRow.classList.add('show');
+    }
+  }
+
+  function reset() {
+    currentFile = null;
+    capturedPreview.style.display = 'none';
+    previewStage.classList.remove('has-image');
+    previewStage.querySelector('.big-icon').style.display = 'block';
+    previewStage.querySelector('.hint-text').style.display = 'block';
+    captureBtn.style.display = 'block';
+    galleryBtn.style.display = 'block';
+    retakeBtn.style.display = 'none';
+    actionRow.classList.remove('show');
+    hideStatus();
+    cameraInput.value = '';
+    galleryInput.value = '';
+  }
+
+  captureBtn.addEventListener('click', () => cameraInput.click());
+  galleryBtn.addEventListener('click', () => galleryInput.click());
+  retakeBtn.addEventListener('click', reset);
+
+  cameraInput.addEventListener('change', (e) => handleNewFile(e.target.files[0]));
+  galleryInput.addEventListener('change', (e) => handleNewFile(e.target.files[0]));
+
+  redownloadBtn.addEventListener('click', () => {
+    if (currentFile) downloadFile(currentFile);
   });
 
-  startCamera();
+  recopyBtn.addEventListener('click', async () => {
+    if (!currentFile) return;
+    try {
+      await copyFileToClipboard(currentFile);
+      showStatus('✓ 复制到剪贴板成功了，可以直接粘贴了', 'success');
+      actionRow.classList.remove('show');
+    } catch (err) {
+      showStatus('还是没能自动复制（' + (err.message || '权限受限') + '），用本地下载的那份文件去网站"选择文件"上传就行', 'warn');
+    }
+  });
 </script>
 
 </body>

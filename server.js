@@ -182,7 +182,7 @@ const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
 let announcementText = '';
 const ANNOUNCEMENT_MAX_LENGTH = 600;
 const ANNOUNCEMENT_HISTORY_MAX = 50;
-let announcementHistory = [{ text: announcementText, by: '系统默认', startTime: Date.now(), endTime: null }];
+let announcementHistory = [{ id: 'mem-seed', text: announcementText, by: '系统默认', startTime: Date.now(), endTime: null }];
 
 async function ensureAnnouncementTable() {
   if (!dbPool) return;
@@ -252,6 +252,145 @@ async function deleteAnnouncementHistoryEntry(targetId) {
   }
 }
 
+// 检品规则：5个固定分类，每个分类的内容/修改历史机制完全跟公告栏一样（共用同一个编辑密码），
+// 只是5个分类共用一张数据库表，用category字段区分，不用建5张一模一样的表
+const INSPECTION_RULE_CATEGORIES = ['煤炉', '代拍', '代购', '问题件', '增值服务'];
+const INSPECTION_RULE_MAX_LENGTH = 20000; // 规则文本可能很长，放宽到2万字符
+const INSPECTION_RULE_HISTORY_MAX = 50;
+const DEFAULT_MEILU_RULE_TEXT = `煤炉一旦入库，在商家页面就自动签收，所以检品时一定要注意是否有检品服务、当前卖家已下单订单数、金额。
+收件人姓名：森次郎
+收件人地址：大阪府大阪市西区本田 4-1-7 3F OOM OOOOOO（订单 ID）
+
+* 02M、05M：mercari 煤炉
+* 04M：mercari 商城
+* 06M、07M：mercari 代拍
+
+第一步：筛选不需要检品的
+
+* 无检品服务并出现弹窗提示，当前卖家已下单订单数为 1 时，多贵都不检品
+* 无检品服务没弹窗提示，当前卖家已下单订单数为 1 且商品金额 5000 日元以下，不检品
+
+第二步：集中处理需要检品的
+
+* 有检品服务
+* 04M mercari 商城（确认同捆）
+* 当前卖家已下单订单数为 1 以上
+* 无弹窗时商品金额 5000 日元以上
+
+增值服务：订单截图、订单留言等平时不需要看，注意【集货用户】需另外操作。遇到多商品或少商品时，确认【コメント】是否有跟商家沟通过赠品或选品问题。
+弹窗问题单处理：
+
+* ①手动签收或备注新链接：煤炉一般自动签收，若更换购买链接需社员手动签收。流程：确认原因→勾掉问题单→录视频检品→入库→告诉社员【02/04 的 xxx（订单 ID）需要手动签收】
+* ②商家补发：缺货补发→找社员要之前的包裹核对无误后入库；破损补发→尤其确认是否完好，正常检品入库
+
+煤炉到付：
+
+* 04 账号特殊，会出现提示到付但包裹元払的情况，代购后台确认付款情况
+* 所有煤炉到付订单已预收顾客 1000 日元
+* 检品到煤炉到付包裹时，正常检品不入库，保存检品视频，拿给社员
+
+集货用户（NOID）：
+
+* 仅针对 NOID 的代购平信包裹，正常有物流单号的货物正常入库，不在此范围（noid 包裹单个超 10kg 则不拆包合并，正常入库）
+* 兼职人员不用入库，但操作页面出现集货用户订单时，跟 04M mercari 商城一样必须拆开确认
+* 注意：包裹内商品并非都是集货用户订单，可能普通顾客与集货顾客同时在该商家下单
+   * ①同捆发货：按订单分箱（与普通分箱要求相同，包裹写订单 ID 贴 NOID）
+   * ②包含非集货用户商品：非集货用户正常入库，集货用户贴 NOID 贴写订单 ID（正常从有快递单号分出来的订单贴 DAIGOU 贴，集货用户不论有没有单号都贴 NOID）
+   * ③有快递单号的集货用户：正常入库，集货入库只操作 NOID 包裹
+   * ④全部确认好放指定框中，由社员入库`;
+
+// 每个分类当前内容 + 修改历史，格式跟announcementHistory一样：[{id, text, by, startTime, endTime}]
+const inspectionRules = {};
+INSPECTION_RULE_CATEGORIES.forEach((cat) => {
+  const defaultText = cat === '煤炉' ? DEFAULT_MEILU_RULE_TEXT : '';
+  inspectionRules[cat] = {
+    text: defaultText,
+    history: [{ id: `mem-seed-${cat}`, text: defaultText, by: '系统默认', startTime: Date.now(), endTime: null }],
+  };
+});
+
+async function ensureInspectionRulesTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS inspection_rules_history (
+      id BIGSERIAL PRIMARY KEY,
+      category TEXT NOT NULL,
+      text TEXT NOT NULL,
+      by_user TEXT NOT NULL,
+      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
+      end_time TIMESTAMPTZ
+    );
+  `);
+}
+
+async function loadInspectionRulesFromDB() {
+  if (!dbPool) return; // 没配数据库，继续用内存里的默认值
+  try {
+    await ensureInspectionRulesTable();
+    for (const cat of INSPECTION_RULE_CATEGORIES) {
+      const { rows } = await dbPool.query(
+        'SELECT * FROM inspection_rules_history WHERE category = $1 ORDER BY start_time ASC;',
+        [cat]
+      );
+      if (rows.length === 0) {
+        // 这个分类在数据库里还没记录（第一次接入），把内存里的默认值写进去当第一条
+        const defaultText = inspectionRules[cat].text;
+        const inserted = await dbPool.query(
+          'INSERT INTO inspection_rules_history (category, text, by_user, start_time, end_time) VALUES ($1, $2, $3, now(), NULL) RETURNING *;',
+          [cat, defaultText, '系统默认']
+        );
+        inspectionRules[cat].history = inserted.rows.map(rowToHistoryEntry);
+      } else {
+        inspectionRules[cat].history = rows.map(rowToHistoryEntry);
+      }
+      inspectionRules[cat].text = inspectionRules[cat].history[inspectionRules[cat].history.length - 1].text;
+    }
+    console.log('已从数据库加载检品规则（5个分类）');
+  } catch (err) {
+    console.error('[加载检品规则失败，暂时改用内存默认值]', err.message);
+  }
+}
+
+async function recordInspectionRuleChange(category, newText, byUsername) {
+  const now = Date.now();
+  const rule = inspectionRules[category];
+  const last = rule.history[rule.history.length - 1];
+  if (last && last.endTime === null) last.endTime = now;
+  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
+  rule.history.push(newEntry);
+  if (rule.history.length > INSPECTION_RULE_HISTORY_MAX) rule.history.shift();
+
+  if (!dbPool) return;
+  try {
+    await dbPool.query(
+      'UPDATE inspection_rules_history SET end_time = now() WHERE category = $1 AND end_time IS NULL;',
+      [category]
+    );
+    const inserted = await dbPool.query(
+      'INSERT INTO inspection_rules_history (category, text, by_user, start_time, end_time) VALUES ($1, $2, $3, now(), NULL) RETURNING id;',
+      [category, newText, byUsername]
+    );
+    newEntry.id = inserted.rows[0].id;
+  } catch (err) {
+    console.error('[检品规则历史写入数据库失败]', err.message);
+  }
+}
+
+async function deleteInspectionRuleHistoryEntry(targetId) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM inspection_rules_history WHERE id = $1;', [targetId]);
+  } catch (err) {
+    console.error('[删除检品规则历史记录失败]', err.message);
+  }
+}
+
+function getAllInspectionRulesText() {
+  const result = {};
+  INSPECTION_RULE_CATEGORIES.forEach((cat) => { result[cat] = inspectionRules[cat].text; });
+  return result;
+}
+
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
 // 允许的消息表情回应（白名单，避免被塞入任意文本）
@@ -314,6 +453,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
+      ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -460,6 +600,53 @@ wss.on('connection', (ws) => {
       announcementHistory.splice(idx, 1);
       await deleteAnnouncementHistoryEntry(targetId); // 内存已经删了，这里等数据库那边也真删完
       broadcast({ type: 'announcement', text: announcementText, history: announcementHistory });
+      return;
+    }
+
+    if (data.type === 'inspection_rule_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!INSPECTION_RULE_CATEGORIES.includes(category)) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'inspection_rule_error', category, message: '密码错误，无法修改检品规则' }));
+        return;
+      }
+      const newText = String(data.text || '').slice(0, INSPECTION_RULE_MAX_LENGTH);
+      inspectionRules[category].text = newText;
+      await recordInspectionRuleChange(category, newText, client.username);
+      broadcast({
+        type: 'inspection_rule_update',
+        category,
+        text: newText,
+        by: client.username,
+        history: inspectionRules[category].history,
+      });
+      return;
+    }
+
+    if (data.type === 'inspection_rule_delete_history') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!INSPECTION_RULE_CATEGORIES.includes(category)) return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'inspection_rule_error', category, message: '密码错误，无法删除记录' }));
+        return;
+      }
+      const rule = inspectionRules[category];
+      const targetId = data.id;
+      const idx = rule.history.findIndex((entry) => String(entry.id) === String(targetId));
+      if (idx === -1) return;
+      if (rule.history[idx].endTime === null) {
+        ws.send(JSON.stringify({ type: 'inspection_rule_error', category, message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
+        return;
+      }
+      rule.history.splice(idx, 1);
+      await deleteInspectionRuleHistoryEntry(targetId);
+      broadcast({ type: 'inspection_rule_update', category, text: rule.text, history: rule.history });
       return;
     }
 
@@ -702,6 +889,7 @@ setInterval(checkReminders, 30 * 1000);
 
 async function startServer() {
   await loadAnnouncementStateFromDB();
+  await loadInspectionRulesFromDB();
   await loadRemindersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {

@@ -1558,10 +1558,6 @@
         <span class="module-icon-badge badge-green"><span class="tool-entry-icon">📊</span></span>
         <span class="tool-entry-label">复数追加记录</span>
       </a>
-      <a href="https://mingdong.feishu.cn/wiki/Wt4mw4qBlieSKwkW9ufcy7v6nQh?from=from_copylink" target="_blank" rel="noopener noreferrer" id="inspection-standard-link" class="tool-entry-btn">
-        <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📐</span></span>
-        <span class="tool-entry-label">检品标准流程规范</span>
-      </a>
       <a href="https://www.jpgoodbuy.com/yii/web/index.php?r=admin%2Flogin%2Flogin&amp;from=https%3A%2F%2Fwww.jpgoodbuy.com%2Fyii%2Fweb%2Findex.php%3Fr%3Dadmin%2Fpurchase%2Fpurchase-list" target="_blank" rel="noopener noreferrer" id="purchase-admin-link" class="tool-entry-btn">
         <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🛒</span></span>
         <span class="tool-entry-label">代购后台</span>
@@ -1712,10 +1708,6 @@
       <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📷</span></span>
       <span class="tool-entry-label">拍照搜图</span>
     </button>
-    <button id="tool-price-calc-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-green"><span class="tool-entry-icon">💰</span></span>
-      <span class="tool-entry-label">价目计算器</span>
-    </button>
   </div>
 </div>
 
@@ -1858,7 +1850,6 @@
   const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
   const toolCameraBtn = document.getElementById('tool-camera-btn');
-  const toolPriceCalcBtn = document.getElementById('tool-price-calc-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -3826,9 +3817,6 @@
   });
   toolCameraBtn.addEventListener('click', () => {
     openToolOverlay('/camera-search.html', '拍照搜图');
-  });
-  toolPriceCalcBtn.addEventListener('click', () => {
-    openToolOverlay('/price-calculator.html', '价目计算器');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

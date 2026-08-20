@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>代拍剪贴板</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --ok: #2e9e5b;
+    --warn: #d98a1f;
+    --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  header { margin-bottom: 16px; }
+  header h1 { font-size: 22px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+  header p { color: var(--muted); font-size: 13px; margin: 0; line-height: 1.6; }
+
+  .group-size-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .group-size-row input {
+    width: 60px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-family: inherit;
+    text-align: center;
+  }
+
+  #paste-input {
+    width: 100%;
+    min-height: 90px;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    margin-bottom: 14px;
+  }
+  #paste-input:focus { border-color: var(--accent); border-style: solid; outline: none; }
+
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .output-header span { font-size: 13px; font-weight: 600; color: var(--text); }
+  #copy-result-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #copy-result-btn:hover { background: var(--accent-dark); }
+  #copy-result-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  #formatted-output {
+    min-height: 60px;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+  #formatted-output.empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  #copy-fallback-area {
+    display: none;
+    width: 100%;
+    border: 1.5px solid var(--warn);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fffbeb;
+    resize: vertical;
+    margin-bottom: 8px;
+  }
+  #copy-fallback-area.active { display: block; }
+  #copy-hint { font-size: 12px; color: var(--muted); margin-bottom: 20px; display: block; min-height: 16px; }
+
+  .history-section { border-top: 1px solid var(--border); padding-top: 16px; }
+  .history-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .history-header span { font-size: 13px; font-weight: 600; color: var(--text); }
+  #clear-history-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #clear-history-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+  #history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-empty {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 14px;
+    text-align: center;
+    background: var(--panel);
+    border-radius: 10px;
+  }
+  .history-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .history-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .history-item-time { font-size: 11px; color: var(--muted); }
+  .history-item-actions { display: flex; gap: 6px; }
+  .history-item-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .history-item-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .history-item-actions .history-del-btn:hover { border-color: var(--danger); color: var(--danger); }
+  .history-item-preview {
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    max-height: 120px;
+    overflow-y: auto;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 代拍剪贴板</h1>
+  <p>把文本粘贴进下面的框，会自动按设定的字符数分组、每组之间空一行隔开，方便核对区分。格式化结果自动存一份到下方"最近记录"里，不用担心刷新页面丢失。</p>
+</header>
+
+<div class="group-size-row">
+  <label for="group-size-input">每组字符数：</label>
+  <input type="number" id="group-size-input" value="5" min="1" max="50" />
+</div>
+
+<textarea id="paste-input" placeholder="在这里粘贴或输入文本，会自动格式化显示在下面…"></textarea>
+
+<div class="output-header">
+  <span>格式化结果</span>
+  <button id="copy-result-btn" disabled>复制结果</button>
+</div>
+<div id="formatted-output" class="empty">还没有内容，粘贴文本试试</div>
+<textarea id="copy-fallback-area" readonly></textarea>
+<span id="copy-hint"></span>
+
+<div class="history-section">
+  <div class="history-header">
+    <span>最近记录</span>
+    <button id="clear-history-btn">清空记录</button>
+  </div>
+  <div id="history-list"></div>
+</div>
+
+<script>
+  const groupSizeInput = document.getElementById('group-size-input');
+  const pasteInput = document.getElementById('paste-input');
+  const formattedOutput = document.getElementById('formatted-output');
+  const copyResultBtn = document.getElementById('copy-result-btn');
+  const copyFallbackArea = document.getElementById('copy-fallback-area');
+  const copyHint = document.getElementById('copy-hint');
+  const historyList = document.getElementById('history-list');
+  const clearHistoryBtn = document.getElementById('clear-history-btn');
+
+  const STORAGE_KEY = 'daipaiClipboardHistory_v1';
+  const MAX_HISTORY = 30;
+  let history = [];
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    history = saved ? JSON.parse(saved) : [];
+  } catch (e) { history = []; }
+
+  function saveHistory() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); } catch (e) { /* 存储满了就算了，不影响当次使用 */ }
+  }
+
+  // 核心格式化逻辑：把粘贴进来的文本里所有空白字符(空格/Tab/换行)先去掉，
+  // 当成一整串连续字符，再按设定的字符数重新分组，组与组之间用空行隔开——
+  // 这样不管原来粘贴进来的格式多乱（有的带空格、有的带换行、有的挤在一起），
+  // 最后出来的结果都是统一、规整的
+  function formatText(raw, groupSize) {
+    const stripped = raw.replace(/\s+/g, '');
+    if (!stripped) return '';
+    const groups = [];
+    for (let i = 0; i < stripped.length; i += groupSize) {
+      groups.push(stripped.slice(i, i + groupSize));
+    }
+    return groups.join('\n\n');
+  }
+
+  function getGroupSize() {
+    const val = parseInt(groupSizeInput.value, 10);
+    return (val && val > 0) ? val : 5;
+  }
+
+  function updateOutput() {
+    const groupSize = getGroupSize();
+    const formatted = formatText(pasteInput.value, groupSize);
+    if (formatted) {
+      formattedOutput.textContent = formatted;
+      formattedOutput.classList.remove('empty');
+      copyResultBtn.disabled = false;
+    } else {
+      formattedOutput.textContent = '还没有内容，粘贴文本试试';
+      formattedOutput.classList.add('empty');
+      copyResultBtn.disabled = true;
+    }
+    return formatted;
+  }
+
+  pasteInput.addEventListener('input', updateOutput);
+  groupSizeInput.addEventListener('input', updateOutput);
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function renderHistory() {
+    historyList.innerHTML = '';
+    if (history.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = '暂无记录，格式化过的内容会自动出现在这里';
+      historyList.appendChild(empty);
+      return;
+    }
+    history.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.className = 'history-item';
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'history-item-header';
+
+      const timeEl = document.createElement('span');
+      timeEl.className = 'history-item-time';
+      timeEl.textContent = formatTime(item.time) + `（每组${item.groupSize}字符）`;
+      headerRow.appendChild(timeEl);
+
+      const actions = document.createElement('div');
+      actions.className = 'history-item-actions';
+
+      const copyBtn = document.createElement('button');
+      copyBtn.textContent = '复制';
+      copyBtn.addEventListener('click', () => copyText(item.formatted, copyBtn));
+      actions.appendChild(copyBtn);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'history-del-btn';
+      delBtn.textContent = '删除';
+      delBtn.addEventListener('click', () => {
+        history = history.filter((_, i) => i !== idx);
+        saveHistory();
+        renderHistory();
+      });
+      actions.appendChild(delBtn);
+
+      headerRow.appendChild(actions);
+      row.appendChild(headerRow);
+
+      const preview = document.createElement('div');
+      preview.className = 'history-item-preview';
+      preview.textContent = item.formatted;
+      row.appendChild(preview);
+
+      historyList.appendChild(row);
+    });
+  }
+
+  function addToHistory(formatted, groupSize) {
+    if (history.length > 0 && history[0].formatted === formatted && history[0].groupSize === groupSize) return;
+    history.unshift({ formatted, groupSize, time: Date.now() });
+    if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+    saveHistory();
+    renderHistory();
+  }
+
+  clearHistoryBtn.addEventListener('click', () => {
+    if (history.length === 0) return;
+    if (!confirm('确定要清空全部最近记录吗？这个操作没法撤销。')) return;
+    history = [];
+    saveHistory();
+    renderHistory();
+  });
+
+  function copyText(text, triggerBtn) {
+    if (!text) return;
+    const original = triggerBtn ? triggerBtn.textContent : null;
+
+    function showFallback() {
+      copyFallbackArea.value = text;
+      copyFallbackArea.classList.add('active');
+      copyFallbackArea.focus();
+      copyFallbackArea.select();
+      copyHint.textContent = '自动复制失败，内容已经放到上面的框里，点一下框内文字再按 Ctrl+C';
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (triggerBtn) {
+          triggerBtn.textContent = '已复制';
+          setTimeout(() => { triggerBtn.textContent = original; }, 1500);
+        }
+        copyHint.textContent = '';
+        copyFallbackArea.classList.remove('active');
+      }).catch(showFallback);
+    } else {
+      showFallback();
+    }
+  }
+
+  copyResultBtn.addEventListener('click', () => {
+    const formatted = formattedOutput.textContent;
+    if (!formatted || formattedOutput.classList.contains('empty')) return;
+    copyText(formatted, copyResultBtn);
+    addToHistory(formatted, getGroupSize());
+  });
+
+  renderHistory();
+</script>
+
+</body>
+</html>

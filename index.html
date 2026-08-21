@@ -514,6 +514,56 @@
   }
   #announce-close-btn:hover { background: #e6994a; }
 
+  /* 图片放大预览（灯箱） —— 点击聊天消息里的图片，在页面内直接放大看，不用跳到新标签页 */
+  #image-lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    background: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+  }
+  #image-lightbox.active { display: flex; }
+  #lightbox-img {
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+    border-radius: 4px;
+    user-select: none;
+  }
+  #image-lightbox button {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    color: #fff;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  #image-lightbox button:hover { background: rgba(255, 255, 255, 0.25); }
+  #lightbox-close-btn { top: 20px; right: 20px; }
+  #lightbox-open-tab-btn { top: 20px; right: 76px; font-size: 16px; }
+  #lightbox-prev-btn { left: 20px; top: 50%; transform: translateY(-50%); }
+  #lightbox-next-btn { right: 20px; top: 50%; transform: translateY(-50%); }
+  #lightbox-counter {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 13px;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 12px;
+    border-radius: 12px;
+  }
+
   /* 删除历史记录的自定义确认弹窗——不用浏览器原生confirm/prompt，
      因为Electron桌面版不支持window.prompt()，用了会导致"点了没反应" */
   #delete-confirm-overlay {
@@ -668,7 +718,6 @@
   .msg .edit-msg-btn:hover { color: var(--accent); background: transparent; }
   .msg .delete-msg-btn:hover { color: #e5534b; background: transparent; }
   .msg-edited-tag { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 4px; }
-  .msg-deleted-text { color: var(--muted); font-style: italic; font-size: 13px; }
   .msg-edit-area {
     width: 100%;
     min-width: 220px;
@@ -1028,7 +1077,7 @@
     max-width: 220px;
     max-height: 220px;
     border-radius: 10px;
-    cursor: pointer;
+    cursor: zoom-in;
     display: block;
     object-fit: cover;
   }
@@ -2131,6 +2180,15 @@
   </div>
 </div>
 
+<div id="image-lightbox">
+  <button id="lightbox-close-btn" title="关闭"><i class="ti ti-x"></i></button>
+  <button id="lightbox-open-tab-btn" title="在新标签页打开"><i class="ti ti-external-link"></i></button>
+  <button id="lightbox-prev-btn" title="上一张"><i class="ti ti-chevron-left"></i></button>
+  <img id="lightbox-img" src="" alt="图片放大预览" />
+  <button id="lightbox-next-btn" title="下一张"><i class="ti ti-chevron-right"></i></button>
+  <div id="lightbox-counter"></div>
+</div>
+
 <div id="delete-confirm-overlay">
   <div id="delete-confirm-card">
     <div class="delete-confirm-icon"><i class="ti ti-trash"></i></div>
@@ -2594,6 +2652,8 @@
       messagesEl.appendChild(div);
       return;
     }
+    // 已删除的消息直接跳过，不渲染任何东西（不留占位提示，用户名/时间/气泡全部不显示）
+    if (data.deletedAt) return;
     const wrap = document.createElement('div');
     const isMe = data.username === username;
     const iAmQuoted = !!(data.quote && data.quote.username === username);
@@ -2626,90 +2686,79 @@
       bubble.style.background = userColor.bg;
     }
 
-    if (data.deletedAt) {
-      const deletedSpan = document.createElement('div');
-      deletedSpan.className = 'msg-deleted-text';
-      deletedSpan.textContent = '此消息已删除';
-      bubble.appendChild(deletedSpan);
-    } else {
-      if (data.quote) {
-        const quoteBlock = document.createElement('div');
-        quoteBlock.className = 'quote-block';
-        const qName = document.createElement('span');
-        qName.className = 'quote-name';
-        qName.textContent = data.quote.username;
-        const qText = document.createElement('span');
-        qText.className = 'quote-text';
-        qText.textContent = data.quote.text;
-        quoteBlock.appendChild(qName);
-        quoteBlock.appendChild(qText);
-        bubble.appendChild(quoteBlock);
-      }
+    if (data.quote) {
+      const quoteBlock = document.createElement('div');
+      quoteBlock.className = 'quote-block';
+      const qName = document.createElement('span');
+      qName.className = 'quote-name';
+      qName.textContent = data.quote.username;
+      const qText = document.createElement('span');
+      qText.className = 'quote-text';
+      qText.textContent = data.quote.text;
+      quoteBlock.appendChild(qName);
+      quoteBlock.appendChild(qText);
+      bubble.appendChild(quoteBlock);
+    }
 
-      // images是新格式(数组)；image是旧格式(单张字符串)，两种都兼容一下，
-      // 避免服务器还没重启、内存里残留旧格式消息时渲染出错
-      const imageList = Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []);
-      if (imageList.length > 0) {
-        const grid = document.createElement('div');
-        grid.className = `msg-images-grid count-${Math.min(imageList.length, 9)}`;
-        imageList.forEach((url) => {
-          const imgLink = document.createElement('a');
-          imgLink.href = url;
-          imgLink.target = '_blank';
-          imgLink.rel = 'noopener noreferrer';
-          const img = document.createElement('img');
-          img.className = 'msg-image';
-          img.src = url;
-          img.alt = '图片消息';
-          img.loading = 'lazy';
-          imgLink.appendChild(img);
-          grid.appendChild(imgLink);
-        });
-        bubble.appendChild(grid);
-      }
+    // images是新格式(数组)；image是旧格式(单张字符串)，两种都兼容一下，
+    // 避免服务器还没重启、内存里残留旧格式消息时渲染出错
+    const imageList = Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []);
+    if (imageList.length > 0) {
+      const grid = document.createElement('div');
+      grid.className = `msg-images-grid count-${Math.min(imageList.length, 9)}`;
+      imageList.forEach((url, idx) => {
+        const img = document.createElement('img');
+        img.className = 'msg-image';
+        img.src = url;
+        img.alt = '图片消息';
+        img.loading = 'lazy';
+        img.addEventListener('click', () => openImageLightbox(imageList, idx));
+        grid.appendChild(img);
+      });
+      bubble.appendChild(grid);
+    }
 
-      if (Array.isArray(data.files) && data.files.length > 0) {
-        data.files.forEach((f) => {
-          const card = document.createElement('a');
-          card.className = 'msg-file-card';
-          card.href = f.url;
-          card.download = f.name || '';
-          card.target = '_blank';
-          card.rel = 'noopener noreferrer';
+    if (Array.isArray(data.files) && data.files.length > 0) {
+      data.files.forEach((f) => {
+        const card = document.createElement('a');
+        card.className = 'msg-file-card';
+        card.href = f.url;
+        card.download = f.name || '';
+        card.target = '_blank';
+        card.rel = 'noopener noreferrer';
 
-          const icon = document.createElement('span');
-          icon.className = 'msg-file-icon';
-          icon.innerHTML = '<i class="ti ti-file"></i>';
-          card.appendChild(icon);
+        const icon = document.createElement('span');
+        icon.className = 'msg-file-icon';
+        icon.innerHTML = '<i class="ti ti-file"></i>';
+        card.appendChild(icon);
 
-          const info = document.createElement('div');
-          info.className = 'msg-file-info';
-          const nameEl = document.createElement('span');
-          nameEl.className = 'msg-file-name';
-          nameEl.textContent = f.name || '未命名文件';
-          nameEl.title = f.name || '';
-          const sizeEl = document.createElement('span');
-          sizeEl.className = 'msg-file-size';
-          sizeEl.textContent = typeof f.size === 'number' ? formatFileSize(f.size) : '';
-          info.appendChild(nameEl);
-          info.appendChild(sizeEl);
-          card.appendChild(info);
+        const info = document.createElement('div');
+        info.className = 'msg-file-info';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'msg-file-name';
+        nameEl.textContent = f.name || '未命名文件';
+        nameEl.title = f.name || '';
+        const sizeEl = document.createElement('span');
+        sizeEl.className = 'msg-file-size';
+        sizeEl.textContent = typeof f.size === 'number' ? formatFileSize(f.size) : '';
+        info.appendChild(nameEl);
+        info.appendChild(sizeEl);
+        card.appendChild(info);
 
-          const downloadIcon = document.createElement('span');
-          downloadIcon.className = 'msg-file-download';
-          downloadIcon.textContent = '⬇️';
-          card.appendChild(downloadIcon);
+        const downloadIcon = document.createElement('span');
+        downloadIcon.className = 'msg-file-download';
+        downloadIcon.textContent = '⬇️';
+        card.appendChild(downloadIcon);
 
-          bubble.appendChild(card);
-        });
-      }
+        bubble.appendChild(card);
+      });
+    }
 
-      if (data.text && data.text.trim()) {
-        const textSpan = document.createElement('div');
-        textSpan.className = 'msg-text-content';
-        textSpan.innerHTML = renderTextWithMentions(data.text);
-        bubble.appendChild(textSpan);
-      }
+    if (data.text && data.text.trim()) {
+      const textSpan = document.createElement('div');
+      textSpan.className = 'msg-text-content';
+      textSpan.innerHTML = renderTextWithMentions(data.text);
+      bubble.appendChild(textSpan);
     }
 
     const metaRow = document.createElement('div');
@@ -2720,7 +2769,11 @@
       replyBtn.className = 'reply-btn';
       replyBtn.textContent = '↩ 回复';
       replyBtn.addEventListener('click', () => {
-        const replyText = (data.text && data.text.trim()) ? data.text : ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
+        // 读取气泡里当前实际显示的文字，而不是渲染时闭包捕获的data.text——
+        // 如果这条消息后来被编辑过，data.text还是编辑前的旧内容，DOM里的才是最新的
+        const currentTextEl = bubble.querySelector('.msg-text-content');
+        const currentText = currentTextEl ? currentTextEl.textContent : '';
+        const replyText = currentText || ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
         startReply(data.username, replyText);
       });
       metaRow.appendChild(replyBtn);
@@ -2819,6 +2872,64 @@
       reactionBtn.classList.add('pop');
     }
   }
+
+  // ---- 图片放大预览（灯箱）——点聊天消息里的图片，页面内直接放大看，不用跳新标签页 ----
+  const imageLightbox = document.getElementById('image-lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  const lightboxCloseBtn = document.getElementById('lightbox-close-btn');
+  const lightboxOpenTabBtn = document.getElementById('lightbox-open-tab-btn');
+  const lightboxPrevBtn = document.getElementById('lightbox-prev-btn');
+  const lightboxNextBtn = document.getElementById('lightbox-next-btn');
+  const lightboxCounter = document.getElementById('lightbox-counter');
+  let lightboxImages = [];
+  let lightboxIndex = 0;
+
+  function updateLightboxImage() {
+    lightboxImg.src = lightboxImages[lightboxIndex];
+    const multi = lightboxImages.length > 1;
+    lightboxCounter.textContent = multi ? `${lightboxIndex + 1} / ${lightboxImages.length}` : '';
+    lightboxCounter.style.display = multi ? '' : 'none';
+    lightboxPrevBtn.style.display = multi ? '' : 'none';
+    lightboxNextBtn.style.display = multi ? '' : 'none';
+  }
+
+  function openImageLightbox(images, startIndex) {
+    lightboxImages = images;
+    lightboxIndex = startIndex;
+    updateLightboxImage();
+    imageLightbox.classList.add('active');
+  }
+  function closeImageLightbox() {
+    imageLightbox.classList.remove('active');
+    lightboxImg.src = ''; // 关闭后清空，避免下次打开前有一瞬间还残留上一张图
+  }
+  function lightboxShowPrev() {
+    if (lightboxImages.length <= 1) return;
+    lightboxIndex = (lightboxIndex - 1 + lightboxImages.length) % lightboxImages.length;
+    updateLightboxImage();
+  }
+  function lightboxShowNext() {
+    if (lightboxImages.length <= 1) return;
+    lightboxIndex = (lightboxIndex + 1) % lightboxImages.length;
+    updateLightboxImage();
+  }
+
+  lightboxCloseBtn.addEventListener('click', closeImageLightbox);
+  lightboxPrevBtn.addEventListener('click', lightboxShowPrev);
+  lightboxNextBtn.addEventListener('click', lightboxShowNext);
+  lightboxOpenTabBtn.addEventListener('click', () => {
+    window.open(lightboxImages[lightboxIndex], '_blank', 'noopener,noreferrer');
+  });
+  // 点背景（不是图片本身、也不是按钮）就关闭，点图片或按钮不应该触发关闭
+  imageLightbox.addEventListener('click', (e) => {
+    if (e.target === imageLightbox) closeImageLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!imageLightbox.classList.contains('active')) return;
+    if (e.key === 'Escape') closeImageLightbox();
+    else if (e.key === 'ArrowLeft') lightboxShowPrev();
+    else if (e.key === 'ArrowRight') lightboxShowNext();
+  });
 
   function startReply(replyUsername, replyText) {
     replyingTo = { username: replyUsername, text: replyText };
@@ -2928,14 +3039,7 @@
   function applyMessageDeleted(messageId) {
     const wrap = messagesEl.querySelector(`.msg[data-message-id="${messageId}"]`);
     if (!wrap) return;
-    const bubble = wrap.querySelector('.bubble');
-    bubble.innerHTML = '';
-    const deletedSpan = document.createElement('div');
-    deletedSpan.className = 'msg-deleted-text';
-    deletedSpan.textContent = '此消息已删除';
-    bubble.appendChild(deletedSpan);
-    const metaRow = wrap.querySelector('.meta-row');
-    if (metaRow) metaRow.innerHTML = '';
+    wrap.remove(); // 直接整条移除，不留"此消息已删除"占位，省地方
   }
 
   replyCancelBtn.addEventListener('click', cancelReply);

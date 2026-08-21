@@ -1413,21 +1413,6 @@
   }
   #inspection-content-title { font-size: 20px; font-weight: 700; color: var(--text); }
 
-  #inspection-history-panel {
-    display: none;
-    position: relative;
-    width: 100%;
-    max-height: 260px;
-    overflow-y: auto;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-    padding: 12px 14px;
-    margin-bottom: 14px;
-  }
-  #inspection-history-panel.active { display: block; }
-
   #inspection-content-display {
     font-size: 14px;
     line-height: 1.8;
@@ -1582,11 +1567,11 @@
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
-    <button id="pending-panel-toggle" type="button">
+    <button id="pending-panel-toggle" type="button" class="collapsed">
       <span><span class="module-icon-badge badge-purple"><span class="icon-soft">🚩</span></span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
-    <div id="pending-panel-body">
+    <div id="pending-panel-body" class="collapsed">
       <div id="pending-list"></div>
     </div>
     <div id="messages"></div>
@@ -1708,6 +1693,10 @@
       <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📷</span></span>
       <span class="tool-entry-label">拍照搜图</span>
     </button>
+    <button id="tool-daipai-clipboard-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge badge-green"><span class="tool-entry-icon">📋</span></span>
+      <span class="tool-entry-label">代拍剪贴板</span>
+    </button>
   </div>
 </div>
 
@@ -1735,17 +1724,7 @@
     <div id="inspection-content-area">
       <div id="inspection-content-header">
         <span id="inspection-content-title">煤炉</span>
-        <div class="pin-gear-wrap">
-          <button id="inspection-gear-btn" class="pin-edit-btn" type="button" title="更多操作">⚙️</button>
-          <div id="inspection-gear-menu" class="pin-gear-menu">
-            <button id="inspection-edit-open-btn" class="pin-edit-btn" title="编辑">✏️</button>
-            <button id="inspection-history-toggle" class="pin-edit-btn" type="button" title="修改记录">📋</button>
-          </div>
-        </div>
-      </div>
-      <div id="inspection-history-panel">
-        <div class="pin-history-title">修改记录</div>
-        <div id="inspection-history-list"></div>
+        <button id="inspection-edit-open-btn" class="pin-edit-btn" title="编辑" type="button">✏️</button>
       </div>
       <div id="inspection-content-display"></div>
       <div id="inspection-edit-row">
@@ -1850,6 +1829,7 @@
   const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
   const toolCameraBtn = document.getElementById('tool-camera-btn');
+  const toolDaipaiClipboardBtn = document.getElementById('tool-daipai-clipboard-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -1870,12 +1850,7 @@
   const inspectionCatBtns = document.querySelectorAll('.inspection-cat-btn');
   const inspectionContentTitle = document.getElementById('inspection-content-title');
   const inspectionContentDisplay = document.getElementById('inspection-content-display');
-  const inspectionGearBtn = document.getElementById('inspection-gear-btn');
-  const inspectionGearMenu = document.getElementById('inspection-gear-menu');
   const inspectionEditOpenBtn = document.getElementById('inspection-edit-open-btn');
-  const inspectionHistoryToggle = document.getElementById('inspection-history-toggle');
-  const inspectionHistoryPanel = document.getElementById('inspection-history-panel');
-  const inspectionHistoryList = document.getElementById('inspection-history-list');
   const inspectionEditRow = document.getElementById('inspection-edit-row');
   const inspectionEditInput = document.getElementById('inspection-edit-input');
   const inspectionEditPassword = document.getElementById('inspection-edit-password');
@@ -2009,18 +1984,11 @@
           if (cat === currentInspectionCategory) {
             renderInspectionContent();
             closeInspectionEdit();
-            closeDeleteConfirm();
-            if (inspectionHistoryPanel.classList.contains('active')) renderInspectionHistory();
           }
         }
       } else if (data.type === 'inspection_rule_error') {
-        if (lastInspectionAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
-          deleteConfirmError.textContent = data.message || '密码错误';
-          deleteConfirmPassword.focus();
-        } else {
-          inspectionErrorMsg.textContent = data.message || '密码错误';
-          inspectionEditPassword.focus();
-        }
+        inspectionErrorMsg.textContent = data.message || '密码错误';
+        inspectionEditPassword.focus();
       } else if (data.type === 'reminder_list') {
         renderReminderList(Array.isArray(data.reminders) ? data.reminders : []);
         closeReminderEdit();
@@ -3007,18 +2975,15 @@
   const deleteConfirmError = document.getElementById('delete-confirm-error');
   const deleteConfirmOkBtn = document.getElementById('delete-confirm-ok-btn');
   const deleteConfirmCancelBtn = document.getElementById('delete-confirm-cancel-btn');
-  let pendingDeleteAction = null; // { kind: 'reminder' | 'announcement' | 'inspection_rule', entry, category? }
+  let pendingDeleteAction = null; // { kind: 'reminder' | 'announcement', entry }
 
   function openDeleteConfirm(kind, entry) {
-    pendingDeleteAction = { kind, entry, category: currentInspectionCategory };
+    pendingDeleteAction = { kind, entry };
     let label;
     let preview;
     if (kind === 'reminder') {
       label = '提醒事项';
       preview = `${formatReminderSchedule(entry)} ${entry.text}`.slice(0, 60);
-    } else if (kind === 'inspection_rule') {
-      label = `检品规则 · ${currentInspectionCategory}`;
-      preview = entry.text ? entry.text.slice(0, 40) : '(空)';
     } else {
       label = '公告栏';
       preview = entry.text ? entry.text.slice(0, 40) : '(空)';
@@ -3043,7 +3008,7 @@
       deleteConfirmPassword.focus();
       return;
     }
-    const { kind, entry, category } = pendingDeleteAction;
+    const { kind, entry } = pendingDeleteAction;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       deleteConfirmError.textContent = '连接已断开，请稍后重试';
       return;
@@ -3051,15 +3016,12 @@
     if (kind === 'reminder') {
       lastReminderAction = 'delete';
       ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
-    } else if (kind === 'inspection_rule') {
-      lastInspectionAction = 'delete';
-      ws.send(JSON.stringify({ type: 'inspection_rule_delete_history', category, id: entry.id, password }));
     } else {
       lastAnnouncementAction = 'delete';
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
-    // 成功了会收到 announcement/reminder_list/inspection_rule_update 广播，里面会顺带关掉这个弹窗；
+    // 成功了会收到 announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
     // 密码错误等失败情况会收到 xxx_error，直接在弹窗里显示，不用alert()
   }
 
@@ -3247,7 +3209,6 @@
   // ===== 检品规则（App内全屏面板，5个固定分类，所有人实时同步，编辑密码复用公告栏那个） =====
   let inspectionRulesData = {}; // { 分类名: { text, history } }
   let currentInspectionCategory = '煤炉';
-  let lastInspectionAction = 'edit'; // 'edit' 或 'delete'
 
   function openInspectionOverlay() {
     inspectionOverlay.classList.add('active');
@@ -3256,7 +3217,6 @@
   function closeInspectionOverlay() {
     inspectionOverlay.classList.remove('active');
     closeInspectionEdit();
-    inspectionHistoryPanel.classList.remove('active');
   }
 
   function switchInspectionCategory(category) {
@@ -3267,7 +3227,6 @@
     inspectionContentTitle.textContent = category;
     renderInspectionContent();
     closeInspectionEdit();
-    inspectionHistoryPanel.classList.remove('active');
   }
 
   function renderInspectionContent() {
@@ -3277,7 +3236,7 @@
       inspectionContentDisplay.innerHTML = renderRuleContent(text);
       inspectionContentDisplay.classList.remove('empty');
     } else {
-      inspectionContentDisplay.textContent = '暂无内容，点右上角齿轮 → 编辑，设置这个分类的规则';
+      inspectionContentDisplay.textContent = '暂无内容，点右上角 ✏️ 编辑，设置这个分类的规则';
       inspectionContentDisplay.classList.add('empty');
     }
   }
@@ -3305,21 +3264,10 @@
       return;
     }
     inspectionErrorMsg.textContent = '';
-    lastInspectionAction = 'edit';
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'inspection_rule_update', category: currentInspectionCategory, text, password }));
     }
     // 不在这里关闭编辑框——密码对不对由服务器说了算，保存成功后收到广播自动关闭
-  }
-
-  function renderInspectionHistory() {
-    const data = inspectionRulesData[currentInspectionCategory];
-    const historyList = data ? data.history : [];
-    renderHistoryList(historyList, inspectionHistoryList, '（空 - 当时这个分类还没有内容）', handleDeleteInspectionHistoryEntry);
-  }
-
-  function handleDeleteInspectionHistoryEntry(entry) {
-    openDeleteConfirm('inspection_rule', entry);
   }
 
   // 编辑框里点"插入图片"——上传到跟聊天消息共用的图片接口，成功后把 ![](图片地址) 这种markdown图片语法
@@ -3353,16 +3301,7 @@
   inspectionCatBtns.forEach((btn) => {
     btn.addEventListener('click', () => switchInspectionCategory(btn.dataset.category));
   });
-  setupHistoryToggle(inspectionGearBtn, inspectionGearMenu);
-  inspectionEditOpenBtn.addEventListener('click', () => {
-    openInspectionEdit();
-    inspectionGearMenu.classList.remove('active');
-  });
-  inspectionHistoryToggle.addEventListener('click', () => {
-    const active = inspectionHistoryPanel.classList.toggle('active');
-    if (active) renderInspectionHistory();
-    inspectionGearMenu.classList.remove('active');
-  });
+  inspectionEditOpenBtn.addEventListener('click', openInspectionEdit);
   inspectionSaveBtn.addEventListener('click', saveInspectionRule);
   inspectionCancelBtn.addEventListener('click', closeInspectionEdit);
   inspectionEditPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveInspectionRule(); });
@@ -3817,6 +3756,9 @@
   });
   toolCameraBtn.addEventListener('click', () => {
     openToolOverlay('/camera-search.html', '拍照搜图');
+  });
+  toolDaipaiClipboardBtn.addEventListener('click', () => {
+    openToolOverlay('/daipai-clipboard.html', '代拍剪贴板');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

@@ -1436,6 +1436,262 @@
   #inspection-edit-password { width: 140px; font-size: 13px; }
   #inspection-error-msg { font-size: 12px; color: #e5534b; }
 
+  /* ===== 问题件提醒：侧栏红点计数徽章 ===== */
+  .problem-item-cat-btn { position: relative; }
+  .problem-item-badge {
+    display: none;
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #e5534b;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+  }
+  .problem-item-badge.show { display: block; }
+
+  /* ===== 问题件提醒全屏面板 ===== */
+  #problem-item-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #problem-item-overlay.active { display: flex; }
+  #problem-item-overlay-body { flex: 1; display: flex; min-height: 0; }
+  #problem-item-sidebar {
+    flex-shrink: 0;
+    width: 120px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    overflow-y: auto;
+  }
+  .problem-item-panel-cat-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 10px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: left;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .problem-item-panel-cat-btn:hover { background: var(--hover-dark); color: var(--text); }
+  .problem-item-panel-cat-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+  #problem-item-content-area {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 20px 28px;
+  }
+  #problem-item-content-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  #problem-item-content-title { font-size: 20px; font-weight: 700; color: var(--text); }
+
+  #problem-item-form { max-width: 480px; }
+  .problem-item-field { margin-bottom: 14px; }
+  .problem-item-field .problem-item-field-label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .problem-item-field textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  /* 多选下拉组件 */
+  .multi-select-dropdown { position: relative; }
+  .multi-select-trigger {
+    width: 100%;
+    text-align: left;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .multi-select-trigger.has-selection { color: var(--text); }
+  .multi-select-trigger:hover { border-color: var(--accent); }
+  .multi-select-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 6px;
+  }
+  .multi-select-panel.active { display: block; }
+  .multi-select-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .multi-select-option:hover { background: var(--panel-alt); }
+  .multi-select-option input[type="checkbox"] { width: auto; flex-shrink: 0; accent-color: var(--accent); }
+  .multi-select-empty { padding: 10px; font-size: 12px; color: var(--muted); text-align: center; }
+
+  #problem-item-submit-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #problem-item-submit-btn:hover { background: var(--accent-dark); }
+  #problem-item-submit-hint { margin-left: 10px; font-size: 12px; color: var(--ok, #2e9e5b); }
+
+  .problem-item-divider { border-top: 1px solid var(--border); margin: 22px 0; max-width: 480px; }
+
+  #problem-item-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+  .problem-item-empty {
+    color: var(--muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 16px;
+    text-align: center;
+    background: var(--panel);
+    border-radius: 10px;
+  }
+  .problem-item-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .problem-item-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .problem-item-tag {
+    display: inline-block;
+    background: rgba(229, 83, 75, 0.12);
+    color: #c0392b;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 10px;
+  }
+  .problem-item-card-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .problem-item-card-note { font-size: 13px; color: var(--text); margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
+  .problem-item-card-actions { display: flex; gap: 8px; }
+  .problem-item-card-actions button {
+    flex: 1;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 7px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .problem-item-card-actions .resolve-btn:hover { border-color: #2e9e5b; color: #2e9e5b; }
+  .problem-item-card-actions .followup-btn:hover { border-color: #d98a1f; color: #d98a1f; }
+
+  /* 选项编辑弹层 */
+  #problem-item-options-edit-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(10, 12, 18, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #problem-item-options-edit-panel.active { display: flex; }
+  #problem-item-options-edit-card {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 440px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .problem-item-options-edit-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .problem-item-options-edit-desc { font-size: 12px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+  .problem-item-options-group { margin-bottom: 18px; }
+  .problem-item-options-group-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .problem-item-options-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 20px; }
+  .problem-item-options-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--panel-alt);
+    border-radius: 8px;
+    padding: 4px 6px 4px 10px;
+    font-size: 12px;
+    color: var(--text);
+  }
+  .problem-item-options-tag button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+  }
+  .problem-item-options-tag button:hover { color: #e5534b; }
+  .problem-item-options-add-row { display: flex; gap: 8px; }
+  .problem-item-options-add-row input {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .problem-item-options-add-row button {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .problem-item-options-add-row button:hover { border-color: var(--accent); color: var(--accent); }
+  .problem-item-options-edit-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  #problem-item-options-password { width: 130px; font-size: 13px; }
+  #problem-item-options-error { font-size: 12px; color: #e5534b; }
+
 
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1500,6 +1756,30 @@
         <button class="pin-edit-btn" id="announcement-cancel-btn">取消</button>
       </div>
       <span id="announcement-error-msg"></span>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <button id="problem-item-toggle" class="sidebar-toggle" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-alert-triangle"></i></span> 问题件提醒</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="problem-item-body">
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代购" type="button">
+        <span class="module-icon-badge"><i class="ti ti-shopping-cart"></i></span>
+        <span class="tool-entry-label">代购</span>
+        <span class="problem-item-badge" id="problem-badge-代购"></span>
+      </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代拍" type="button">
+        <span class="module-icon-badge"><i class="ti ti-gavel"></i></span>
+        <span class="tool-entry-label">代拍</span>
+        <span class="problem-item-badge" id="problem-badge-代拍"></span>
+      </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="煤炉" type="button">
+        <span class="module-icon-badge"><i class="ti ti-flame"></i></span>
+        <span class="tool-entry-label">煤炉</span>
+        <span class="problem-item-badge" id="problem-badge-煤炉"></span>
+      </button>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -1729,6 +2009,85 @@
   </div>
 </div>
 
+<div id="problem-item-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-alert-triangle"></i> 问题件提醒</span>
+    <button id="problem-item-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+  </div>
+  <div id="problem-item-overlay-body">
+    <div id="problem-item-sidebar">
+      <button class="problem-item-panel-cat-btn" data-category="代购">代购</button>
+      <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
+      <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
+    </div>
+    <div id="problem-item-content-area">
+      <div id="problem-item-content-header">
+        <span id="problem-item-content-title">代购</span>
+        <button id="problem-item-options-gear-btn" class="pin-edit-btn" type="button" title="编辑下拉选项列表"><i class="ti ti-settings"></i></button>
+      </div>
+
+      <div id="problem-item-form">
+        <div class="problem-item-field">
+          <label class="problem-item-field-label">问题类型</label>
+          <div class="multi-select-dropdown" id="issue-type-dropdown">
+            <button type="button" class="multi-select-trigger" id="issue-type-trigger">请选择问题类型…</button>
+            <div class="multi-select-panel" id="issue-type-panel"></div>
+          </div>
+        </div>
+        <div class="problem-item-field">
+          <label class="problem-item-field-label">检品人员姓名</label>
+          <div class="multi-select-dropdown" id="inspector-name-dropdown">
+            <button type="button" class="multi-select-trigger" id="inspector-name-trigger">请选择检品人员…</button>
+            <div class="multi-select-panel" id="inspector-name-panel"></div>
+          </div>
+        </div>
+        <div class="problem-item-field">
+          <label class="problem-item-field-label">订单ID / 备注</label>
+          <textarea id="problem-item-note-input" rows="2" placeholder="填写订单编号或其他补充说明…（选填）"></textarea>
+        </div>
+        <button id="problem-item-submit-btn" type="button">提交</button>
+        <span id="problem-item-submit-hint"></span>
+      </div>
+
+      <div class="problem-item-divider"></div>
+
+      <div id="problem-item-list"></div>
+    </div>
+  </div>
+
+  <div id="problem-item-options-edit-panel">
+    <div id="problem-item-options-edit-card">
+      <div class="problem-item-options-edit-title">编辑下拉选项列表</div>
+      <div class="problem-item-options-edit-desc">这两个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
+
+      <div class="problem-item-options-group">
+        <div class="problem-item-options-group-title">问题类型</div>
+        <div class="problem-item-options-tags" id="issue-type-options-tags"></div>
+        <div class="problem-item-options-add-row">
+          <input type="text" id="issue-type-add-input" placeholder="输入新的问题类型…" maxlength="20" />
+          <button type="button" id="issue-type-add-btn">添加</button>
+        </div>
+      </div>
+
+      <div class="problem-item-options-group">
+        <div class="problem-item-options-group-title">检品人员姓名</div>
+        <div class="problem-item-options-tags" id="inspector-name-options-tags"></div>
+        <div class="problem-item-options-add-row">
+          <input type="text" id="inspector-name-add-input" placeholder="输入新的检品人员姓名…" maxlength="20" />
+          <button type="button" id="inspector-name-add-btn">添加</button>
+        </div>
+      </div>
+
+      <div class="problem-item-options-edit-actions">
+        <input type="password" id="problem-item-options-password" placeholder="编辑密码" autocomplete="off" />
+        <button type="button" id="problem-item-options-save-btn">保存</button>
+        <button type="button" class="pin-edit-btn" id="problem-item-options-cancel-btn">取消</button>
+      </div>
+      <span id="problem-item-options-error"></span>
+    </div>
+  </div>
+</div>
+
 <div id="delete-confirm-overlay">
   <div id="delete-confirm-card">
     <div class="delete-confirm-icon"><i class="ti ti-trash"></i></div>
@@ -1834,6 +2193,35 @@
   const inspectionInsertImageBtn = document.getElementById('inspection-insert-image-btn');
   const inspectionImageFileInput = document.getElementById('inspection-image-file-input');
   const inspectionImageUploading = document.getElementById('inspection-image-uploading');
+
+  const problemItemToggle = document.getElementById('problem-item-toggle');
+  const problemItemBody = document.getElementById('problem-item-body');
+  const problemItemCatBtns = document.querySelectorAll('.problem-item-cat-btn');
+  const problemItemOverlay = document.getElementById('problem-item-overlay');
+  const problemItemOverlayCloseBtn = document.getElementById('problem-item-overlay-close-btn');
+  const problemItemPanelCatBtns = document.querySelectorAll('.problem-item-panel-cat-btn');
+  const problemItemContentTitle = document.getElementById('problem-item-content-title');
+  const problemItemOptionsGearBtn = document.getElementById('problem-item-options-gear-btn');
+  const issueTypeTrigger = document.getElementById('issue-type-trigger');
+  const issueTypePanel = document.getElementById('issue-type-panel');
+  const inspectorNameTrigger = document.getElementById('inspector-name-trigger');
+  const inspectorNamePanel = document.getElementById('inspector-name-panel');
+  const problemItemNoteInput = document.getElementById('problem-item-note-input');
+  const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
+  const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
+  const problemItemList = document.getElementById('problem-item-list');
+  const problemItemOptionsEditPanel = document.getElementById('problem-item-options-edit-panel');
+  const issueTypeOptionsTags = document.getElementById('issue-type-options-tags');
+  const issueTypeAddInput = document.getElementById('issue-type-add-input');
+  const issueTypeAddBtn = document.getElementById('issue-type-add-btn');
+  const inspectorNameOptionsTags = document.getElementById('inspector-name-options-tags');
+  const inspectorNameAddInput = document.getElementById('inspector-name-add-input');
+  const inspectorNameAddBtn = document.getElementById('inspector-name-add-btn');
+  const problemItemOptionsPassword = document.getElementById('problem-item-options-password');
+  const problemItemOptionsSaveBtn = document.getElementById('problem-item-options-save-btn');
+  const problemItemOptionsCancelBtn = document.getElementById('problem-item-options-cancel-btn');
+  const problemItemOptionsError = document.getElementById('problem-item-options-error');
+
   const quickAddRow = document.getElementById('quick-add-row');
   const quickAddInput = document.getElementById('quick-add-input');
   const quickAddCategorySelect = document.getElementById('quick-add-category-select');
@@ -1963,6 +2351,35 @@
       } else if (data.type === 'inspection_rule_error') {
         inspectionErrorMsg.textContent = data.message || '密码错误';
         inspectionEditPassword.focus();
+      } else if (data.type === 'problem_item_data') {
+        problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
+        problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
+        renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
+      } else if (data.type === 'problem_item_report_added') {
+        const cat = data.category;
+        if (!problemItemData.reports[cat]) problemItemData.reports[cat] = [];
+        problemItemData.reports[cat].push(data.report);
+        renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+      } else if (data.type === 'problem_item_report_removed') {
+        const cat = data.category;
+        if (problemItemData.reports[cat]) {
+          problemItemData.reports[cat] = problemItemData.reports[cat].filter((r) => String(r.id) !== String(data.reportId));
+        }
+        renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+      } else if (data.type === 'problem_item_options_updated') {
+        const key = data.optionType === 'issue_type' ? 'issueTypes' : 'inspectorNames';
+        problemItemData.options[key] = data.values || [];
+        if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
+        if (pendingOptionsSaveCount > 0) {
+          pendingOptionsSaveCount--;
+          if (pendingOptionsSaveCount === 0) closeProblemItemOptionsEdit();
+        }
+      } else if (data.type === 'problem_item_options_error') {
+        problemItemOptionsError.textContent = data.message || '密码错误';
+        pendingOptionsSaveCount = 0;
       } else if (data.type === 'reminder_list') {
         renderReminderList(Array.isArray(data.reminders) ? data.reminders : []);
         closeReminderEdit();
@@ -3287,6 +3704,334 @@
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && inspectionOverlay.classList.contains('active')) closeInspectionOverlay();
+  });
+
+  // ===== 问题件提醒（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
+  const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
+  let problemItemData = {
+    options: { issueTypes: [], inspectorNames: [] },
+    reports: { 代购: [], 代拍: [], 煤炉: [] },
+  };
+  let currentProblemItemCategory = '代购';
+  let selectedIssueTypes = new Set();
+  let selectedInspectorNames = new Set();
+  let editingIssueTypes = [];
+  let editingInspectorNames = [];
+  let pendingOptionsSaveCount = 0;
+
+  // 侧栏"问题件提醒"整体展开/收起（跟其他侧栏分组一样的交互）
+  problemItemToggle.addEventListener('click', () => {
+    const collapsed = problemItemBody.classList.toggle('collapsed');
+    problemItemToggle.classList.toggle('collapsed', collapsed);
+  });
+
+  function renderProblemItemBadges() {
+    PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
+      const badge = document.getElementById(`problem-badge-${cat}`);
+      if (!badge) return;
+      const count = (problemItemData.reports[cat] || []).length;
+      if (count > 0) {
+        badge.textContent = count;
+        badge.classList.add('show');
+      } else {
+        badge.classList.remove('show');
+      }
+    });
+  }
+
+  // ---- 多选下拉组件（问题类型/检品人员姓名共用同一套逻辑） ----
+  function renderMultiSelectPanel(panelEl, options, selectedSet, onChange) {
+    panelEl.innerHTML = '';
+    if (options.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'multi-select-empty';
+      empty.textContent = '暂无选项，去右上角齿轮里添加';
+      panelEl.appendChild(empty);
+      return;
+    }
+    options.forEach((opt) => {
+      const label = document.createElement('label');
+      label.className = 'multi-select-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedSet.has(opt);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) selectedSet.add(opt); else selectedSet.delete(opt);
+        onChange();
+      });
+      label.appendChild(checkbox);
+      const span = document.createElement('span');
+      span.textContent = opt;
+      label.appendChild(span);
+      panelEl.appendChild(label);
+    });
+  }
+
+  function updateMultiSelectTrigger(triggerEl, selectedSet, placeholder) {
+    if (selectedSet.size === 0) {
+      triggerEl.textContent = placeholder;
+      triggerEl.classList.remove('has-selection');
+    } else {
+      triggerEl.textContent = Array.from(selectedSet).join('、');
+      triggerEl.classList.add('has-selection');
+    }
+  }
+
+  function setupMultiSelectDropdown(triggerBtn, panelEl) {
+    triggerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.multi-select-panel.active').forEach((p) => {
+        if (p !== panelEl) p.classList.remove('active');
+      });
+      panelEl.classList.toggle('active');
+    });
+    document.addEventListener('click', (e) => {
+      if (panelEl.classList.contains('active') && !panelEl.contains(e.target) && e.target !== triggerBtn) {
+        panelEl.classList.remove('active');
+      }
+    });
+  }
+  setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
+  setupMultiSelectDropdown(inspectorNameTrigger, inspectorNamePanel);
+
+  // ---- 全屏面板开关、分类切换 ----
+  function openProblemItemOverlay(category) {
+    currentProblemItemCategory = category;
+    problemItemOverlay.classList.add('active');
+    selectedIssueTypes = new Set();
+    selectedInspectorNames = new Set();
+    problemItemNoteInput.value = '';
+    updateProblemItemPanelForCategory();
+  }
+  function closeProblemItemOverlay() {
+    problemItemOverlay.classList.remove('active');
+    problemItemOptionsEditPanel.classList.remove('active');
+  }
+
+  function updateProblemItemPanelForCategory() {
+    problemItemPanelCatBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.category === currentProblemItemCategory);
+    });
+    problemItemContentTitle.textContent = currentProblemItemCategory;
+    renderMultiSelectPanel(issueTypePanel, problemItemData.options.issueTypes, selectedIssueTypes,
+      () => updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…'));
+    renderMultiSelectPanel(inspectorNamePanel, problemItemData.options.inspectorNames, selectedInspectorNames,
+      () => updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…'));
+    updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
+    updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…');
+    renderProblemItemList();
+  }
+
+  problemItemCatBtns.forEach((btn) => {
+    btn.addEventListener('click', () => openProblemItemOverlay(btn.dataset.category));
+  });
+  problemItemOverlayCloseBtn.addEventListener('click', closeProblemItemOverlay);
+  problemItemPanelCatBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      currentProblemItemCategory = btn.dataset.category;
+      selectedIssueTypes = new Set();
+      selectedInspectorNames = new Set();
+      problemItemNoteInput.value = '';
+      updateProblemItemPanelForCategory();
+    });
+  });
+
+  // ---- 待处理记录列表渲染 ----
+  function formatProblemItemTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function renderProblemItemList() {
+    const reports = problemItemData.reports[currentProblemItemCategory] || [];
+    problemItemList.innerHTML = '';
+    if (reports.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'problem-item-empty';
+      empty.textContent = '暂无待处理的问题件';
+      problemItemList.appendChild(empty);
+      return;
+    }
+    [...reports].reverse().forEach((report) => {
+      const card = document.createElement('div');
+      card.className = 'problem-item-card';
+
+      const tagsRow = document.createElement('div');
+      tagsRow.className = 'problem-item-card-tags';
+      (report.issueTypes || []).forEach((t) => {
+        const tag = document.createElement('span');
+        tag.className = 'problem-item-tag';
+        tag.textContent = t;
+        tagsRow.appendChild(tag);
+      });
+      card.appendChild(tagsRow);
+
+      const meta = document.createElement('div');
+      meta.className = 'problem-item-card-meta';
+      const inspectorStr = (report.inspectorNames && report.inspectorNames.length > 0) ? report.inspectorNames.join('、') : '未填写';
+      meta.textContent = `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
+      card.appendChild(meta);
+
+      if (report.orderNote) {
+        const note = document.createElement('div');
+        note.className = 'problem-item-card-note';
+        note.textContent = report.orderNote;
+        card.appendChild(note);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'problem-item-card-actions';
+
+      const resolveBtn = document.createElement('button');
+      resolveBtn.className = 'resolve-btn';
+      resolveBtn.innerHTML = '<i class="ti ti-check"></i> 已解决';
+      resolveBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'problem_item_resolve', category: currentProblemItemCategory, reportId: report.id }));
+        }
+      });
+      actions.appendChild(resolveBtn);
+
+      const followupBtn = document.createElement('button');
+      followupBtn.className = 'followup-btn';
+      followupBtn.innerHTML = '<i class="ti ti-flag"></i> 需跟进处理';
+      followupBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'problem_item_followup', category: currentProblemItemCategory, reportId: report.id }));
+        }
+      });
+      actions.appendChild(followupBtn);
+
+      card.appendChild(actions);
+      problemItemList.appendChild(card);
+    });
+  }
+
+  // ---- 提交表单 ----
+  function submitProblemItem() {
+    if (selectedIssueTypes.size === 0) {
+      problemItemSubmitHint.textContent = '请至少选择一个问题类型';
+      problemItemSubmitHint.style.color = '#e5534b';
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      problemItemSubmitHint.textContent = '连接已断开，请稍后重试';
+      problemItemSubmitHint.style.color = '#e5534b';
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'problem_item_submit',
+      category: currentProblemItemCategory,
+      issueTypes: Array.from(selectedIssueTypes),
+      inspectorNames: Array.from(selectedInspectorNames),
+      orderNote: problemItemNoteInput.value.trim(),
+    }));
+    // 提交完清空表单，方便连续录入下一条，不用每次都重新打开面板
+    selectedIssueTypes = new Set();
+    selectedInspectorNames = new Set();
+    problemItemNoteInput.value = '';
+    updateProblemItemPanelForCategory();
+    problemItemSubmitHint.textContent = '✓ 已提交';
+    problemItemSubmitHint.style.color = '#2e9e5b';
+    setTimeout(() => { problemItemSubmitHint.textContent = ''; }, 2000);
+  }
+  problemItemSubmitBtn.addEventListener('click', submitProblemItem);
+
+  // ---- 选项编辑弹层（问题类型 + 检品人员姓名，两个列表三个分类共用，密码同公告栏） ----
+  function renderOptionsTagList(containerEl, arr, onRemove) {
+    containerEl.innerHTML = '';
+    if (arr.length === 0) {
+      const empty = document.createElement('span');
+      empty.style.fontSize = '12px';
+      empty.style.color = 'var(--muted)';
+      empty.textContent = '（空）';
+      containerEl.appendChild(empty);
+      return;
+    }
+    arr.forEach((val, idx) => {
+      const tag = document.createElement('span');
+      tag.className = 'problem-item-options-tag';
+      const text = document.createElement('span');
+      text.textContent = val;
+      tag.appendChild(text);
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.innerHTML = '<i class="ti ti-x"></i>';
+      delBtn.addEventListener('click', () => onRemove(idx));
+      tag.appendChild(delBtn);
+      containerEl.appendChild(tag);
+    });
+  }
+  function renderIssueTypeEditTags() {
+    renderOptionsTagList(issueTypeOptionsTags, editingIssueTypes, (idx) => {
+      editingIssueTypes.splice(idx, 1);
+      renderIssueTypeEditTags();
+    });
+  }
+  function renderInspectorNameEditTags() {
+    renderOptionsTagList(inspectorNameOptionsTags, editingInspectorNames, (idx) => {
+      editingInspectorNames.splice(idx, 1);
+      renderInspectorNameEditTags();
+    });
+  }
+
+  function openProblemItemOptionsEdit() {
+    editingIssueTypes = [...problemItemData.options.issueTypes];
+    editingInspectorNames = [...problemItemData.options.inspectorNames];
+    renderIssueTypeEditTags();
+    renderInspectorNameEditTags();
+    problemItemOptionsPassword.value = '';
+    problemItemOptionsError.textContent = '';
+    problemItemOptionsEditPanel.classList.add('active');
+  }
+  function closeProblemItemOptionsEdit() {
+    problemItemOptionsEditPanel.classList.remove('active');
+  }
+  problemItemOptionsGearBtn.addEventListener('click', openProblemItemOptionsEdit);
+  problemItemOptionsCancelBtn.addEventListener('click', closeProblemItemOptionsEdit);
+
+  issueTypeAddBtn.addEventListener('click', () => {
+    const val = issueTypeAddInput.value.trim();
+    if (!val || editingIssueTypes.includes(val)) { issueTypeAddInput.value = ''; return; }
+    editingIssueTypes.push(val);
+    issueTypeAddInput.value = '';
+    renderIssueTypeEditTags();
+  });
+  issueTypeAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') issueTypeAddBtn.click(); });
+
+  inspectorNameAddBtn.addEventListener('click', () => {
+    const val = inspectorNameAddInput.value.trim();
+    if (!val || editingInspectorNames.includes(val)) { inspectorNameAddInput.value = ''; return; }
+    editingInspectorNames.push(val);
+    inspectorNameAddInput.value = '';
+    renderInspectorNameEditTags();
+  });
+  inspectorNameAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inspectorNameAddBtn.click(); });
+
+  problemItemOptionsSaveBtn.addEventListener('click', () => {
+    const password = problemItemOptionsPassword.value;
+    if (!password) {
+      problemItemOptionsError.textContent = '请输入编辑密码';
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      problemItemOptionsError.textContent = '连接已断开，请稍后重试';
+      return;
+    }
+    problemItemOptionsError.textContent = '';
+    pendingOptionsSaveCount = 2; // 问题类型、检品人员姓名两个列表分开发送，都确认成功了才关闭弹层
+    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'issue_type', values: editingIssueTypes, password }));
+    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'inspector_name', values: editingInspectorNames, password }));
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (problemItemOptionsEditPanel.classList.contains('active')) {
+      closeProblemItemOptionsEdit();
+    } else if (problemItemOverlay.classList.contains('active')) {
+      closeProblemItemOverlay();
+    }
   });
 
   // ===== 公告栏（侧栏那个） =====

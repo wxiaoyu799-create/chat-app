@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
@@ -8,7 +9,24 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 
 const app = express();
-const server = http.createServer(app);
+
+// 支持可选的HTTPS：如果在项目根目录放了证书文件（certs/cert.pem + certs/key.pem），
+// 就用HTTPS启动；没放证书文件就用普通HTTP（Render部署这种云平台不需要放证书，
+// Render自己在外层已经套了HTTPS，这里继续用HTTP完全没问题，不影响现有部署）。
+// 局域网自建服务器如果要用"拍照搜图"这个功能，摄像头必须要HTTPS才能调用，
+// 这时候才需要生成证书放到 certs/ 目录下（用mkcert工具生成，详见部署说明）
+const CERT_PATH = path.join(__dirname, 'certs', 'cert.pem');
+const KEY_PATH = path.join(__dirname, 'certs', 'key.pem');
+const hasLocalCerts = fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH);
+
+const server = hasLocalCerts
+  ? https.createServer({ cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) }, app)
+  : http.createServer(app);
+
+if (hasLocalCerts) {
+  console.log('检测到本地证书，以 HTTPS 方式启动（局域网内摄像头等功能可以正常使用）');
+}
+
 const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
@@ -27,6 +45,25 @@ if (dbPool) {
   });
 } else {
   console.log('未配置 DATABASE_URL，公告栏/提醒事项等历史记录将只保存在内存中（重启会清空）');
+}
+
+// dbPool这个对象只要DATABASE_URL字符串不是空的就会创建成功，但这不代表连接字符串本身是对的——
+// pg库的连接是"真正用到的时候才去连"，不是创建Pool对象的时候就连，所以"dbPool存在"≠"真的连上了"。
+// 之前踩过坑：填错了连接地址（缺了@符号、host写错），dbPool对象照样创建成功，
+// 启动日志误打印"数据库已连接"，但实际上后面每个功能各自尝试查询时都报错退化成了内存模式，
+// 这句话就变成了"看起来连上了、其实没连上"的误导性提示。这里改成真正跑一次查询来验证。
+let dbConnectionVerified = false;
+async function verifyDatabaseConnection() {
+  if (!dbPool) return false;
+  try {
+    await dbPool.query('SELECT 1;');
+    dbConnectionVerified = true;
+    return true;
+  } catch (err) {
+    console.error('[数据库连接测试失败，请检查 DATABASE_URL 格式是否正确]', err.message);
+    dbConnectionVerified = false;
+    return false;
+  }
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -106,9 +143,97 @@ app.post('/upload-file', (req, res) => {
 
 // 在线用户: ws -> { username, id }
 const clients = new Map();
-// 最近消息历史（内存中，重启后清空——这部分保持原样不接数据库）
+// 最近消息历史——内存里始终保留最近MAX_HISTORY条，用于日常渲染/查找（快，不用每次都查数据库）；
+// 如果数据库连上了，这些消息也会异步写入数据库，服务器重启后能从数据库把最近的消息读回来，
+// 不会变成空白聊天室。没配置数据库的话，行为跟以前完全一样，纯内存，重启就清空。
 const MAX_HISTORY = 100;
 let history = [];
+
+async function ensureChatMessagesTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id BIGINT PRIMARY KEY,
+      username TEXT,
+      text TEXT,
+      images JSONB,
+      files JSONB,
+      mentions JSONB,
+      mentions_all BOOLEAN DEFAULT false,
+      quote JSONB,
+      reactions JSONB DEFAULT '{}',
+      pending JSONB,
+      msg_time BIGINT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+}
+
+async function loadChatHistoryFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureChatMessagesTable();
+    // 只读最近MAX_HISTORY条，按时间正序排好，直接当成内存历史用
+    const { rows } = await dbPool.query(
+      'SELECT * FROM chat_messages ORDER BY id DESC LIMIT $1;',
+      [MAX_HISTORY]
+    );
+    history = rows.reverse().map((row) => ({
+      type: 'message',
+      id: Number(row.id),
+      username: row.username,
+      text: row.text,
+      images: row.images || [],
+      files: row.files || [],
+      mentions: row.mentions || [],
+      mentionsAll: row.mentions_all,
+      quote: row.quote,
+      reactions: row.reactions || {},
+      pending: row.pending,
+      time: Number(row.msg_time),
+    }));
+    if (history.length > 0) {
+      // 下一条消息的ID接着数据库里最大的那个往后排，避免重启后ID撞车
+      nextMessageId = Math.max(...history.map((m) => m.id)) + 1;
+    }
+    console.log(`已从数据库加载 ${history.length} 条聊天记录`);
+  } catch (err) {
+    console.error('[加载聊天记录失败，暂时改用空白历史]', err.message);
+  }
+}
+
+// 写入是"发出去就不等结果"的异步方式——聊天消息发得很频繁，不能让每条消息都等数据库写完才广播给大家，
+// 那样会让发消息变得很卡。写失败了就在日志里报个错，不影响当次消息正常收发，
+// 只是不写进数据库的话，这一条消息在下次重启后会读不到（历史记录会跳过这条），概率很低但要知道有这个情况
+function saveChatMessageToDB(msg) {
+  if (!dbPool) return;
+  dbPool.query(
+    `INSERT INTO chat_messages (id, username, text, images, files, mentions, mentions_all, quote, reactions, pending, msg_time)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (id) DO NOTHING;`,
+    [
+      msg.id, msg.username, msg.text,
+      JSON.stringify(msg.images || []), JSON.stringify(msg.files || []),
+      JSON.stringify(msg.mentions || []), !!msg.mentionsAll,
+      msg.quote ? JSON.stringify(msg.quote) : null,
+      JSON.stringify(msg.reactions || {}),
+      msg.pending ? JSON.stringify(msg.pending) : null,
+      msg.time,
+    ]
+  ).catch((err) => console.error('[聊天消息写入数据库失败]', err.message));
+}
+
+function updateMessageReactionsInDB(messageId, reactions) {
+  if (!dbPool) return;
+  dbPool.query('UPDATE chat_messages SET reactions = $1 WHERE id = $2;', [JSON.stringify(reactions), messageId])
+    .catch((err) => console.error('[更新消息点赞状态到数据库失败]', err.message));
+}
+
+function updateMessagePendingInDB(messageId, pending) {
+  if (!dbPool) return;
+  dbPool.query('UPDATE chat_messages SET pending = $1 WHERE id = $2;', [pending ? JSON.stringify(pending) : null, messageId])
+    .catch((err) => console.error('[更新消息待办状态到数据库失败]', err.message));
+}
 
 function rowToHistoryEntry(row) {
   return {
@@ -391,6 +516,183 @@ function getAllInspectionRulesText() {
   return result;
 }
 
+// ===== 问题件提醒：代购/代拍/煤炉三个分类，各自独立计数和记录列表，
+// 但"问题类型"和"检品人员姓名"这两个下拉选项列表是三个分类共用的一套 =====
+const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
+const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
+const DEFAULT_INSPECTOR_NAMES = [];
+
+// 共用选项列表：{ issue_type: [{id, value}], inspector_name: [{id, value}] }
+let problemItemOptions = { issue_type: [], inspector_name: [] };
+// 每个分类当前"待处理"（未点已解决/需跟进）的记录列表，已处理的记录不放在内存里，只留在数据库里当历史
+let problemItemReports = {};
+PROBLEM_ITEM_CATEGORIES.forEach((cat) => { problemItemReports[cat] = []; });
+let nextProblemItemOptionId = 1;
+let nextProblemItemReportId = 1;
+
+async function ensureProblemItemTables() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS problem_item_options (
+      id BIGSERIAL PRIMARY KEY,
+      option_type TEXT NOT NULL,
+      value TEXT NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS problem_item_reports (
+      id BIGSERIAL PRIMARY KEY,
+      category TEXT NOT NULL,
+      issue_types JSONB NOT NULL,
+      inspector_names JSONB NOT NULL,
+      order_note TEXT,
+      submitted_by TEXT NOT NULL,
+      submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      status TEXT NOT NULL DEFAULT 'pending',
+      resolved_by TEXT,
+      resolved_at TIMESTAMPTZ
+    );
+  `);
+}
+
+function rowToProblemItemOption(row) {
+  return { id: row.id, value: row.value };
+}
+function rowToProblemItemReport(row) {
+  return {
+    id: row.id,
+    category: row.category,
+    issueTypes: row.issue_types,
+    inspectorNames: row.inspector_names,
+    orderNote: row.order_note || '',
+    submittedBy: row.submitted_by,
+    submittedAt: new Date(row.submitted_at).getTime(),
+    status: row.status,
+  };
+}
+
+async function loadProblemItemDataFromDB() {
+  // 没配数据库的话，用代码里写死的默认问题类型列表撑着，检品人员姓名列表留空等手动添加
+  if (!dbPool) {
+    problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
+    problemItemOptions.inspector_name = [];
+    return;
+  }
+  try {
+    await ensureProblemItemTables();
+
+    const issueRows = await dbPool.query(
+      "SELECT * FROM problem_item_options WHERE option_type = 'issue_type' ORDER BY sort_order ASC, id ASC;"
+    );
+    if (issueRows.rows.length === 0) {
+      // 第一次接入数据库，把代码里的默认问题类型写进去
+      for (let i = 0; i < DEFAULT_ISSUE_TYPES.length; i++) {
+        await dbPool.query(
+          'INSERT INTO problem_item_options (option_type, value, sort_order) VALUES ($1, $2, $3);',
+          ['issue_type', DEFAULT_ISSUE_TYPES[i], i]
+        );
+      }
+      const reloaded = await dbPool.query(
+        "SELECT * FROM problem_item_options WHERE option_type = 'issue_type' ORDER BY sort_order ASC, id ASC;"
+      );
+      problemItemOptions.issue_type = reloaded.rows.map(rowToProblemItemOption);
+    } else {
+      problemItemOptions.issue_type = issueRows.rows.map(rowToProblemItemOption);
+    }
+
+    const inspectorRows = await dbPool.query(
+      "SELECT * FROM problem_item_options WHERE option_type = 'inspector_name' ORDER BY sort_order ASC, id ASC;"
+    );
+    problemItemOptions.inspector_name = inspectorRows.rows.map(rowToProblemItemOption);
+
+    // 只加载"待处理"状态的记录到内存里，已解决/已跟进的留在数据库当历史，不占内存也不用同步给客户端
+    for (const cat of PROBLEM_ITEM_CATEGORIES) {
+      const reportRows = await dbPool.query(
+        "SELECT * FROM problem_item_reports WHERE category = $1 AND status = 'pending' ORDER BY submitted_at ASC;",
+        [cat]
+      );
+      problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
+    }
+
+    console.log('已从数据库加载问题件提醒选项和待处理记录');
+  } catch (err) {
+    console.error('[加载问题件提醒数据失败，暂时改用内存默认值]', err.message);
+    problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
+  }
+}
+
+async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy) {
+  const now = Date.now();
+  let id = `mem-${now}`;
+  if (dbPool) {
+    try {
+      const result = await dbPool.query(
+        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, submitted_at;',
+        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy]
+      );
+      id = result.rows[0].id;
+    } catch (err) {
+      console.error('[问题件提醒记录写入数据库失败]', err.message);
+    }
+  }
+  const report = { id, category, issueTypes, inspectorNames, orderNote, submittedBy, submittedAt: now, status: 'pending' };
+  problemItemReports[category].push(report);
+  return report;
+}
+
+async function updateProblemItemReportStatus(category, reportId, status, byUsername) {
+  const idx = problemItemReports[category].findIndex((r) => String(r.id) === String(reportId));
+  if (idx === -1) return false;
+  problemItemReports[category].splice(idx, 1); // 不管是已解决还是需跟进，都从"待处理"内存列表里移除
+
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE problem_item_reports SET status = $1, resolved_by = $2, resolved_at = now() WHERE id = $3;',
+        [status, byUsername, reportId]
+      );
+    } catch (err) {
+      console.error('[问题件提醒状态更新失败]', err.message);
+    }
+  }
+  return true;
+}
+
+async function updateProblemItemOptions(optionType, values) {
+  const newList = values.map((v, i) => ({ id: `mem-${optionType}-${Date.now()}-${i}`, value: v }));
+  problemItemOptions[optionType] = newList;
+
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM problem_item_options WHERE option_type = $1;', [optionType]);
+    for (let i = 0; i < values.length; i++) {
+      await dbPool.query(
+        'INSERT INTO problem_item_options (option_type, value, sort_order) VALUES ($1, $2, $3);',
+        [optionType, values[i], i]
+      );
+    }
+    const reloaded = await dbPool.query(
+      'SELECT * FROM problem_item_options WHERE option_type = $1 ORDER BY sort_order ASC, id ASC;',
+      [optionType]
+    );
+    problemItemOptions[optionType] = reloaded.rows.map(rowToProblemItemOption);
+  } catch (err) {
+    console.error('[问题件提醒选项更新失败]', err.message);
+  }
+}
+
+function getProblemItemSnapshot() {
+  return {
+    options: {
+      issueTypes: problemItemOptions.issue_type.map((o) => o.value),
+      inspectorNames: problemItemOptions.inspector_name.map((o) => o.value),
+    },
+    reports: problemItemReports,
+  };
+}
+
 // 消息自增ID（用于引用回复）
 let nextMessageId = 1;
 // 允许的消息表情回应（白名单，避免被塞入任意文本）
@@ -454,6 +756,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
+      ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -521,6 +824,7 @@ wss.on('connection', (ws) => {
         time: Date.now(),
       };
       pushHistory(msg);
+      saveChatMessageToDB(msg);
       broadcast(msg); // 包括发送者自己（用于统一渲染顺序）
       scheduleMentionReminder(msg);
       return;
@@ -547,6 +851,7 @@ wss.on('connection', (ws) => {
         list.splice(idx, 1);
       }
       broadcast({ type: 'reaction_update', messageId, emoji, users: list });
+      updateMessageReactionsInDB(messageId, msg.reactions);
       return;
     }
 
@@ -562,6 +867,7 @@ wss.on('connection', (ws) => {
       // 跟置顶公告那种"内容管理"性质不一样，越轻量越好用
       msg.pending = msg.pending ? null : { by: client.username, at: Date.now() };
       broadcast({ type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username });
+      updateMessagePendingInDB(messageId, msg.pending);
       return;
     }
 
@@ -647,6 +953,51 @@ wss.on('connection', (ws) => {
       rule.history.splice(idx, 1);
       await deleteInspectionRuleHistoryEntry(targetId);
       broadcast({ type: 'inspection_rule_update', category, text: rule.text, history: rule.history });
+      return;
+    }
+
+    if (data.type === 'problem_item_submit') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
+      const issueTypes = Array.isArray(data.issueTypes) ? data.issueTypes.filter((v) => typeof v === 'string').slice(0, 20) : [];
+      const inspectorNames = Array.isArray(data.inspectorNames) ? data.inspectorNames.filter((v) => typeof v === 'string').slice(0, 20) : [];
+      const orderNote = String(data.orderNote || '').slice(0, 500);
+      // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
+      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username);
+      broadcast({ type: 'problem_item_report_added', category, report });
+      return;
+    }
+
+    if (data.type === 'problem_item_resolve' || data.type === 'problem_item_followup') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
+      const status = data.type === 'problem_item_resolve' ? 'resolved' : 'follow_up';
+      const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
+      if (ok) {
+        broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+      }
+      return;
+    }
+
+    if (data.type === 'problem_item_options_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const optionType = String(data.optionType || '');
+      if (optionType !== 'issue_type' && optionType !== 'inspector_name') return;
+      const providedPassword = String(data.password || '');
+      if (providedPassword !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'problem_item_options_error', message: '密码错误，无法修改选项列表' }));
+        return;
+      }
+      const values = Array.isArray(data.values)
+        ? data.values.filter((v) => typeof v === 'string' && v.trim()).map((v) => v.trim()).slice(0, 100)
+        : [];
+      await updateProblemItemOptions(optionType, values);
+      broadcast({ type: 'problem_item_options_updated', optionType, values: problemItemOptions[optionType].map((o) => o.value) });
       return;
     }
 
@@ -868,6 +1219,7 @@ function fireReminderBroadcast(text) {
     time: Date.now(),
   };
   pushHistory(msg);
+  saveChatMessageToDB(msg);
   broadcast(msg);
 }
 
@@ -888,15 +1240,25 @@ function checkReminders() {
 setInterval(checkReminders, 30 * 1000);
 
 async function startServer() {
+  await verifyDatabaseConnection();
+  await loadChatHistoryFromDB();
   await loadAnnouncementStateFromDB();
   await loadInspectionRulesFromDB();
+  await loadProblemItemDataFromDB();
   await loadRemindersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);
-    console.log(`本机访问: http://localhost:${PORT}`);
-    console.log(`局域网访问: http://<你的局域网IP>:${PORT}`);
-    console.log(dbPool ? '数据库已连接，公告栏/提醒事项等历史记录会持久化' : '数据库未配置，公告栏/提醒事项等历史记录仅保存在内存中');
+    const proto = hasLocalCerts ? 'https' : 'http';
+    console.log(`本机访问: ${proto}://localhost:${PORT}`);
+    console.log(`局域网访问: ${proto}://<你的局域网IP>:${PORT}`);
+    if (!dbPool) {
+      console.log('数据库未配置，公告栏/提醒事项等历史记录仅保存在内存中');
+    } else if (dbConnectionVerified) {
+      console.log('数据库已连接（已通过实际查询验证），公告栏/提醒事项等历史记录会持久化');
+    } else {
+      console.log('⚠️ 数据库连接测试失败！DATABASE_URL 已配置但连不上，请检查地址格式是否正确（比如有没有漏掉@符号、host是否正确）。当前会退化成内存模式，重启会清空历史记录');
+    }
   });
 }
 

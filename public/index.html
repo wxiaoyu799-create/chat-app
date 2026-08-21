@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CC</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#f4f5f7" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -17,6 +18,7 @@
     --bg: #ffffff;
     --panel: #f4f5f7;
     --panel-alt: #eef1f6;
+    --hover-dark: #dbe1ea;
     --border: #dde1e8;
     --text: #1a1d24;
     --muted: #6b7280;
@@ -28,51 +30,21 @@
     --link-on-bubble: #2952b5;
   }
   * { box-sizing: border-box; }
-  /* 全部图标（emoji）统一降低饱和度，看起来更柔和，不那么跳脱；
-     只对"专门装图标的容器"生效，不影响正常文字颜色 */
-  .pin-icon,
-  .tool-entry-icon,
-  .reaction-icon,
-  .announce-icon,
-  .delete-confirm-icon,
-  .mention-all-icon,
-  .msg-file-icon,
-  .file-preview-icon,
-  .icon-soft,
-  .pin-edit-btn,
-  .reply-cancel-btn,
-  .item-remove-btn,
-  .quick-del-btn,
-  .quick-category-del-btn,
-  .ph-delete-btn,
-  .pending-resolve-btn,
-  #tool-overlay-close-btn {
-    filter: saturate(55%);
-  }
-  /* 模块彩色图标徽章——外层圆角背景块，每个模块一个颜色，看起来柔和又有区分度。
-     图标本体在徽章里要恢复完整饱和度(不能延用外面那套"整体降饱和度"的灰乎乎效果)，
-     不然"鲜艳背景 + 灰暗图标"两者互相拖累，整体看起来还是很淡，起不到"多彩"的效果 */
+  /* 几何图标（Tabler Icons webfont）统一样式：默认中性灰色，不带彩色背景。
+     以前这里是emoji图标+彩色圆角背景块的方案，现在改成线性几何图标，
+     靠"鼠标悬停时图标所在的整个模块背景变深"来提示可交互/当前状态，
+     不再需要靠图标本身的颜色来做区分 */
   .module-icon-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
+    width: 22px;
+    height: 22px;
     flex-shrink: 0;
+    color: var(--muted);
+    font-size: 17px;
+    transition: color 0.15s;
   }
-  .module-icon-badge .pin-icon,
-  .module-icon-badge .icon-soft,
-  .module-icon-badge .tool-entry-icon {
-    font-size: 15px;
-    filter: saturate(100%);
-  }
-  .badge-blue { background: #B5D4F4; }
-  .badge-teal { background: #9FE1CB; }
-  .badge-coral { background: #F5C4B3; }
-  .badge-pink { background: #F4C0D1; }
-  .badge-purple { background: #CECBF6; }
-  .badge-green { background: #C0DD97; }
   html, body {
     height: 100%;
     margin: 0;
@@ -1037,7 +1009,8 @@
     padding: 0 0 10px;
     cursor: pointer;
   }
-  .sidebar-toggle:hover { color: var(--text); background: transparent; }
+  .sidebar-toggle:hover { color: var(--text); background: var(--hover-dark); }
+  .sidebar-toggle:hover .module-icon-badge { color: var(--text); }
   .sidebar-toggle .sidebar-toggle-arrow { transition: transform 0.15s; }
   .sidebar-toggle.collapsed .sidebar-toggle-arrow { transform: rotate(-90deg); }
   #online-list { list-style: none; margin: 0; padding: 0; font-size: 14px; }
@@ -1091,7 +1064,7 @@
     font-weight: 600;
     cursor: pointer;
   }
-  .quick-category-header:hover { border-color: var(--accent); background: transparent; }
+  .quick-category-header:hover { border-color: var(--accent); background: var(--hover-dark); }
   .quick-category-header .quick-category-count { color: var(--muted); font-weight: 400; margin-left: 4px; }
   .quick-category-header .quick-category-arrow { transition: transform 0.15s; color: var(--muted); }
   .quick-category.expanded .quick-category-header .quick-category-arrow { transform: rotate(90deg); }
@@ -1242,7 +1215,8 @@
     margin-bottom: 6px;
     text-align: left;
   }
-  .tool-entry-btn:hover { border-color: var(--accent); background: var(--panel-alt); }
+  .tool-entry-btn:hover { border-color: var(--accent); background: var(--hover-dark); }
+  .tool-entry-btn:hover .module-icon-badge { color: var(--text); }
   .tool-entry-btn .tool-entry-icon { font-size: 16px; flex-shrink: 0; }
   .tool-entry-btn .tool-entry-label { flex: 1; }
 
@@ -1396,7 +1370,7 @@
     cursor: pointer;
     font-family: inherit;
   }
-  .inspection-cat-btn:hover { background: var(--panel-alt); color: var(--text); }
+  .inspection-cat-btn:hover { background: var(--hover-dark); color: var(--text); }
   .inspection-cat-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
 
   #inspection-content-area {
@@ -1480,7 +1454,7 @@
 
 <div id="login">
   <div class="card">
-    <h1><span class="icon-soft">💬</span> CC</h1>
+    <h1><i class="ti ti-message-circle icon-soft"></i> CC</h1>
     <p>输入昵称加入聊天</p>
     <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
     <button id="join-btn">加入 CC</button>
@@ -1490,7 +1464,7 @@
 <div id="app">
   <div id="sidebar">
     <button id="online-list-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge badge-teal"><span class="icon-soft">👥</span></span> 检品达人 (<span id="online-count">0</span>)</span>
+      <span><span class="module-icon-badge"><i class="ti ti-users"></i></span> 检品达人 (<span id="online-count">0</span>)</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <ul id="online-list" class="collapsed"></ul>
@@ -1499,17 +1473,17 @@
 
     <div id="sidebar-announce">
       <div class="pin-bar-head">
-        <span class="module-icon-badge badge-blue"><span class="pin-icon">📢</span></span>
+        <span class="module-icon-badge"><i class="ti ti-speakerphone"></i></span>
         <span class="pin-bar-label">公告栏</span>
       </div>
       <span class="pin-text" id="announcement-text"></span>
       <button id="announcement-expand-btn" type="button">展开全文</button>
       <div class="pin-bar-actions">
         <div class="pin-gear-wrap">
-          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作">⚙️</button>
+          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
           <div id="announcement-gear-menu" class="pin-gear-menu">
-            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑">✏️</button>
-            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录">📋</button>
+            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑"><i class="ti ti-pencil"></i></button>
+            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录"><i class="ti ti-clipboard-list"></i></button>
           </div>
         </div>
       </div>
@@ -1531,28 +1505,28 @@
     <div class="sidebar-divider"></div>
 
     <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge badge-teal"><span class="icon-soft">📚</span></span> 参考文档</span>
+      <span><span class="module-icon-badge"><i class="ti ti-book-2"></i></span> 参考文档</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="doc-links-body" class="collapsed">
       <button id="inspection-rules-btn" class="tool-entry-btn" type="button">
-        <span class="module-icon-badge badge-purple"><span class="tool-entry-icon">📋</span></span>
+        <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
         <span class="tool-entry-label">检品规则</span>
       </button>
       <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
-        <span class="module-icon-badge badge-green"><span class="tool-entry-icon">📊</span></span>
+        <span class="module-icon-badge"><i class="ti ti-chart-bar"></i></span>
         <span class="tool-entry-label">复数追加记录</span>
       </a>
       <a href="https://www.jpgoodbuy.com/yii/web/index.php?r=admin%2Flogin%2Flogin&amp;from=https%3A%2F%2Fwww.jpgoodbuy.com%2Fyii%2Fweb%2Findex.php%3Fr%3Dadmin%2Fpurchase%2Fpurchase-list" target="_blank" rel="noopener noreferrer" id="purchase-admin-link" class="tool-entry-btn">
-        <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🛒</span></span>
+        <span class="module-icon-badge"><i class="ti ti-shopping-cart"></i></span>
         <span class="tool-entry-label">代购后台</span>
       </a>
       <a href="https://www.qbt.jp/yii/web/index.php?r=shopAdmin/order/auction-order-list" target="_blank" rel="noopener noreferrer" id="auction-admin-link" class="tool-entry-btn">
-        <span class="module-icon-badge badge-pink"><span class="tool-entry-icon">🔨</span></span>
+        <span class="module-icon-badge"><i class="ti ti-gavel"></i></span>
         <span class="tool-entry-label">代拍后台</span>
       </a>
       <a href="https://exmail.qq.com/cgi-bin/loginpage?t=dm_loginpage&amp;dmtype=bizmail&amp;s=session_timeout" target="_blank" rel="noopener noreferrer" id="purchase-email-link" class="tool-entry-btn">
-        <span class="module-icon-badge badge-teal"><span class="tool-entry-icon">📧</span></span>
+        <span class="module-icon-badge"><i class="ti ti-mail"></i></span>
         <span class="tool-entry-label">代购邮箱</span>
       </a>
     </div>
@@ -1563,12 +1537,12 @@
         <div class="username-block">
           <span class="my-username" id="my-username"></span>
         </div>
-        <h2><span class="icon-soft">💬</span> CC</h2>
+        <h2><i class="ti ti-message-circle icon-soft"></i> CC</h2>
       </div>
       <span class="status" id="conn-status">连接中...</span>
     </header>
     <button id="pending-panel-toggle" type="button" class="collapsed">
-      <span><span class="module-icon-badge badge-purple"><span class="icon-soft">🚩</span></span> 待处理事项 <span id="pending-count-badge"></span></span>
+      <span><span class="module-icon-badge"><i class="ti ti-flag"></i></span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="pending-panel-body" class="collapsed">
@@ -1582,22 +1556,22 @@
         <span class="quote-name" id="reply-preview-name"></span>
         <span class="quote-text" id="reply-preview-text"></span>
       </div>
-      <button class="reply-cancel-btn" id="reply-cancel-btn">✕</button>
+      <button class="reply-cancel-btn" id="reply-cancel-btn"><i class="ti ti-x"></i></button>
     </div>
     <div id="image-preview-bar">
       <div id="image-preview-thumbs"></div>
       <span id="image-preview-status">已选择图片</span>
-      <button class="reply-cancel-btn" id="image-cancel-btn" title="清空全部">✕</button>
+      <button class="reply-cancel-btn" id="image-cancel-btn" title="清空全部"><i class="ti ti-x"></i></button>
     </div>
     <div id="file-preview-bar">
       <div id="file-preview-list"></div>
       <span id="file-preview-status">已选择文件</span>
-      <button class="reply-cancel-btn" id="file-cancel-btn" title="清空全部">✕</button>
+      <button class="reply-cancel-btn" id="file-cancel-btn" title="清空全部"><i class="ti ti-x"></i></button>
     </div>
     <div id="input-row">
-      <button id="image-pick-btn" type="button" title="发送图片（可多选）">🖼️</button>
+      <button id="image-pick-btn" type="button" title="发送图片（可多选）"><i class="ti ti-photo"></i></button>
       <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
-      <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）">📎</button>
+      <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）"><i class="ti ti-paperclip"></i></button>
       <input id="file-file-input" type="file" multiple style="display:none" />
       <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
@@ -1605,12 +1579,12 @@
   </div>
   <div id="quick-sidebar">
     <div class="quick-header-row">
-      <h3><span class="module-icon-badge badge-pink"><span class="icon-soft">💬</span></span> 常用文本</h3>
+      <h3><span class="module-icon-badge"><i class="ti ti-message-circle"></i></span> 常用文本</h3>
       <div class="pin-gear-wrap">
-        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作">⚙️</button>
+        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
         <div id="quick-gear-menu" class="pin-gear-menu">
-          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语">➕</button>
-          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类">🗂️</button>
+          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语"><i class="ti ti-plus"></i></button>
+          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类"><i class="ti ti-folder"></i></button>
         </div>
       </div>
     </div>
@@ -1637,13 +1611,13 @@
     <div class="sidebar-divider"></div>
 
     <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge badge-coral"><span class="icon-soft">⏰</span></span> 提醒事项</span>
+      <span><span class="module-icon-badge"><i class="ti ti-alarm"></i></span> 提醒事项</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="reminder-panel-body" class="collapsed">
       <div id="reminder-list"></div>
       <button id="reminder-add-open-btn" class="tool-entry-btn" type="button">
-        <span class="tool-entry-icon">➕</span>
+        <span class="tool-entry-icon"><i class="ti ti-plus"></i></span>
         <span class="tool-entry-label">添加提醒</span>
       </button>
       <div id="reminder-edit-row">
@@ -1674,27 +1648,27 @@
 
     <h3>实用工具</h3>
     <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-pink"><span class="tool-entry-icon">🔍</span></span>
+      <span class="module-icon-badge"><i class="ti ti-search"></i></span>
       <span class="tool-entry-label">骏河屋检品判定台</span>
     </button>
     <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-green"><span class="tool-entry-icon">🤖</span></span>
+      <span class="module-icon-badge"><i class="ti ti-robot"></i></span>
       <span class="tool-entry-label">AI检品工具</span>
     </button>
     <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-blue"><span class="tool-entry-icon">🧮</span></span>
+      <span class="module-icon-badge"><i class="ti ti-calculator"></i></span>
       <span class="tool-entry-label">计算器（带明细）</span>
     </button>
     <button id="tool-sagawa-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-purple"><span class="tool-entry-icon">🚚</span></span>
+      <span class="module-icon-badge"><i class="ti ti-truck"></i></span>
       <span class="tool-entry-label">佐川运费查询</span>
     </button>
     <button id="tool-camera-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-coral"><span class="tool-entry-icon">📷</span></span>
+      <span class="module-icon-badge"><i class="ti ti-camera"></i></span>
       <span class="tool-entry-label">拍照搜图</span>
     </button>
     <button id="tool-daipai-clipboard-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge badge-green"><span class="tool-entry-icon">📋</span></span>
+      <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
       <span class="tool-entry-label">代拍剪贴板</span>
     </button>
   </div>
@@ -1703,15 +1677,15 @@
 <div id="tool-overlay">
   <div id="tool-overlay-header" class="tool-overlay-header-bar">
     <span id="tool-overlay-title">骏河屋检品判定台</span>
-    <button id="tool-overlay-close-btn" title="关闭，返回聊天室">✕ 返回聊天室</button>
+    <button id="tool-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
   </div>
   <iframe id="tool-overlay-frame" title="工具页面" allow="camera; clipboard-write"></iframe>
 </div>
 
 <div id="inspection-overlay">
   <div class="tool-overlay-header-bar">
-    <span>📋 检品规则</span>
-    <button id="inspection-overlay-close-btn" title="关闭，返回聊天室">✕ 返回聊天室</button>
+    <span><i class="ti ti-clipboard-list"></i> 检品规则</span>
+    <button id="inspection-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
   </div>
   <div id="inspection-overlay-body">
     <div id="inspection-sidebar">
@@ -1724,12 +1698,12 @@
     <div id="inspection-content-area">
       <div id="inspection-content-header">
         <span id="inspection-content-title">煤炉</span>
-        <button id="inspection-edit-open-btn" class="pin-edit-btn" title="编辑" type="button">✏️</button>
+        <button id="inspection-edit-open-btn" class="pin-edit-btn" title="编辑" type="button"><i class="ti ti-pencil"></i></button>
       </div>
       <div id="inspection-content-display"></div>
       <div id="inspection-edit-row">
         <div class="inspection-edit-toolbar">
-          <button id="inspection-insert-image-btn" type="button">🖼️ 插入图片</button>
+          <button id="inspection-insert-image-btn" type="button"><i class="ti ti-photo"></i> 插入图片</button>
           <input type="file" id="inspection-image-file-input" accept="image/*" style="display:none" />
           <span id="inspection-image-uploading"></span>
         </div>
@@ -1747,7 +1721,7 @@
 
 <div id="announce-overlay">
   <div id="announce-card">
-    <div class="announce-icon">📢</div>
+    <div class="announce-icon"><i class="ti ti-speakerphone"></i></div>
     <div class="announce-label">所有人</div>
     <div class="announce-from" id="announce-from"></div>
     <div class="announce-text" id="announce-text"></div>
@@ -1757,7 +1731,7 @@
 
 <div id="delete-confirm-overlay">
   <div id="delete-confirm-card">
-    <div class="delete-confirm-icon">🗑️</div>
+    <div class="delete-confirm-icon"><i class="ti ti-trash"></i></div>
     <div class="delete-confirm-title">删除这条历史记录？</div>
     <div class="delete-confirm-desc" id="delete-confirm-desc"></div>
     <input type="password" id="delete-confirm-password" placeholder="输入编辑密码确认删除" autocomplete="off" />
@@ -2229,7 +2203,7 @@
 
         const icon = document.createElement('span');
         icon.className = 'msg-file-icon';
-        icon.textContent = '📄';
+        icon.innerHTML = '<i class="ti ti-file"></i>';
         card.appendChild(icon);
 
         const info = document.createElement('div');
@@ -2295,7 +2269,7 @@
       // 标了就说明"这条还没处理完"，谁都能标、谁都能取消，处理完了随手点掉就行
       const pendingBtn = document.createElement('button');
       pendingBtn.className = 'reaction-badge pending-badge';
-      pendingBtn.innerHTML = `<span class="reaction-icon">🚩</span><span class="reaction-names"></span>`;
+      pendingBtn.innerHTML = `<span class="reaction-icon"><i class="ti ti-flag"></i></span><span class="reaction-names"></span>`;
       pendingBtn.title = '标记待处理';
       pendingBtn.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2550,7 +2524,7 @@
 
     const icon = document.createElement('span');
     icon.className = 'file-preview-icon';
-    icon.textContent = '📎';
+    icon.innerHTML = '<i class="ti ti-paperclip"></i>';
     wrap.appendChild(icon);
 
     const name = document.createElement('span');
@@ -2871,7 +2845,7 @@
 
       const resolveBtn = document.createElement('button');
       resolveBtn.className = 'pending-resolve-btn';
-      resolveBtn.textContent = '✓ 标记完成';
+      resolveBtn.innerHTML = '<i class="ti ti-check"></i> 标记完成';
       resolveBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // 别触发外层item的"跳转到消息"点击
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2955,7 +2929,7 @@
         const delBtn = document.createElement('button');
         delBtn.className = 'ph-delete-btn';
         delBtn.title = '删除这条记录';
-        delBtn.textContent = '🗑️';
+        delBtn.innerHTML = '<i class="ti ti-trash"></i>';
         delBtn.addEventListener('click', () => onDelete(entry));
         item.appendChild(delBtn);
       }
@@ -3090,14 +3064,14 @@
       const editBtn = document.createElement('button');
       editBtn.className = 'pin-edit-btn';
       editBtn.title = '编辑';
-      editBtn.textContent = '✏️';
+      editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
       editBtn.addEventListener('click', () => openReminderEdit(r));
       actions.appendChild(editBtn);
 
       const delBtn = document.createElement('button');
       delBtn.className = 'pin-edit-btn';
       delBtn.title = '删除';
-      delBtn.textContent = '🗑️';
+      delBtn.innerHTML = '<i class="ti ti-trash"></i>';
       delBtn.addEventListener('click', () => openDeleteConfirm('reminder', r));
       actions.appendChild(delBtn);
 
@@ -3236,7 +3210,7 @@
       inspectionContentDisplay.innerHTML = renderRuleContent(text);
       inspectionContentDisplay.classList.remove('empty');
     } else {
-      inspectionContentDisplay.textContent = '暂无内容，点右上角 ✏️ 编辑，设置这个分类的规则';
+      inspectionContentDisplay.textContent = '暂无内容，点右上角编辑，设置这个分类的规则';
       inspectionContentDisplay.classList.add('empty');
     }
   }
@@ -3600,7 +3574,7 @@
 
       const delBtn = document.createElement('button');
       delBtn.className = 'quick-category-del-btn';
-      delBtn.textContent = '🗑️';
+      delBtn.innerHTML = '<i class="ti ti-trash"></i>';
       delBtn.title = '删除这个分类';
       delBtn.disabled = quickCategories.length <= 1; // 至少保留一个分类兜底，不然没地方放常用语了
       delBtn.addEventListener('click', () => {
@@ -3857,7 +3831,7 @@
     mentionCandidates.forEach((name, i) => {
       const item = document.createElement('div');
       item.className = 'mention-item' + (i === mentionSelectedIndex ? ' active' : '');
-      const iconHtml = name === '所有人' ? '<span class="mention-all-icon">📢</span>' : '<span class="dot"></span>';
+      const iconHtml = name === '所有人' ? '<i class="ti ti-speakerphone mention-all-icon"></i>' : '<span class="dot"></span>';
       item.innerHTML = `${iconHtml}${escapeHtml(name)}`;
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();

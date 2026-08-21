@@ -352,6 +352,7 @@
     overflow-y: auto;
   }
   #pending-panel-body.collapsed { display: none; }
+  #problem-item-body.collapsed { display: none; }
   #pending-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -652,6 +653,46 @@
   }
   .msg:hover .reply-btn { opacity: 1; pointer-events: auto; }
   .msg .reply-btn:hover { color: var(--accent); background: transparent; }
+  .msg .edit-msg-btn, .msg .delete-msg-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 2px 4px;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .msg:hover .edit-msg-btn, .msg:hover .delete-msg-btn { opacity: 1; pointer-events: auto; }
+  .msg .edit-msg-btn:hover { color: var(--accent); background: transparent; }
+  .msg .delete-msg-btn:hover { color: #e5534b; background: transparent; }
+  .msg-edited-tag { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 4px; }
+  .msg-deleted-text { color: var(--muted); font-style: italic; font-size: 13px; }
+  .msg-edit-area {
+    width: 100%;
+    min-width: 220px;
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: vertical;
+    color: var(--text);
+    background: var(--bg);
+  }
+  .msg-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
+  .msg-edit-actions button {
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .msg-edit-save-btn { background: var(--accent); color: #fff; }
+  .msg-edit-save-btn:hover { background: var(--accent-dark); }
+  .msg-edit-cancel-btn { background: var(--panel-alt); color: var(--text); }
   .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 20px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
@@ -1517,6 +1558,13 @@
     font-family: inherit;
     resize: vertical;
   }
+  #problem-item-inspector-display {
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text);
+  }
 
   /* 多选下拉组件 */
   .multi-select-dropdown { position: relative; }
@@ -2036,10 +2084,7 @@
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">检品人员姓名</label>
-          <div class="multi-select-dropdown" id="inspector-name-dropdown">
-            <button type="button" class="multi-select-trigger" id="inspector-name-trigger">请选择检品人员…</button>
-            <div class="multi-select-panel" id="inspector-name-panel"></div>
-          </div>
+          <div id="problem-item-inspector-display"></div>
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">订单ID / 备注</label>
@@ -2057,8 +2102,8 @@
 
   <div id="problem-item-options-edit-panel">
     <div id="problem-item-options-edit-card">
-      <div class="problem-item-options-edit-title">编辑下拉选项列表</div>
-      <div class="problem-item-options-edit-desc">这两个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
+      <div class="problem-item-options-edit-title">编辑问题类型选项</div>
+      <div class="problem-item-options-edit-desc">这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
 
       <div class="problem-item-options-group">
         <div class="problem-item-options-group-title">问题类型</div>
@@ -2066,15 +2111,6 @@
         <div class="problem-item-options-add-row">
           <input type="text" id="issue-type-add-input" placeholder="输入新的问题类型…" maxlength="20" />
           <button type="button" id="issue-type-add-btn">添加</button>
-        </div>
-      </div>
-
-      <div class="problem-item-options-group">
-        <div class="problem-item-options-group-title">检品人员姓名</div>
-        <div class="problem-item-options-tags" id="inspector-name-options-tags"></div>
-        <div class="problem-item-options-add-row">
-          <input type="text" id="inspector-name-add-input" placeholder="输入新的检品人员姓名…" maxlength="20" />
-          <button type="button" id="inspector-name-add-btn">添加</button>
         </div>
       </div>
 
@@ -2204,8 +2240,7 @@
   const problemItemOptionsGearBtn = document.getElementById('problem-item-options-gear-btn');
   const issueTypeTrigger = document.getElementById('issue-type-trigger');
   const issueTypePanel = document.getElementById('issue-type-panel');
-  const inspectorNameTrigger = document.getElementById('inspector-name-trigger');
-  const inspectorNamePanel = document.getElementById('inspector-name-panel');
+  const problemItemInspectorDisplay = document.getElementById('problem-item-inspector-display');
   const problemItemNoteInput = document.getElementById('problem-item-note-input');
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
@@ -2214,9 +2249,6 @@
   const issueTypeOptionsTags = document.getElementById('issue-type-options-tags');
   const issueTypeAddInput = document.getElementById('issue-type-add-input');
   const issueTypeAddBtn = document.getElementById('issue-type-add-btn');
-  const inspectorNameOptionsTags = document.getElementById('inspector-name-options-tags');
-  const inspectorNameAddInput = document.getElementById('inspector-name-add-input');
-  const inspectorNameAddBtn = document.getElementById('inspector-name-add-btn');
   const problemItemOptionsPassword = document.getElementById('problem-item-options-password');
   const problemItemOptionsSaveBtn = document.getElementById('problem-item-options-save-btn');
   const problemItemOptionsCancelBtn = document.getElementById('problem-item-options-cancel-btn');
@@ -2402,6 +2434,12 @@
         }
       } else if (data.type === 'pending_update') {
         applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
+      } else if (data.type === 'message_edited') {
+        applyMessageEdited(data.messageId, data.text);
+      } else if (data.type === 'message_deleted') {
+        applyMessageDeleted(data.messageId);
+      } else if (data.type === 'message_edit_error') {
+        alert(data.message || '操作失败');
       } else if (data.type === 'mention_reminder') {
         // 20分钟前被@、还没点赞确认的二次提醒——复用跟"被@了"完全一样的通知效果
         // （声音、桌面通知、标签页标题闪烁），但不在聊天记录里重复插入一条消息，
@@ -2561,6 +2599,12 @@
     timeInName.className = 'name-time';
     timeInName.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     name.appendChild(timeInName);
+    if (data.editedAt && !data.deletedAt) {
+      const editedTag = document.createElement('span');
+      editedTag.className = 'msg-edited-tag';
+      editedTag.textContent = '(已编辑)';
+      name.appendChild(editedTag);
+    }
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
@@ -2573,98 +2617,124 @@
       bubble.style.background = userColor.bg;
     }
 
-    if (data.quote) {
-      const quoteBlock = document.createElement('div');
-      quoteBlock.className = 'quote-block';
-      const qName = document.createElement('span');
-      qName.className = 'quote-name';
-      qName.textContent = data.quote.username;
-      const qText = document.createElement('span');
-      qText.className = 'quote-text';
-      qText.textContent = data.quote.text;
-      quoteBlock.appendChild(qName);
-      quoteBlock.appendChild(qText);
-      bubble.appendChild(quoteBlock);
-    }
+    if (data.deletedAt) {
+      const deletedSpan = document.createElement('div');
+      deletedSpan.className = 'msg-deleted-text';
+      deletedSpan.textContent = '此消息已删除';
+      bubble.appendChild(deletedSpan);
+    } else {
+      if (data.quote) {
+        const quoteBlock = document.createElement('div');
+        quoteBlock.className = 'quote-block';
+        const qName = document.createElement('span');
+        qName.className = 'quote-name';
+        qName.textContent = data.quote.username;
+        const qText = document.createElement('span');
+        qText.className = 'quote-text';
+        qText.textContent = data.quote.text;
+        quoteBlock.appendChild(qName);
+        quoteBlock.appendChild(qText);
+        bubble.appendChild(quoteBlock);
+      }
 
-    // images是新格式(数组)；image是旧格式(单张字符串)，两种都兼容一下，
-    // 避免服务器还没重启、内存里残留旧格式消息时渲染出错
-    const imageList = Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []);
-    if (imageList.length > 0) {
-      const grid = document.createElement('div');
-      grid.className = `msg-images-grid count-${Math.min(imageList.length, 9)}`;
-      imageList.forEach((url) => {
-        const imgLink = document.createElement('a');
-        imgLink.href = url;
-        imgLink.target = '_blank';
-        imgLink.rel = 'noopener noreferrer';
-        const img = document.createElement('img');
-        img.className = 'msg-image';
-        img.src = url;
-        img.alt = '图片消息';
-        img.loading = 'lazy';
-        imgLink.appendChild(img);
-        grid.appendChild(imgLink);
-      });
-      bubble.appendChild(grid);
-    }
+      // images是新格式(数组)；image是旧格式(单张字符串)，两种都兼容一下，
+      // 避免服务器还没重启、内存里残留旧格式消息时渲染出错
+      const imageList = Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []);
+      if (imageList.length > 0) {
+        const grid = document.createElement('div');
+        grid.className = `msg-images-grid count-${Math.min(imageList.length, 9)}`;
+        imageList.forEach((url) => {
+          const imgLink = document.createElement('a');
+          imgLink.href = url;
+          imgLink.target = '_blank';
+          imgLink.rel = 'noopener noreferrer';
+          const img = document.createElement('img');
+          img.className = 'msg-image';
+          img.src = url;
+          img.alt = '图片消息';
+          img.loading = 'lazy';
+          imgLink.appendChild(img);
+          grid.appendChild(imgLink);
+        });
+        bubble.appendChild(grid);
+      }
 
-    if (Array.isArray(data.files) && data.files.length > 0) {
-      data.files.forEach((f) => {
-        const card = document.createElement('a');
-        card.className = 'msg-file-card';
-        card.href = f.url;
-        card.download = f.name || '';
-        card.target = '_blank';
-        card.rel = 'noopener noreferrer';
+      if (Array.isArray(data.files) && data.files.length > 0) {
+        data.files.forEach((f) => {
+          const card = document.createElement('a');
+          card.className = 'msg-file-card';
+          card.href = f.url;
+          card.download = f.name || '';
+          card.target = '_blank';
+          card.rel = 'noopener noreferrer';
 
-        const icon = document.createElement('span');
-        icon.className = 'msg-file-icon';
-        icon.innerHTML = '<i class="ti ti-file"></i>';
-        card.appendChild(icon);
+          const icon = document.createElement('span');
+          icon.className = 'msg-file-icon';
+          icon.innerHTML = '<i class="ti ti-file"></i>';
+          card.appendChild(icon);
 
-        const info = document.createElement('div');
-        info.className = 'msg-file-info';
-        const nameEl = document.createElement('span');
-        nameEl.className = 'msg-file-name';
-        nameEl.textContent = f.name || '未命名文件';
-        nameEl.title = f.name || '';
-        const sizeEl = document.createElement('span');
-        sizeEl.className = 'msg-file-size';
-        sizeEl.textContent = typeof f.size === 'number' ? formatFileSize(f.size) : '';
-        info.appendChild(nameEl);
-        info.appendChild(sizeEl);
-        card.appendChild(info);
+          const info = document.createElement('div');
+          info.className = 'msg-file-info';
+          const nameEl = document.createElement('span');
+          nameEl.className = 'msg-file-name';
+          nameEl.textContent = f.name || '未命名文件';
+          nameEl.title = f.name || '';
+          const sizeEl = document.createElement('span');
+          sizeEl.className = 'msg-file-size';
+          sizeEl.textContent = typeof f.size === 'number' ? formatFileSize(f.size) : '';
+          info.appendChild(nameEl);
+          info.appendChild(sizeEl);
+          card.appendChild(info);
 
-        const downloadIcon = document.createElement('span');
-        downloadIcon.className = 'msg-file-download';
-        downloadIcon.textContent = '⬇️';
-        card.appendChild(downloadIcon);
+          const downloadIcon = document.createElement('span');
+          downloadIcon.className = 'msg-file-download';
+          downloadIcon.textContent = '⬇️';
+          card.appendChild(downloadIcon);
 
-        bubble.appendChild(card);
-      });
-    }
+          bubble.appendChild(card);
+        });
+      }
 
-    if (data.text && data.text.trim()) {
-      const textSpan = document.createElement('div');
-      textSpan.innerHTML = renderTextWithMentions(data.text);
-      bubble.appendChild(textSpan);
+      if (data.text && data.text.trim()) {
+        const textSpan = document.createElement('div');
+        textSpan.className = 'msg-text-content';
+        textSpan.innerHTML = renderTextWithMentions(data.text);
+        bubble.appendChild(textSpan);
+      }
     }
 
     const metaRow = document.createElement('div');
     metaRow.className = 'meta-row';
 
-    const replyBtn = document.createElement('button');
-    replyBtn.className = 'reply-btn';
-    replyBtn.textContent = '↩ 回复';
-    replyBtn.addEventListener('click', () => {
-      const replyText = (data.text && data.text.trim()) ? data.text : ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
-      startReply(data.username, replyText);
-    });
+    if (!data.deletedAt) {
+      const replyBtn = document.createElement('button');
+      replyBtn.className = 'reply-btn';
+      replyBtn.textContent = '↩ 回复';
+      replyBtn.addEventListener('click', () => {
+        const replyText = (data.text && data.text.trim()) ? data.text : ((Array.isArray(data.images) && data.images.length > 0) ? `[${data.images.length}张图片]` : (data.image ? '[图片]' : ''));
+        startReply(data.username, replyText);
+      });
+      metaRow.appendChild(replyBtn);
 
-    metaRow.appendChild(replyBtn);
+      // 编辑/删除按钮只有自己发的消息才会出现——服务端也会再校验一次身份，这里只是不给别人看到按钮，不是唯一的安全防线
+      if (isMe && typeof data.id === 'number') {
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-msg-btn';
+        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+        editBtn.title = '编辑这条消息';
+        editBtn.addEventListener('click', () => startEditMessage(wrap, data));
+        metaRow.appendChild(editBtn);
 
-    if (typeof data.id === 'number') {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-msg-btn';
+        deleteBtn.innerHTML = '<i class="ti ti-trash"></i>';
+        deleteBtn.title = '删除这条消息';
+        deleteBtn.addEventListener('click', () => deleteOwnMessage(data.id));
+        metaRow.appendChild(deleteBtn);
+      }
+    }
+
+    if (typeof data.id === 'number' && !data.deletedAt) {
       const reactions = data.reactions && typeof data.reactions === 'object' ? data.reactions : {};
       const badgesContainer = document.createElement('div');
       badgesContainer.className = 'reaction-badges';
@@ -2752,6 +2822,111 @@
   function cancelReply() {
     replyingTo = null;
     replyPreviewBar.classList.remove('active');
+  }
+
+  // ---- 编辑自己发的消息 ----
+  // 把消息气泡里的文字内容换成一个可编辑的文本框，配上保存/取消按钮；
+  // 找不到文字内容div的情况（比如这条消息本来就是纯图片没有文字）也处理一下，直接在气泡末尾插入编辑框
+  function startEditMessage(wrap, data) {
+    if (wrap.querySelector('.msg-edit-area')) return; // 已经在编辑中了，别重复进入
+    const bubble = wrap.querySelector('.bubble');
+    const textContentEl = bubble.querySelector('.msg-text-content');
+    const originalText = data.text || '';
+
+    const editArea = document.createElement('textarea');
+    editArea.className = 'msg-edit-area';
+    editArea.value = originalText;
+    editArea.rows = Math.min(8, Math.max(2, originalText.split('\n').length));
+
+    const actions = document.createElement('div');
+    actions.className = 'msg-edit-actions';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'msg-edit-save-btn';
+    saveBtn.textContent = '保存';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'msg-edit-cancel-btn';
+    cancelBtn.textContent = '取消';
+    actions.appendChild(saveBtn);
+    actions.appendChild(cancelBtn);
+
+    // 隐藏原来的文字内容（不是删掉，取消编辑的时候要能恢复），插入编辑框
+    if (textContentEl) textContentEl.style.display = 'none';
+    bubble.appendChild(editArea);
+    bubble.appendChild(actions);
+    editArea.focus();
+    editArea.setSelectionRange(editArea.value.length, editArea.value.length);
+
+    function exitEditMode() {
+      editArea.remove();
+      actions.remove();
+      if (textContentEl) textContentEl.style.display = '';
+    }
+
+    cancelBtn.addEventListener('click', exitEditMode);
+
+    function doSave() {
+      const newText = editArea.value.trim();
+      if (!newText) return; // 编辑成空的没意义，忽略（想删除请用删除按钮）
+      if (newText === originalText) { exitEditMode(); return; } // 没改动，直接退出编辑模式就行，不用打扰服务器
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'message_edit', messageId: data.id, text: newText }));
+      }
+      exitEditMode();
+      // 不在这里更新界面上显示的文字——等服务器确认后广播 message_edited 消息回来，
+      // 由那个统一的地方来更新，保证跟其他人看到的内容完全一致
+    }
+    saveBtn.addEventListener('click', doSave);
+    editArea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSave(); }
+      if (e.key === 'Escape') exitEditMode();
+    });
+  }
+
+  // ---- 删除自己发的消息 ----
+  function deleteOwnMessage(messageId) {
+    if (!confirm('确定要删除这条消息吗？删除后没法恢复。')) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'message_delete', messageId }));
+    }
+  }
+
+  // 收到服务器广播的编辑确认后，找到对应的消息元素，更新文字内容和"已编辑"标记
+  function applyMessageEdited(messageId, newText) {
+    const wrap = messagesEl.querySelector(`.msg[data-message-id="${messageId}"]`);
+    if (!wrap) return;
+    const bubble = wrap.querySelector('.bubble');
+    let textContentEl = bubble.querySelector('.msg-text-content');
+    if (!textContentEl) {
+      // 原来这条消息没有文字内容（比如纯图片），编辑后加上了文字，需要新建一个文字div
+      textContentEl = document.createElement('div');
+      textContentEl.className = 'msg-text-content';
+      bubble.appendChild(textContentEl);
+    }
+    textContentEl.innerHTML = renderTextWithMentions(newText);
+    textContentEl.style.display = '';
+    // 加"已编辑"标记（如果还没有的话）
+    const nameEl = wrap.querySelector('.name');
+    if (nameEl && !nameEl.querySelector('.msg-edited-tag')) {
+      const editedTag = document.createElement('span');
+      editedTag.className = 'msg-edited-tag';
+      editedTag.textContent = '(已编辑)';
+      nameEl.appendChild(editedTag);
+    }
+  }
+
+  // 收到服务器广播的删除确认后，把这条消息在页面上替换成"此消息已删除"占位，
+  // 并把回复/编辑/删除按钮和反应徽章都清掉（已删除的消息不需要这些交互了）
+  function applyMessageDeleted(messageId) {
+    const wrap = messagesEl.querySelector(`.msg[data-message-id="${messageId}"]`);
+    if (!wrap) return;
+    const bubble = wrap.querySelector('.bubble');
+    bubble.innerHTML = '';
+    const deletedSpan = document.createElement('div');
+    deletedSpan.className = 'msg-deleted-text';
+    deletedSpan.textContent = '此消息已删除';
+    bubble.appendChild(deletedSpan);
+    const metaRow = wrap.querySelector('.meta-row');
+    if (metaRow) metaRow.innerHTML = '';
   }
 
   replyCancelBtn.addEventListener('click', cancelReply);
@@ -3714,9 +3889,7 @@
   };
   let currentProblemItemCategory = '代购';
   let selectedIssueTypes = new Set();
-  let selectedInspectorNames = new Set();
   let editingIssueTypes = [];
-  let editingInspectorNames = [];
   let pendingOptionsSaveCount = 0;
 
   // 侧栏"问题件提醒"整体展开/收起（跟其他侧栏分组一样的交互）
@@ -3792,14 +3965,12 @@
     });
   }
   setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
-  setupMultiSelectDropdown(inspectorNameTrigger, inspectorNamePanel);
 
   // ---- 全屏面板开关、分类切换 ----
   function openProblemItemOverlay(category) {
     currentProblemItemCategory = category;
     problemItemOverlay.classList.add('active');
     selectedIssueTypes = new Set();
-    selectedInspectorNames = new Set();
     problemItemNoteInput.value = '';
     updateProblemItemPanelForCategory();
   }
@@ -3813,12 +3984,10 @@
       btn.classList.toggle('active', btn.dataset.category === currentProblemItemCategory);
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
+    problemItemInspectorDisplay.textContent = username || '（未知用户）';
     renderMultiSelectPanel(issueTypePanel, problemItemData.options.issueTypes, selectedIssueTypes,
       () => updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…'));
-    renderMultiSelectPanel(inspectorNamePanel, problemItemData.options.inspectorNames, selectedInspectorNames,
-      () => updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…'));
     updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
-    updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…');
     renderProblemItemList();
   }
 
@@ -3830,7 +3999,6 @@
     btn.addEventListener('click', () => {
       currentProblemItemCategory = btn.dataset.category;
       selectedIssueTypes = new Set();
-      selectedInspectorNames = new Set();
       problemItemNoteInput.value = '';
       updateProblemItemPanelForCategory();
     });
@@ -3924,12 +4092,11 @@
       type: 'problem_item_submit',
       category: currentProblemItemCategory,
       issueTypes: Array.from(selectedIssueTypes),
-      inspectorNames: Array.from(selectedInspectorNames),
+      inspectorNames: [username],
       orderNote: problemItemNoteInput.value.trim(),
     }));
     // 提交完清空表单，方便连续录入下一条，不用每次都重新打开面板
     selectedIssueTypes = new Set();
-    selectedInspectorNames = new Set();
     problemItemNoteInput.value = '';
     updateProblemItemPanelForCategory();
     problemItemSubmitHint.textContent = '✓ 已提交';
@@ -3938,7 +4105,7 @@
   }
   problemItemSubmitBtn.addEventListener('click', submitProblemItem);
 
-  // ---- 选项编辑弹层（问题类型 + 检品人员姓名，两个列表三个分类共用，密码同公告栏） ----
+  // ---- 选项编辑弹层（问题类型，三个分类共用，密码同公告栏） ----
   function renderOptionsTagList(containerEl, arr, onRemove) {
     containerEl.innerHTML = '';
     if (arr.length === 0) {
@@ -3969,18 +4136,10 @@
       renderIssueTypeEditTags();
     });
   }
-  function renderInspectorNameEditTags() {
-    renderOptionsTagList(inspectorNameOptionsTags, editingInspectorNames, (idx) => {
-      editingInspectorNames.splice(idx, 1);
-      renderInspectorNameEditTags();
-    });
-  }
 
   function openProblemItemOptionsEdit() {
     editingIssueTypes = [...problemItemData.options.issueTypes];
-    editingInspectorNames = [...problemItemData.options.inspectorNames];
     renderIssueTypeEditTags();
-    renderInspectorNameEditTags();
     problemItemOptionsPassword.value = '';
     problemItemOptionsError.textContent = '';
     problemItemOptionsEditPanel.classList.add('active');
@@ -4000,15 +4159,6 @@
   });
   issueTypeAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') issueTypeAddBtn.click(); });
 
-  inspectorNameAddBtn.addEventListener('click', () => {
-    const val = inspectorNameAddInput.value.trim();
-    if (!val || editingInspectorNames.includes(val)) { inspectorNameAddInput.value = ''; return; }
-    editingInspectorNames.push(val);
-    inspectorNameAddInput.value = '';
-    renderInspectorNameEditTags();
-  });
-  inspectorNameAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inspectorNameAddBtn.click(); });
-
   problemItemOptionsSaveBtn.addEventListener('click', () => {
     const password = problemItemOptionsPassword.value;
     if (!password) {
@@ -4020,9 +4170,8 @@
       return;
     }
     problemItemOptionsError.textContent = '';
-    pendingOptionsSaveCount = 2; // 问题类型、检品人员姓名两个列表分开发送，都确认成功了才关闭弹层
+    pendingOptionsSaveCount = 1; // 现在只有问题类型这一个列表要保存
     ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'issue_type', values: editingIssueTypes, password }));
-    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'inspector_name', values: editingInspectorNames, password }));
   });
 
   document.addEventListener('keydown', (e) => {

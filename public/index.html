@@ -1517,6 +1517,13 @@
     font-family: inherit;
     resize: vertical;
   }
+  #problem-item-inspector-display {
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text);
+  }
 
   /* 多选下拉组件 */
   .multi-select-dropdown { position: relative; }
@@ -2036,10 +2043,7 @@
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">检品人员姓名</label>
-          <div class="multi-select-dropdown" id="inspector-name-dropdown">
-            <button type="button" class="multi-select-trigger" id="inspector-name-trigger">请选择检品人员…</button>
-            <div class="multi-select-panel" id="inspector-name-panel"></div>
-          </div>
+          <div id="problem-item-inspector-display"></div>
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">订单ID / 备注</label>
@@ -2057,8 +2061,8 @@
 
   <div id="problem-item-options-edit-panel">
     <div id="problem-item-options-edit-card">
-      <div class="problem-item-options-edit-title">编辑下拉选项列表</div>
-      <div class="problem-item-options-edit-desc">这两个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
+      <div class="problem-item-options-edit-title">编辑问题类型选项</div>
+      <div class="problem-item-options-edit-desc">这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
 
       <div class="problem-item-options-group">
         <div class="problem-item-options-group-title">问题类型</div>
@@ -2066,15 +2070,6 @@
         <div class="problem-item-options-add-row">
           <input type="text" id="issue-type-add-input" placeholder="输入新的问题类型…" maxlength="20" />
           <button type="button" id="issue-type-add-btn">添加</button>
-        </div>
-      </div>
-
-      <div class="problem-item-options-group">
-        <div class="problem-item-options-group-title">检品人员姓名</div>
-        <div class="problem-item-options-tags" id="inspector-name-options-tags"></div>
-        <div class="problem-item-options-add-row">
-          <input type="text" id="inspector-name-add-input" placeholder="输入新的检品人员姓名…" maxlength="20" />
-          <button type="button" id="inspector-name-add-btn">添加</button>
         </div>
       </div>
 
@@ -2204,8 +2199,7 @@
   const problemItemOptionsGearBtn = document.getElementById('problem-item-options-gear-btn');
   const issueTypeTrigger = document.getElementById('issue-type-trigger');
   const issueTypePanel = document.getElementById('issue-type-panel');
-  const inspectorNameTrigger = document.getElementById('inspector-name-trigger');
-  const inspectorNamePanel = document.getElementById('inspector-name-panel');
+  const problemItemInspectorDisplay = document.getElementById('problem-item-inspector-display');
   const problemItemNoteInput = document.getElementById('problem-item-note-input');
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
@@ -2214,9 +2208,6 @@
   const issueTypeOptionsTags = document.getElementById('issue-type-options-tags');
   const issueTypeAddInput = document.getElementById('issue-type-add-input');
   const issueTypeAddBtn = document.getElementById('issue-type-add-btn');
-  const inspectorNameOptionsTags = document.getElementById('inspector-name-options-tags');
-  const inspectorNameAddInput = document.getElementById('inspector-name-add-input');
-  const inspectorNameAddBtn = document.getElementById('inspector-name-add-btn');
   const problemItemOptionsPassword = document.getElementById('problem-item-options-password');
   const problemItemOptionsSaveBtn = document.getElementById('problem-item-options-save-btn');
   const problemItemOptionsCancelBtn = document.getElementById('problem-item-options-cancel-btn');
@@ -3714,9 +3705,7 @@
   };
   let currentProblemItemCategory = '代购';
   let selectedIssueTypes = new Set();
-  let selectedInspectorNames = new Set();
   let editingIssueTypes = [];
-  let editingInspectorNames = [];
   let pendingOptionsSaveCount = 0;
 
   // 侧栏"问题件提醒"整体展开/收起（跟其他侧栏分组一样的交互）
@@ -3792,14 +3781,12 @@
     });
   }
   setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
-  setupMultiSelectDropdown(inspectorNameTrigger, inspectorNamePanel);
 
   // ---- 全屏面板开关、分类切换 ----
   function openProblemItemOverlay(category) {
     currentProblemItemCategory = category;
     problemItemOverlay.classList.add('active');
     selectedIssueTypes = new Set();
-    selectedInspectorNames = new Set();
     problemItemNoteInput.value = '';
     updateProblemItemPanelForCategory();
   }
@@ -3813,12 +3800,10 @@
       btn.classList.toggle('active', btn.dataset.category === currentProblemItemCategory);
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
+    problemItemInspectorDisplay.textContent = username || '（未知用户）';
     renderMultiSelectPanel(issueTypePanel, problemItemData.options.issueTypes, selectedIssueTypes,
       () => updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…'));
-    renderMultiSelectPanel(inspectorNamePanel, problemItemData.options.inspectorNames, selectedInspectorNames,
-      () => updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…'));
     updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
-    updateMultiSelectTrigger(inspectorNameTrigger, selectedInspectorNames, '请选择检品人员…');
     renderProblemItemList();
   }
 
@@ -3830,7 +3815,6 @@
     btn.addEventListener('click', () => {
       currentProblemItemCategory = btn.dataset.category;
       selectedIssueTypes = new Set();
-      selectedInspectorNames = new Set();
       problemItemNoteInput.value = '';
       updateProblemItemPanelForCategory();
     });
@@ -3924,12 +3908,11 @@
       type: 'problem_item_submit',
       category: currentProblemItemCategory,
       issueTypes: Array.from(selectedIssueTypes),
-      inspectorNames: Array.from(selectedInspectorNames),
+      inspectorNames: [username],
       orderNote: problemItemNoteInput.value.trim(),
     }));
     // 提交完清空表单，方便连续录入下一条，不用每次都重新打开面板
     selectedIssueTypes = new Set();
-    selectedInspectorNames = new Set();
     problemItemNoteInput.value = '';
     updateProblemItemPanelForCategory();
     problemItemSubmitHint.textContent = '✓ 已提交';
@@ -3938,7 +3921,7 @@
   }
   problemItemSubmitBtn.addEventListener('click', submitProblemItem);
 
-  // ---- 选项编辑弹层（问题类型 + 检品人员姓名，两个列表三个分类共用，密码同公告栏） ----
+  // ---- 选项编辑弹层（问题类型，三个分类共用，密码同公告栏） ----
   function renderOptionsTagList(containerEl, arr, onRemove) {
     containerEl.innerHTML = '';
     if (arr.length === 0) {
@@ -3969,18 +3952,10 @@
       renderIssueTypeEditTags();
     });
   }
-  function renderInspectorNameEditTags() {
-    renderOptionsTagList(inspectorNameOptionsTags, editingInspectorNames, (idx) => {
-      editingInspectorNames.splice(idx, 1);
-      renderInspectorNameEditTags();
-    });
-  }
 
   function openProblemItemOptionsEdit() {
     editingIssueTypes = [...problemItemData.options.issueTypes];
-    editingInspectorNames = [...problemItemData.options.inspectorNames];
     renderIssueTypeEditTags();
-    renderInspectorNameEditTags();
     problemItemOptionsPassword.value = '';
     problemItemOptionsError.textContent = '';
     problemItemOptionsEditPanel.classList.add('active');
@@ -4000,15 +3975,6 @@
   });
   issueTypeAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') issueTypeAddBtn.click(); });
 
-  inspectorNameAddBtn.addEventListener('click', () => {
-    const val = inspectorNameAddInput.value.trim();
-    if (!val || editingInspectorNames.includes(val)) { inspectorNameAddInput.value = ''; return; }
-    editingInspectorNames.push(val);
-    inspectorNameAddInput.value = '';
-    renderInspectorNameEditTags();
-  });
-  inspectorNameAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inspectorNameAddBtn.click(); });
-
   problemItemOptionsSaveBtn.addEventListener('click', () => {
     const password = problemItemOptionsPassword.value;
     if (!password) {
@@ -4020,9 +3986,8 @@
       return;
     }
     problemItemOptionsError.textContent = '';
-    pendingOptionsSaveCount = 2; // 问题类型、检品人员姓名两个列表分开发送，都确认成功了才关闭弹层
+    pendingOptionsSaveCount = 1; // 现在只有问题类型这一个列表要保存
     ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'issue_type', values: editingIssueTypes, password }));
-    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'inspector_name', values: editingInspectorNames, password }));
   });
 
   document.addEventListener('keydown', (e) => {

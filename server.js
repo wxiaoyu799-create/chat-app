@@ -167,6 +167,11 @@ async function ensureChatMessagesTable() {
       created_at TIMESTAMPTZ DEFAULT now()
     );
   `);
+  // 用ALTER TABLE ADD COLUMN IF NOT EXISTS，这样已经在跑的老部署(表已经建过了)也能平滑加上这两个新字段，
+  // 不用手动迁移——edited_at记录最后一次编辑的时间(没编辑过就是NULL)，
+  // deleted_at记录删除时间(没删就是NULL，删除时同时会清空text/images/files，只留这个时间戳当"墓碑标记")
+  await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;`);
+  await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`);
 }
 
 async function loadChatHistoryFromDB() {
@@ -191,6 +196,8 @@ async function loadChatHistoryFromDB() {
       reactions: row.reactions || {},
       pending: row.pending,
       time: Number(row.msg_time),
+      editedAt: row.edited_at ? new Date(row.edited_at).getTime() : null,
+      deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
     }));
     if (history.length > 0) {
       // 下一条消息的ID接着数据库里最大的那个往后排，避免重启后ID撞车
@@ -233,6 +240,22 @@ function updateMessagePendingInDB(messageId, pending) {
   if (!dbPool) return;
   dbPool.query('UPDATE chat_messages SET pending = $1 WHERE id = $2;', [pending ? JSON.stringify(pending) : null, messageId])
     .catch((err) => console.error('[更新消息待办状态到数据库失败]', err.message));
+}
+
+function updateMessageTextInDB(messageId, newText, editedAt) {
+  if (!dbPool) return;
+  dbPool.query('UPDATE chat_messages SET text = $1, edited_at = to_timestamp($2 / 1000.0) WHERE id = $3;', [newText, editedAt, messageId])
+    .catch((err) => console.error('[更新消息文字到数据库失败]', err.message));
+}
+
+function deleteMessageInDB(messageId, deletedAt) {
+  if (!dbPool) return;
+  // 删除是"软删除"：清空文字/图片/文件内容，但保留这一行记录（发送人、时间、删除时间戳），
+  // 这样别人回复引用过这条消息的话，回复关系还能对上，不会变成指向一个凭空消失的东西
+  dbPool.query(
+    "UPDATE chat_messages SET text = NULL, images = '[]', files = '[]', deleted_at = to_timestamp($1 / 1000.0) WHERE id = $2;",
+    [deletedAt, messageId]
+  ).catch((err) => console.error('[删除消息到数据库失败]', err.message));
 }
 
 function rowToHistoryEntry(row) {
@@ -516,14 +539,23 @@ function getAllInspectionRulesText() {
   return result;
 }
 
-// ===== 问题件提醒：代购/代拍/煤炉三个分类，各自独立计数和记录列表，
-// 但"问题类型"和"检品人员姓名"这两个下拉选项列表是三个分类共用的一套 =====
-const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
+// ===== 问题件提醒：代购/代拍/煤炉/贵重品四个分类，各自独立计数和记录列表。
+// "问题类型"选项分两组：代购/代拍/煤炉共用一组(数据库里的option_type='issue_type')，
+// 贵重品单独一组(option_type='issue_type_贵重品')，两组互相独立，编辑一组不会影响另一组。
+// "检品人员姓名"已经改成自动用当前登录用户名了，不再需要维护选项列表 =====
+const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉', '贵重品'];
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
+const DEFAULT_ISSUE_TYPES_GUIZHONGPIN = ['贵重品待检'];
 const DEFAULT_INSPECTOR_NAMES = [];
 
-// 共用选项列表：{ issue_type: [{id, value}], inspector_name: [{id, value}] }
-let problemItemOptions = { issue_type: [], inspector_name: [] };
+// 每个分类用哪一组问题类型选项——代购/代拍/煤炉三个都指向共用的'issue_type'，
+// 贵重品单独指向'issue_type_贵重品'，这样贵重品的选项增删改都不会影响另外三个，反之亦然
+function getIssueTypeOptionKey(category) {
+  return category === '贵重品' ? 'issue_type_贵重品' : 'issue_type';
+}
+
+// 选项列表：{ issue_type: [{id, value}], issue_type_贵重品: [{id, value}], inspector_name: [{id, value}] }
+let problemItemOptions = { issue_type: [], issue_type_贵重品: [], inspector_name: [] };
 // 每个分类当前"待处理"（未点已解决/需跟进）的记录列表，已处理的记录不放在内存里，只留在数据库里当历史
 let problemItemReports = {};
 PROBLEM_ITEM_CATEGORIES.forEach((cat) => { problemItemReports[cat] = []; });
@@ -577,35 +609,38 @@ async function loadProblemItemDataFromDB() {
   // 没配数据库的话，用代码里写死的默认问题类型列表撑着，检品人员姓名列表留空等手动添加
   if (!dbPool) {
     problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
+    problemItemOptions.issue_type_贵重品 = DEFAULT_ISSUE_TYPES_GUIZHONGPIN.map((v, i) => ({ id: `mem-issue-gz-${i}`, value: v }));
     problemItemOptions.inspector_name = [];
     return;
   }
   try {
     await ensureProblemItemTables();
 
-    const issueRows = await dbPool.query(
-      "SELECT * FROM problem_item_options WHERE option_type = 'issue_type' ORDER BY sort_order ASC, id ASC;"
-    );
-    if (issueRows.rows.length === 0) {
-      // 第一次接入数据库，把代码里的默认问题类型写进去
-      for (let i = 0; i < DEFAULT_ISSUE_TYPES.length; i++) {
-        await dbPool.query(
-          'INSERT INTO problem_item_options (option_type, value, sort_order) VALUES ($1, $2, $3);',
-          ['issue_type', DEFAULT_ISSUE_TYPES[i], i]
-        );
-      }
-      const reloaded = await dbPool.query(
-        "SELECT * FROM problem_item_options WHERE option_type = 'issue_type' ORDER BY sort_order ASC, id ASC;"
+    // 通用的选项组加载逻辑：数据库里没有的话，用给定的默认值先写进去，再读出来
+    async function loadOptionGroup(optionType, defaults) {
+      const rows = await dbPool.query(
+        'SELECT * FROM problem_item_options WHERE option_type = $1 ORDER BY sort_order ASC, id ASC;',
+        [optionType]
       );
-      problemItemOptions.issue_type = reloaded.rows.map(rowToProblemItemOption);
-    } else {
-      problemItemOptions.issue_type = issueRows.rows.map(rowToProblemItemOption);
+      if (rows.rows.length === 0 && defaults.length > 0) {
+        for (let i = 0; i < defaults.length; i++) {
+          await dbPool.query(
+            'INSERT INTO problem_item_options (option_type, value, sort_order) VALUES ($1, $2, $3);',
+            [optionType, defaults[i], i]
+          );
+        }
+        const reloaded = await dbPool.query(
+          'SELECT * FROM problem_item_options WHERE option_type = $1 ORDER BY sort_order ASC, id ASC;',
+          [optionType]
+        );
+        return reloaded.rows.map(rowToProblemItemOption);
+      }
+      return rows.rows.map(rowToProblemItemOption);
     }
 
-    const inspectorRows = await dbPool.query(
-      "SELECT * FROM problem_item_options WHERE option_type = 'inspector_name' ORDER BY sort_order ASC, id ASC;"
-    );
-    problemItemOptions.inspector_name = inspectorRows.rows.map(rowToProblemItemOption);
+    problemItemOptions.issue_type = await loadOptionGroup('issue_type', DEFAULT_ISSUE_TYPES);
+    problemItemOptions.issue_type_贵重品 = await loadOptionGroup('issue_type_贵重品', DEFAULT_ISSUE_TYPES_GUIZHONGPIN);
+    problemItemOptions.inspector_name = await loadOptionGroup('inspector_name', []);
 
     // 只加载"待处理"状态的记录到内存里，已解决/已跟进的留在数据库当历史，不占内存也不用同步给客户端
     for (const cat of PROBLEM_ITEM_CATEGORIES) {
@@ -620,6 +655,7 @@ async function loadProblemItemDataFromDB() {
   } catch (err) {
     console.error('[加载问题件提醒数据失败，暂时改用内存默认值]', err.message);
     problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
+    problemItemOptions.issue_type_贵重品 = DEFAULT_ISSUE_TYPES_GUIZHONGPIN.map((v, i) => ({ id: `mem-issue-gz-${i}`, value: v }));
   }
 }
 
@@ -687,6 +723,7 @@ function getProblemItemSnapshot() {
   return {
     options: {
       issueTypes: problemItemOptions.issue_type.map((o) => o.value),
+      issueTypesGuizhongpin: problemItemOptions.issue_type_贵重品.map((o) => o.value),
       inspectorNames: problemItemOptions.inspector_name.map((o) => o.value),
     },
     reports: problemItemReports,
@@ -871,6 +908,53 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (data.type === 'message_edit') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const messageId = data.messageId;
+      if (typeof messageId !== 'number') return;
+      const msg = history.find((m) => m.type === 'message' && m.id === messageId);
+      if (!msg) return;
+      // 关键校验：只能编辑自己发的消息，不能信任客户端隐藏了按钮就够了——
+      // 服务端必须自己再查一遍发送人是不是当前这个连接的用户，防止有人绕过前端直接发WS消息改别人的内容
+      if (msg.username !== client.username) {
+        ws.send(JSON.stringify({ type: 'message_edit_error', messageId, message: '只能编辑自己发的消息' }));
+        return;
+      }
+      if (msg.deletedAt) return; // 已经删除的消息不能编辑
+      const newText = String(data.text || '').slice(0, 5000);
+      if (!newText.trim()) return; // 编辑成空内容没有意义，直接忽略（要删除请用删除功能）
+      const editedAt = Date.now();
+      msg.text = newText;
+      msg.editedAt = editedAt;
+      broadcast({ type: 'message_edited', messageId, text: newText, editedAt });
+      updateMessageTextInDB(messageId, newText, editedAt);
+      return;
+    }
+
+    if (data.type === 'message_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const messageId = data.messageId;
+      if (typeof messageId !== 'number') return;
+      const msg = history.find((m) => m.type === 'message' && m.id === messageId);
+      if (!msg) return;
+      // 同样的关键校验：只能删除自己发的消息
+      if (msg.username !== client.username) {
+        ws.send(JSON.stringify({ type: 'message_edit_error', messageId, message: '只能删除自己发的消息' }));
+        return;
+      }
+      if (msg.deletedAt) return; // 已经删过了，不用重复处理
+      const deletedAt = Date.now();
+      msg.text = null;
+      msg.images = [];
+      msg.files = [];
+      msg.deletedAt = deletedAt;
+      broadcast({ type: 'message_deleted', messageId, deletedAt });
+      deleteMessageInDB(messageId, deletedAt);
+      return;
+    }
+
     if (data.type === 'announcement') {
       const client = clients.get(ws);
       if (!client) return;
@@ -987,7 +1071,7 @@ wss.on('connection', (ws) => {
       const client = clients.get(ws);
       if (!client) return;
       const optionType = String(data.optionType || '');
-      if (optionType !== 'issue_type' && optionType !== 'inspector_name') return;
+      if (!['issue_type', 'issue_type_贵重品', 'inspector_name'].includes(optionType)) return;
       const providedPassword = String(data.password || '');
       if (providedPassword !== PIN_EDIT_PASSWORD) {
         ws.send(JSON.stringify({ type: 'problem_item_options_error', message: '密码错误，无法修改选项列表' }));

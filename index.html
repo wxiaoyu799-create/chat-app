@@ -1829,6 +1829,11 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="贵重品" type="button">
+        <span class="module-icon-badge"><i class="ti ti-diamond"></i></span>
+        <span class="tool-entry-label">贵重品</span>
+        <span class="problem-item-badge" id="problem-badge-贵重品"></span>
+      </button>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -2068,6 +2073,7 @@
       <button class="problem-item-panel-cat-btn" data-category="代购">代购</button>
       <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
+      <button class="problem-item-panel-cat-btn" data-category="贵重品">贵重品</button>
     </div>
     <div id="problem-item-content-area">
       <div id="problem-item-content-header">
@@ -2385,8 +2391,8 @@
         inspectionErrorMsg.textContent = data.message || '密码错误';
         inspectionEditPassword.focus();
       } else if (data.type === 'problem_item_data') {
-        problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
-        problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
+        problemItemData.options = data.options || { issueTypes: [], issueTypesGuizhongpin: [], inspectorNames: [] };
+        problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] };
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
       } else if (data.type === 'problem_item_report_added') {
@@ -2403,7 +2409,9 @@
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
       } else if (data.type === 'problem_item_options_updated') {
-        const key = data.optionType === 'issue_type' ? 'issueTypes' : 'inspectorNames';
+        let key = 'inspectorNames';
+        if (data.optionType === 'issue_type') key = 'issueTypes';
+        else if (data.optionType === 'issue_type_贵重品') key = 'issueTypesGuizhongpin';
         problemItemData.options[key] = data.values || [];
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
         if (pendingOptionsSaveCount > 0) {
@@ -3883,10 +3891,20 @@
   });
 
   // ===== 问题件提醒（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
-  const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
+  const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉', '贵重品'];
+  // 跟服务端的逻辑保持一致：代购/代拍/煤炉共用issueTypes这组问题类型选项，
+  // 贵重品单独用issueTypesGuizhongpin这组，两组互相独立
+  function getIssueTypesForCategory(category) {
+    return category === '贵重品'
+      ? (problemItemData.options.issueTypesGuizhongpin || [])
+      : (problemItemData.options.issueTypes || []);
+  }
+  function getIssueTypeOptionKey(category) {
+    return category === '贵重品' ? 'issue_type_贵重品' : 'issue_type';
+  }
   let problemItemData = {
-    options: { issueTypes: [], inspectorNames: [] },
-    reports: { 代购: [], 代拍: [], 煤炉: [] },
+    options: { issueTypes: [], issueTypesGuizhongpin: [], inspectorNames: [] },
+    reports: { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] },
   };
   let currentProblemItemCategory = '代购';
   let selectedIssueTypes = new Set();
@@ -3986,7 +4004,8 @@
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
     problemItemInspectorDisplay.textContent = username || '（未知用户）';
-    renderMultiSelectPanel(issueTypePanel, problemItemData.options.issueTypes, selectedIssueTypes,
+    const issueTypesForThisCategory = getIssueTypesForCategory(currentProblemItemCategory);
+    renderMultiSelectPanel(issueTypePanel, issueTypesForThisCategory, selectedIssueTypes,
       () => updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…'));
     updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
     renderProblemItemList();
@@ -4139,10 +4158,17 @@
   }
 
   function openProblemItemOptionsEdit() {
-    editingIssueTypes = [...problemItemData.options.issueTypes];
+    editingIssueTypes = [...getIssueTypesForCategory(currentProblemItemCategory)];
     renderIssueTypeEditTags();
     problemItemOptionsPassword.value = '';
     problemItemOptionsError.textContent = '';
+    // 贵重品的问题类型是独立的一组，不跟代购/代拍/煤炉共用，说明文字要跟着分类变，避免误导
+    const descEl = document.querySelector('.problem-item-options-edit-desc');
+    if (descEl) {
+      descEl.textContent = currentProblemItemCategory === '贵重品'
+        ? '这个列表只属于"贵重品"这一个分类，跟代购/代拍/煤炉的问题类型互相独立，不会同步。'
+        : '这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效（跟"贵重品"的问题类型是分开的，互不影响）。';
+    }
     problemItemOptionsEditPanel.classList.add('active');
   }
   function closeProblemItemOptionsEdit() {
@@ -4171,8 +4197,9 @@
       return;
     }
     problemItemOptionsError.textContent = '';
-    pendingOptionsSaveCount = 1; // 现在只有问题类型这一个列表要保存
-    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'issue_type', values: editingIssueTypes, password }));
+    pendingOptionsSaveCount = 1;
+    const optionType = getIssueTypeOptionKey(currentProblemItemCategory);
+    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType, values: editingIssueTypes, password }));
   });
 
   document.addEventListener('keydown', (e) => {

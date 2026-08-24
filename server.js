@@ -141,6 +141,72 @@ app.post('/upload-file', (req, res) => {
   });
 });
 
+// 问题件提醒导出：把"已解决"和"转处理"这两种终结状态的记录按分类/日期范围导出成CSV表格，
+// 用浏览器直接打开这个链接就会触发下载，不用密码保护——导出是查看性质的操作，不是破坏性的
+app.get('/api/problem-item-export', async (req, res) => {
+  if (!dbPool) {
+    res.status(503).send('数据库未配置，没有历史数据可以导出');
+    return;
+  }
+  const category = String(req.query.category || 'all');
+  const startDate = req.query.startDate ? String(req.query.startDate) : '';
+  const endDate = req.query.endDate ? String(req.query.endDate) : '';
+
+  // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
+  // 不然老记录会被漏掉
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up')";
+  const params = [];
+  if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
+    params.push(category);
+    query += ` AND category = $${params.length}`;
+  }
+  if (startDate) {
+    params.push(startDate + ' 00:00:00');
+    query += ` AND resolved_at >= $${params.length}`;
+  }
+  if (endDate) {
+    params.push(endDate + ' 23:59:59');
+    query += ` AND resolved_at <= $${params.length}`;
+  }
+  query += ' ORDER BY resolved_at ASC;';
+
+  try {
+    const result = await dbPool.query(query, params);
+    const escapeCsv = (val) => `"${String(val == null ? '' : val).replace(/"/g, '""')}"`;
+    const lines = ['分类,问题类型,检品人员,订单ID/备注,提交人,提交时间,状态,处理人,处理时间'];
+    result.rows.forEach((row) => {
+      const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
+      const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
+      const statusLabel = row.status === 'resolved' ? '已解决' : '转处理';
+      const submittedTime = new Date(row.submitted_at).toLocaleString('zh-CN');
+      const resolvedTime = row.resolved_at ? new Date(row.resolved_at).toLocaleString('zh-CN') : '';
+      lines.push([
+        escapeCsv(row.category),
+        escapeCsv(issueTypes),
+        escapeCsv(inspectorNames),
+        escapeCsv(row.order_note),
+        escapeCsv(row.submitted_by),
+        escapeCsv(submittedTime),
+        escapeCsv(statusLabel),
+        escapeCsv(row.resolved_by),
+        escapeCsv(resolvedTime),
+      ].join(','));
+    });
+    // 开头加UTF-8 BOM，不然用Excel(尤其Windows版)直接打开这个CSV，中文会变成乱码
+    const csv = '\uFEFF' + lines.join('\r\n');
+    const filenamePart = category === 'all' ? '全部分类' : category;
+    const rawFilename = `问题件记录-${filenamePart}.csv`;
+    // HTTP响应头不能直接塞中文字符（会被Node拒绝），要用RFC 5987标准的filename*=UTF-8''编码方式，
+    // 同时保留一个ASCII安全的兜底文件名给个别不支持这个新语法的老客户端
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="export.csv"; filename*=UTF-8''${encodeURIComponent(rawFilename)}`);
+    res.send(csv);
+  } catch (err) {
+    console.error('[问题件导出失败]', err.message);
+    res.status(500).send('导出失败：' + err.message);
+  }
+});
+
 // 在线用户: ws -> { username, id }
 const clients = new Map();
 // 最近消息历史——内存里始终保留最近MAX_HISTORY条，用于日常渲染/查找（快，不用每次都查数据库）；
@@ -642,10 +708,11 @@ async function loadProblemItemDataFromDB() {
     problemItemOptions.issue_type_贵重品 = await loadOptionGroup('issue_type_贵重品', DEFAULT_ISSUE_TYPES_GUIZHONGPIN);
     problemItemOptions.inspector_name = await loadOptionGroup('inspector_name', []);
 
-    // 只加载"待处理"状态的记录到内存里，已解决/已跟进的留在数据库当历史，不占内存也不用同步给客户端
+    // 加载"待处理"和"待跟进暂存"这两种状态的记录到内存里——暂存的记录还要继续在列表里显示，
+    // 只是不计入侧栏红点。已解决/转处理这两种是终结状态，留在数据库当历史，不占内存也不用同步给客户端
     for (const cat of PROBLEM_ITEM_CATEGORIES) {
       const reportRows = await dbPool.query(
-        "SELECT * FROM problem_item_reports WHERE category = $1 AND status = 'pending' ORDER BY submitted_at ASC;",
+        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'shelved') ORDER BY submitted_at ASC;",
         [cat]
       );
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
@@ -681,7 +748,15 @@ async function addProblemItemReport(category, issueTypes, inspectorNames, orderN
 async function updateProblemItemReportStatus(category, reportId, status, byUsername) {
   const idx = problemItemReports[category].findIndex((r) => String(r.id) === String(reportId));
   if (idx === -1) return false;
-  problemItemReports[category].splice(idx, 1); // 不管是已解决还是需跟进，都从"待处理"内存列表里移除
+
+  if (status === 'shelved') {
+    // 待跟进暂存：记录不从列表里移除，原地更新状态就行——红点计数是单独按status==='pending'算的，
+    // 状态一变成shelved自然就不会再被计进红点里了，但记录本身还留着，方便回头继续处理
+    problemItemReports[category][idx].status = 'shelved';
+  } else {
+    // 已解决、转处理都是终结状态，从"待处理/暂存"内存列表里彻底移除
+    problemItemReports[category].splice(idx, 1);
+  }
 
   if (dbPool) {
     try {
@@ -1054,15 +1129,24 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (data.type === 'problem_item_resolve' || data.type === 'problem_item_followup') {
+    if (data.type === 'problem_item_resolve' || data.type === 'problem_item_transfer' || data.type === 'problem_item_shelve') {
       const client = clients.get(ws);
       if (!client) return;
       const category = String(data.category || '');
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
-      const status = data.type === 'problem_item_resolve' ? 'resolved' : 'follow_up';
+      let status;
+      if (data.type === 'problem_item_resolve') status = 'resolved';
+      else if (data.type === 'problem_item_transfer') status = 'transferred';
+      else status = 'shelved';
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {
-        broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+        if (status === 'shelved') {
+          // 暂存不是终结状态，记录还在列表里，只是状态变了——广播"状态变更"而不是"移除"，
+          // 这样所有客户端能把这条记录更新成"暂存中"的样子，而不是让它从画面上消失
+          broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status: 'shelved' });
+        } else {
+          broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+        }
       }
       return;
     }

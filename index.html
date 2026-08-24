@@ -1594,6 +1594,53 @@
     margin-bottom: 16px;
   }
   #problem-item-content-title { font-size: 20px; font-weight: 700; color: var(--text); }
+  #problem-item-header-actions { display: flex; gap: 6px; }
+
+  #problem-item-export-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(10, 12, 18, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #problem-item-export-panel.active { display: flex; }
+  #problem-item-export-card {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 360px;
+  }
+  .problem-item-export-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .problem-item-export-field { margin-bottom: 12px; }
+  .problem-item-export-field label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .problem-item-export-field select,
+  .problem-item-export-field input[type="date"] {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg);
+  }
+  .problem-item-export-desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+  .problem-item-export-actions { display: flex; gap: 8px; }
+  .problem-item-export-actions button {
+    flex: 1;
+    border-radius: 8px;
+    padding: 9px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    border: none;
+  }
+  #problem-item-export-confirm-btn { background: var(--accent); color: #fff; }
+  #problem-item-export-confirm-btn:hover { background: var(--accent-dark); }
 
   #problem-item-form { max-width: 480px; }
   .problem-item-field { margin-bottom: 14px; }
@@ -1702,6 +1749,15 @@
     padding: 3px 9px;
     border-radius: 10px;
   }
+  .problem-item-shelved-tag {
+    display: inline-block;
+    background: rgba(139, 92, 246, 0.12);
+    color: #7c3aed;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 10px;
+  }
   .problem-item-card-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .problem-item-card-note { font-size: 13px; color: var(--text); margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
   .problem-item-card-actions { display: flex; gap: 8px; }
@@ -1717,7 +1773,8 @@
     font-family: inherit;
   }
   .problem-item-card-actions .resolve-btn:hover { border-color: #2e9e5b; color: #2e9e5b; }
-  .problem-item-card-actions .followup-btn:hover { border-color: #d98a1f; color: #d98a1f; }
+  .problem-item-card-actions .transfer-btn:hover { border-color: #d98a1f; color: #d98a1f; }
+  .problem-item-card-actions .shelve-btn:hover { border-color: #7c3aed; color: #7c3aed; }
 
   /* 选项编辑弹层 */
   #problem-item-options-edit-panel {
@@ -2127,7 +2184,39 @@
     <div id="problem-item-content-area">
       <div id="problem-item-content-header">
         <span id="problem-item-content-title">代购</span>
-        <button id="problem-item-options-gear-btn" class="pin-edit-btn" type="button" title="编辑下拉选项列表"><i class="ti ti-settings"></i></button>
+        <div id="problem-item-header-actions">
+          <button id="problem-item-export-btn" class="pin-edit-btn" type="button" title="导出已解决/转处理的记录"><i class="ti ti-download"></i></button>
+          <button id="problem-item-options-gear-btn" class="pin-edit-btn" type="button" title="编辑下拉选项列表"><i class="ti ti-settings"></i></button>
+        </div>
+      </div>
+
+      <div id="problem-item-export-panel">
+        <div id="problem-item-export-card">
+          <div class="problem-item-export-title">导出已解决 / 转处理的记录</div>
+          <div class="problem-item-export-field">
+            <label>分类</label>
+            <select id="problem-item-export-category">
+              <option value="all">全部分类</option>
+              <option value="代购">代购</option>
+              <option value="代拍">代拍</option>
+              <option value="煤炉">煤炉</option>
+              <option value="贵重品">贵重品</option>
+            </select>
+          </div>
+          <div class="problem-item-export-field">
+            <label>开始日期</label>
+            <input type="date" id="problem-item-export-start" />
+          </div>
+          <div class="problem-item-export-field">
+            <label>结束日期</label>
+            <input type="date" id="problem-item-export-end" />
+          </div>
+          <div class="problem-item-export-desc">不填日期就是导出全部时间的记录。导出的是CSV表格，Excel、WPS、Numbers都能直接打开。</div>
+          <div class="problem-item-export-actions">
+            <button type="button" id="problem-item-export-confirm-btn">导出</button>
+            <button type="button" class="pin-edit-btn" id="problem-item-export-cancel-btn">取消</button>
+          </div>
+        </div>
       </div>
 
       <div id="problem-item-form">
@@ -2303,6 +2392,13 @@
   const problemItemPanelCatBtns = document.querySelectorAll('.problem-item-panel-cat-btn');
   const problemItemContentTitle = document.getElementById('problem-item-content-title');
   const problemItemOptionsGearBtn = document.getElementById('problem-item-options-gear-btn');
+  const problemItemExportBtn = document.getElementById('problem-item-export-btn');
+  const problemItemExportPanel = document.getElementById('problem-item-export-panel');
+  const problemItemExportCategory = document.getElementById('problem-item-export-category');
+  const problemItemExportStart = document.getElementById('problem-item-export-start');
+  const problemItemExportEnd = document.getElementById('problem-item-export-end');
+  const problemItemExportConfirmBtn = document.getElementById('problem-item-export-confirm-btn');
+  const problemItemExportCancelBtn = document.getElementById('problem-item-export-cancel-btn');
   const issueTypeTrigger = document.getElementById('issue-type-trigger');
   const issueTypePanel = document.getElementById('issue-type-panel');
   const problemItemInspectorDisplay = document.getElementById('problem-item-inspector-display');
@@ -2463,6 +2559,17 @@
         const cat = data.category;
         if (problemItemData.reports[cat]) {
           problemItemData.reports[cat] = problemItemData.reports[cat].filter((r) => String(r.id) !== String(data.reportId));
+        }
+        renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+      } else if (data.type === 'problem_item_report_status_changed') {
+        // 暂存(shelved)不是终结状态，记录还在数组里，只是原地更新status字段——
+        // 红点会因为不再是pending而自动减少，但列表里这条记录还继续显示，加个"暂存中"标记
+        const cat = data.category;
+        const list = problemItemData.reports[cat];
+        if (list) {
+          const target = list.find((r) => String(r.id) === String(data.reportId));
+          if (target) target.status = data.status;
         }
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
@@ -4025,7 +4132,8 @@
     PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
       const badge = document.getElementById(`problem-badge-${cat}`);
       if (!badge) return;
-      const count = (problemItemData.reports[cat] || []).length;
+      // 暂存(shelved)的记录还在数组里、还会显示在列表里，但不计入红点——只有真正pending的才算
+      const count = (problemItemData.reports[cat] || []).filter((r) => r.status === 'pending').length;
       if (count > 0) {
         badge.textContent = count;
         badge.classList.add('show');
@@ -4157,6 +4265,12 @@
         tag.textContent = t;
         tagsRow.appendChild(tag);
       });
+      if (report.status === 'shelved') {
+        const shelvedTag = document.createElement('span');
+        shelvedTag.className = 'problem-item-shelved-tag';
+        shelvedTag.textContent = '暂存中';
+        tagsRow.appendChild(shelvedTag);
+      }
       card.appendChild(tagsRow);
 
       const meta = document.createElement('div');
@@ -4185,15 +4299,26 @@
       });
       actions.appendChild(resolveBtn);
 
-      const followupBtn = document.createElement('button');
-      followupBtn.className = 'followup-btn';
-      followupBtn.innerHTML = '<i class="ti ti-flag"></i> 需跟进处理';
-      followupBtn.addEventListener('click', () => {
+      const transferBtn = document.createElement('button');
+      transferBtn.className = 'transfer-btn';
+      transferBtn.innerHTML = '<i class="ti ti-arrow-right"></i> 转处理';
+      transferBtn.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'problem_item_followup', category: currentProblemItemCategory, reportId: report.id }));
+          ws.send(JSON.stringify({ type: 'problem_item_transfer', category: currentProblemItemCategory, reportId: report.id }));
         }
       });
-      actions.appendChild(followupBtn);
+      actions.appendChild(transferBtn);
+
+      const shelveBtn = document.createElement('button');
+      shelveBtn.className = 'shelve-btn';
+      shelveBtn.innerHTML = '<i class="ti ti-clock-pause"></i> 待跟进暂存';
+      shelveBtn.title = '记录会继续保留，只是先不计入侧栏红点，方便以后回来继续处理';
+      shelveBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'problem_item_shelve', category: currentProblemItemCategory, reportId: report.id }));
+        }
+      });
+      actions.appendChild(shelveBtn);
 
       card.appendChild(actions);
       problemItemList.appendChild(card);
@@ -4281,6 +4406,35 @@
   problemItemOptionsGearBtn.addEventListener('click', openProblemItemOptionsEdit);
   problemItemOptionsCancelBtn.addEventListener('click', closeProblemItemOptionsEdit);
 
+  // ---- 导出已解决/转处理的记录 ----
+  function openProblemItemExportPanel() {
+    // 默认选中当前正在看的分类，图个方便，用户随时可以改成"全部分类"
+    problemItemExportCategory.value = currentProblemItemCategory;
+    problemItemExportStart.value = '';
+    problemItemExportEnd.value = '';
+    problemItemExportPanel.classList.add('active');
+  }
+  function closeProblemItemExportPanel() {
+    problemItemExportPanel.classList.remove('active');
+  }
+  problemItemExportBtn.addEventListener('click', openProblemItemExportPanel);
+  problemItemExportCancelBtn.addEventListener('click', closeProblemItemExportPanel);
+
+  problemItemExportConfirmBtn.addEventListener('click', () => {
+    const params = new URLSearchParams();
+    params.set('category', problemItemExportCategory.value);
+    if (problemItemExportStart.value) params.set('startDate', problemItemExportStart.value);
+    if (problemItemExportEnd.value) params.set('endDate', problemItemExportEnd.value);
+    // 用a标签触发下载，不用window.open，避免被浏览器当成弹窗拦截
+    const link = document.createElement('a');
+    link.href = `/api/problem-item-export?${params.toString()}`;
+    link.download = '';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    closeProblemItemExportPanel();
+  });
+
   issueTypeAddBtn.addEventListener('click', () => {
     const val = issueTypeAddInput.value.trim();
     if (!val || editingIssueTypes.includes(val)) { issueTypeAddInput.value = ''; return; }
@@ -4308,7 +4462,9 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (problemItemOptionsEditPanel.classList.contains('active')) {
+    if (problemItemExportPanel.classList.contains('active')) {
+      closeProblemItemExportPanel();
+    } else if (problemItemOptionsEditPanel.classList.contains('active')) {
       closeProblemItemOptionsEdit();
     } else if (problemItemOverlay.classList.contains('active')) {
       closeProblemItemOverlay();

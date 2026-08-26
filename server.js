@@ -869,12 +869,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
-      ws.send(JSON.stringify({
-        type: 'timeclock_update',
-        date: getJSTParts(new Date()).dateStr,
-        records: getTimeRecordsByDate(getJSTParts(new Date()).dateStr),
-        openRecords: getOpenTimeRecords(),
-      }));
+      ws.send(JSON.stringify(timeclockPayload(getJSTParts(new Date()).dateStr)));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -1229,39 +1224,40 @@ wss.on('connection', (ws) => {
     }
 
     // ===== 时间管理：签出(开始) / 签入(结束) =====
+    // 默认提交人是自己的登录名，直接点按钮就行；
+    // 如果要帮别人打卡（data.username 跟自己的登录名不一样），必须带上跟公告栏同一个编辑密码，
+    // 这个校验放在服务器做——前端那层"解锁"只是界面上的方便，光改前端绕不过去。
     if (data.type === 'timeclock_punch') {
       const client = clients.get(ws);
       if (!client) return;
       const action = data.action === 'in' ? 'in' : data.action === 'out' ? 'out' : '';
       if (!action) return;
-      const open = findOpenTimeRecord(client.username);
+
+      const target = String(data.username || '').slice(0, 20).trim() || client.username;
+      if (target !== client.username && String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '代别人提交需要输入正确的编辑密码' }));
+        return;
+      }
+
+      const open = findOpenTimeRecord(target);
+      const who = target === client.username ? '你' : target;
 
       if (action === 'out') {
         if (open) {
-          ws.send(JSON.stringify({ type: 'timeclock_error', message: '你已经签出了，请先签入再重新签出' }));
+          ws.send(JSON.stringify({ type: 'timeclock_error', message: `${who}已经签出了，请先签入再重新签出` }));
           return;
         }
-        const record = await startTimeRecord(client.username);
-        broadcast({
-          type: 'timeclock_update',
-          date: record.workDate,
-          records: getTimeRecordsByDate(record.workDate),
-          openRecords: getOpenTimeRecords(),
-        });
+        const record = await startTimeRecord(target);
+        broadcast(timeclockPayload(record.workDate));
         return;
       }
 
       if (!open) {
-        ws.send(JSON.stringify({ type: 'timeclock_error', message: '你还没有签出，先点"签出"开始计时' }));
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: `${who}还没有签出，先点"签出"开始计时` }));
         return;
       }
       await finishTimeRecord(open);
-      broadcast({
-        type: 'timeclock_update',
-        date: open.workDate,
-        records: getTimeRecordsByDate(open.workDate),
-        openRecords: getOpenTimeRecords(),
-      });
+      broadcast(timeclockPayload(open.workDate));
       return;
     }
 
@@ -1271,12 +1267,62 @@ wss.on('connection', (ws) => {
       if (!client) return;
       const date = String(data.date || '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-      ws.send(JSON.stringify({
-        type: 'timeclock_update',
-        date,
-        records: getTimeRecordsByDate(date),
-        openRecords: getOpenTimeRecords(),
-      }));
+      ws.send(JSON.stringify(timeclockPayload(date)));
+      return;
+    }
+
+    // 前端"解锁代他人提交"时先校验一次密码，校验过了界面才把下拉框和名单管理放开
+    if (data.type === 'timeclock_verify_password') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '密码错误' }));
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'timeclock_password_ok' }));
+      return;
+    }
+
+    // 删除某一条打卡记录：密码跟公告栏的编辑密码一致
+    if (data.type === 'timeclock_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '密码错误，无法删除记录' }));
+        return;
+      }
+      const removed = await deleteTimeRecord(data.id);
+      if (!removed) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '没找到这条记录，可能已经被别人删掉了' }));
+        return;
+      }
+      broadcast(timeclockPayload(removed.workDate));
+      return;
+    }
+
+    // 名单增删：同样要密码，跟"代他人提交"是同一道门槛
+    if (data.type === 'timeclock_name_add' || data.type === 'timeclock_name_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '密码错误，无法修改名单' }));
+        return;
+      }
+      const name = String(data.name || '').slice(0, 20).trim();
+      if (!name) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '名字不能为空' }));
+        return;
+      }
+      if (data.type === 'timeclock_name_add') {
+        const added = await addTimeclockName(name);
+        if (!added) {
+          ws.send(JSON.stringify({ type: 'timeclock_error', message: `"${name}"已经在名单里了` }));
+          return;
+        }
+      } else {
+        await deleteTimeclockName(name);
+      }
+      broadcast(timeclockPayload(getJSTParts(new Date()).dateStr));
       return;
     }
 
@@ -1521,6 +1567,90 @@ async function loadTimeRecordsFromDB() {
   }
 }
 
+// 提交人名单：默认提交人就是自己的登录名，但有时候需要帮没在电脑前的人代打卡，
+// 所以额外维护一份共享名单，代他人提交时从下拉里选。名单所有人共用，加了大家都能看到。
+let timeclockNames = [];
+
+async function ensureTimeclockNamesTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS timeclock_names (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function loadTimeclockNamesFromDB() {
+  if (!dbPool) {
+    timeclockNames = [];
+    return;
+  }
+  try {
+    await ensureTimeclockNamesTable();
+    const { rows } = await dbPool.query('SELECT name FROM timeclock_names ORDER BY id ASC;');
+    timeclockNames = rows.map((r) => r.name);
+    console.log(`已从数据库加载 ${timeclockNames.length} 个时间管理提交人名字`);
+  } catch (err) {
+    console.error('[加载时间管理名单失败，暂时改用内存模式]', err.message);
+    timeclockNames = [];
+  }
+}
+
+async function addTimeclockName(name) {
+  if (timeclockNames.includes(name)) return false;
+  timeclockNames.push(name);
+  if (dbPool) {
+    try {
+      await dbPool.query('INSERT INTO timeclock_names (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
+    } catch (err) {
+      console.error('[新增提交人名字写入数据库失败]', err.message);
+    }
+  }
+  return true;
+}
+
+async function deleteTimeclockName(name) {
+  const idx = timeclockNames.indexOf(name);
+  if (idx === -1) return false;
+  timeclockNames.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM timeclock_names WHERE name=$1;', [name]);
+    } catch (err) {
+      console.error('[删除提交人名字失败]', err.message);
+    }
+  }
+  return true;
+}
+
+// 删掉一条打卡记录（打错卡、重复打卡时用），跟公告栏/提醒事项一样要编辑密码
+async function deleteTimeRecord(id) {
+  const idx = timeRecords.findIndex((r) => String(r.id) === String(id));
+  if (idx === -1) return null;
+  const [removed] = timeRecords.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM time_records WHERE id=$1;', [id]);
+    } catch (err) {
+      console.error('[删除打卡记录失败]', err.message);
+    }
+  }
+  return removed;
+}
+
+// 每次给前端下发时间管理数据的统一格式（某一天的记录 + 谁正在计时 + 提交人名单）
+function timeclockPayload(dateStr) {
+  return {
+    type: 'timeclock_update',
+    date: dateStr,
+    records: getTimeRecordsByDate(dateStr),
+    openRecords: getOpenTimeRecords(),
+    names: timeclockNames,
+  };
+}
+
 function getTimeRecordsByDate(dateStr) {
   return timeRecords
     .filter((r) => r.workDate === dateStr)
@@ -1628,6 +1758,7 @@ async function startServer() {
   await loadProblemItemDataFromDB();
   await loadRemindersFromDB();
   await loadTimeRecordsFromDB();
+  await loadTimeclockNamesFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

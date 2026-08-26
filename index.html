@@ -1919,6 +1919,47 @@
     opacity: 0.85;
     margin-top: 2px;
   }
+  .timeclock-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #timeclock-user-select {
+    font-size: 13px;
+    width: auto;
+    min-width: 130px;
+    padding: 5px 8px;
+  }
+  #timeclock-user-select:disabled { color: var(--text); opacity: 1; }
+  #timeclock-lock-hint { font-size: 12px; color: var(--muted); }
+  #timeclock-lock-hint strong { color: var(--text); }
+  #timeclock-unlock-row, #timeclock-name-manage {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  #timeclock-unlock-row.active, #timeclock-name-manage.active { display: flex; }
+  #timeclock-password-input, #timeclock-name-input { width: 200px; font-size: 13px; }
+  #timeclock-name-chips { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+  .timeclock-name-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 6px 3px 10px;
+    color: var(--text);
+  }
+  .timeclock-name-chip button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .timeclock-name-chip button:hover { color: #e5534b; background: transparent; }
   #timeclock-msg { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
   #timeclock-msg.error { color: #e5534b; }
 
@@ -1969,6 +2010,16 @@
     color: var(--muted);
   }
   .timeclock-tag.running { background: rgba(63, 111, 214, 0.15); color: var(--accent); }
+  .timeclock-row-del-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .timeclock-row-del-btn:hover { color: #e5534b; background: transparent; }
   .timeclock-empty { color: var(--muted); font-style: italic; font-size: 13px; padding: 18px 0; }
 
   ::-webkit-scrollbar { width: 6px; }
@@ -2093,6 +2144,12 @@
         <span class="tool-entry-label">代购邮箱</span>
       </a>
     </div>
+
+    <div class="sidebar-divider"></div>
+
+    <button id="timeclock-open-btn" class="sidebar-toggle" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-clock"></i></span> 时间管理</span>
+    </button>
   </div>
   <div id="chat-col">
     <header>
@@ -2209,13 +2266,6 @@
 
     <div class="sidebar-divider"></div>
 
-    <button id="timeclock-open-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-clock"></i></span>
-      <span class="tool-entry-label">时间管理</span>
-    </button>
-
-    <div class="sidebar-divider"></div>
-
     <h3>实用工具</h3>
     <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-search"></i></span>
@@ -2296,7 +2346,22 @@
   </div>
   <div id="timeclock-body">
     <div id="timeclock-punch-card">
-      <div class="timeclock-who">提交人：<strong id="timeclock-username"></strong></div>
+      <div class="timeclock-who">
+        <span>提交人：</span>
+        <select id="timeclock-user-select" disabled></select>
+        <button id="timeclock-unlock-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-lock"></i> 代别人提交</button>
+        <span id="timeclock-lock-hint">默认提交人是你自己（<strong id="timeclock-username"></strong>）</span>
+      </div>
+      <div id="timeclock-unlock-row">
+        <input type="password" id="timeclock-password-input" placeholder="编辑密码（和公告栏一样）" autocomplete="off" />
+        <button id="timeclock-unlock-ok-btn" class="timeclock-mini-btn" type="button">确定</button>
+        <button id="timeclock-unlock-cancel-btn" class="timeclock-mini-btn" type="button">取消</button>
+      </div>
+      <div id="timeclock-name-manage">
+        <input type="text" id="timeclock-name-input" placeholder="添加名字..." maxlength="20" />
+        <button id="timeclock-name-add-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-plus"></i> 添加</button>
+        <div id="timeclock-name-chips"></div>
+      </div>
       <div id="timeclock-status">当前未开始计时</div>
       <div id="timeclock-elapsed" class="idle">00:00:00</div>
       <div class="timeclock-btn-row">
@@ -2328,6 +2393,7 @@
             <th>签入时间</th>
             <th>时长</th>
             <th>状态</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="timeclock-tbody"></tbody>
@@ -2778,15 +2844,35 @@
           reminderPasswordInput.focus();
         }
       } else if (data.type === 'timeclock_update') {
-        // 有人签出/签入了，或者自己切了日期/点了刷新——服务器把那一天的完整记录＋所有人的“进行中”状态一起发过来
+        // 有人签出/签入了，或者自己切了日期/点了刷新——服务器把那一天的完整记录＋所有人的“进行中”状态＋提交人名单一起发过来
         timeclockOpenRecords = Array.isArray(data.openRecords) ? data.openRecords : [];
+        if (Array.isArray(data.names)) timeclockNames = data.names;
         if (!timeclockViewDate || data.date === timeclockViewDate) {
           timeclockViewDate = data.date;
           timeclockRecords = Array.isArray(data.records) ? data.records : [];
         }
-        if (timeclockOverlay.classList.contains('active')) renderTimeclock();
+        if (timeclockOverlay.classList.contains('active')) {
+          renderTimeclockUserOptions();
+          renderTimeclock();
+        }
+        // 删除成功后服务器会广播新数据，顺手把删除确认弹窗关掉
+        if (pendingDeleteAction && pendingDeleteAction.kind === 'timeclock') closeDeleteConfirm();
+      } else if (data.type === 'timeclock_password_ok') {
+        // 密码验过了，把它留在内存里，后面代别人打卡/改名单都带着它发给服务器
+        timeclockPassword = timeclockPendingPassword;
+        timeclockPendingPassword = '';
+        closeTimeclockUnlockRow();
+        renderTimeclockUserOptions();
+        renderTimeclock();
+        showTimeclockMsg('已解锁，可以从下拉里选人代提交了');
       } else if (data.type === 'timeclock_error') {
-        showTimeclockMsg(data.message || '操作失败', true);
+        // 正在走删除弹窗的话，错误就显示在弹窗里，不然显示在面板上
+        if (pendingDeleteAction && pendingDeleteAction.kind === 'timeclock') {
+          deleteConfirmError.textContent = data.message || '删除失败';
+          deleteConfirmPassword.focus();
+        } else {
+          showTimeclockMsg(data.message || '操作失败', true);
+        }
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
@@ -3958,6 +4044,9 @@
     if (kind === 'reminder') {
       label = '提醒事项';
       preview = `${formatReminderSchedule(entry)} ${entry.text}`.slice(0, 60);
+    } else if (kind === 'timeclock') {
+      label = '工时记录';
+      preview = `${entry.username} ${formatJstClock(entry.startAt)} ~ ${entry.endAt ? formatJstClock(entry.endAt) : '（还在计时中）'}`;
     } else {
       label = '公告栏';
       preview = entry.text ? entry.text.slice(0, 40) : '(空)';
@@ -3990,6 +4079,8 @@
     if (kind === 'reminder') {
       lastReminderAction = 'delete';
       ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
+    } else if (kind === 'timeclock') {
+      ws.send(JSON.stringify({ type: 'timeclock_delete', id: entry.id, password }));
     } else {
       lastAnnouncementAction = 'delete';
       ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
@@ -5110,12 +5201,25 @@
   });
 
   // ===== 时间管理（签出=开始计时 / 签入=结束计时，App内全屏面板，所有人实时同步） =====
-  // 提交人就是聊天室的登录昵称，不用另外填；两个时间点都以"点击按钮那一刻"为准（服务器时间），
-  // 签入之后服务器自动算出时长并广播给所有人，记录可以按天筛选和导出CSV。
+  // 默认提交人就是自己的登录昵称，直接点按钮打卡；
+  // 要帮别人打卡的话，先点"代别人提交"输一次编辑密码（跟公告栏那个是同一个），
+  // 解锁之后就能从下拉里选人，名单也能自己加/删。密码只存在这次会话的内存里，刷新页面要重新输。
+  // 注意：真正的权限校验在服务器那边做，前端这层解锁只是界面上的方便，改前端绕不过去。
   const timeclockOpenBtn = document.getElementById('timeclock-open-btn');
   const timeclockOverlay = document.getElementById('timeclock-overlay');
   const timeclockCloseBtn = document.getElementById('timeclock-overlay-close-btn');
   const timeclockUsernameEl = document.getElementById('timeclock-username');
+  const timeclockUserSelect = document.getElementById('timeclock-user-select');
+  const timeclockUnlockBtn = document.getElementById('timeclock-unlock-btn');
+  const timeclockLockHint = document.getElementById('timeclock-lock-hint');
+  const timeclockUnlockRow = document.getElementById('timeclock-unlock-row');
+  const timeclockPasswordInput = document.getElementById('timeclock-password-input');
+  const timeclockUnlockOkBtn = document.getElementById('timeclock-unlock-ok-btn');
+  const timeclockUnlockCancelBtn = document.getElementById('timeclock-unlock-cancel-btn');
+  const timeclockNameManage = document.getElementById('timeclock-name-manage');
+  const timeclockNameInput = document.getElementById('timeclock-name-input');
+  const timeclockNameAddBtn = document.getElementById('timeclock-name-add-btn');
+  const timeclockNameChips = document.getElementById('timeclock-name-chips');
   const timeclockStatusEl = document.getElementById('timeclock-status');
   const timeclockElapsedEl = document.getElementById('timeclock-elapsed');
   const timeclockOutBtn = document.getElementById('timeclock-out-btn');
@@ -5130,6 +5234,8 @@
 
   let timeclockRecords = [];      // 当前正在看的这一天的全部记录
   let timeclockOpenRecords = [];  // 所有人当前"进行中"（签出了还没签入）的记录
+  let timeclockNames = [];        // 共享的提交人名单（代别人提交时可选）
+  let timeclockPassword = '';     // 解锁后记住的编辑密码，只放内存，刷新就没了
   let timeclockTicker = null;
 
   // 日期/时间一律按日本时间显示，跟定时提醒那边保持一致，避免有人电脑时区不是日本就对不上
@@ -5160,8 +5266,16 @@
 
   let timeclockViewDate = jstTodayStr();
 
-  function myOpenTimeRecord() {
-    return timeclockOpenRecords.find((r) => r.username === username) || null;
+  function timeclockUnlocked() {
+    return !!timeclockPassword;
+  }
+  // 当前面板正在操作的是谁：没解锁就永远是自己，解锁了就看下拉选的是谁
+  function currentSubmitter() {
+    if (!timeclockUnlocked()) return username;
+    return timeclockUserSelect.value || username;
+  }
+  function openRecordOf(name) {
+    return timeclockOpenRecords.find((r) => r.username === name) || null;
   }
 
   function showTimeclockMsg(text, isError) {
@@ -5169,21 +5283,63 @@
     timeclockMsgEl.classList.toggle('error', !!isError);
   }
 
+  // 下拉里始终包含"自己"，再加上名单里其他人；重建时尽量保留原来选中的那个人
+  function renderTimeclockUserOptions() {
+    const keep = timeclockUserSelect.value;
+    const all = [username].concat(timeclockNames.filter((n) => n && n !== username));
+    timeclockUserSelect.innerHTML = '';
+    all.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name === username ? name + '（我自己）' : name;
+      timeclockUserSelect.appendChild(opt);
+    });
+    timeclockUserSelect.value = all.includes(keep) ? keep : username;
+    timeclockUserSelect.disabled = !timeclockUnlocked();
+
+    // 名单管理的小标签（只有解锁后才看得到）
+    timeclockNameChips.innerHTML = '';
+    timeclockNames.forEach((name) => {
+      const chip = document.createElement('span');
+      chip.className = 'timeclock-name-chip';
+      chip.textContent = name;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.title = '从名单里删掉';
+      del.textContent = '✕';
+      del.addEventListener('click', () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'timeclock_name_delete', name, password: timeclockPassword }));
+      });
+      chip.appendChild(del);
+      timeclockNameChips.appendChild(chip);
+    });
+  }
+
   function renderTimeclock() {
     timeclockUsernameEl.textContent = username || '—';
-    const mine = myOpenTimeRecord();
+    const who = currentSubmitter();
+    const mine = openRecordOf(who);
+    const isSelf = who === username;
 
     if (mine) {
-      timeclockStatusEl.textContent = '已签出（' + formatJstClock(mine.startAt) + ' 开始），计时中…';
+      timeclockStatusEl.textContent = (isSelf ? '已签出（' : who + ' 已签出（')
+        + formatJstClock(mine.startAt) + ' 开始），计时中…';
       timeclockElapsedEl.textContent = formatElapsedClock(Date.now() - Number(mine.startAt));
       timeclockElapsedEl.classList.remove('idle');
     } else {
-      timeclockStatusEl.textContent = '当前未开始计时，点"签出"开始';
+      timeclockStatusEl.textContent = (isSelf ? '当前未开始计时' : who + ' 当前未开始计时') + '，点"签出"开始';
       timeclockElapsedEl.textContent = '00:00:00';
       timeclockElapsedEl.classList.add('idle');
     }
     timeclockOutBtn.disabled = !!mine;
     timeclockInBtn.disabled = !mine;
+
+    timeclockLockHint.textContent = timeclockUnlocked()
+      ? '已解锁，可以代别人提交'
+      : '默认提交人是你自己';
+    timeclockUnlockBtn.style.display = timeclockUnlocked() ? 'none' : '';
+    timeclockNameManage.classList.toggle('active', timeclockUnlocked());
 
     // 记录表格
     timeclockTbody.innerHTML = '';
@@ -5210,6 +5366,17 @@
       tag.textContent = running ? '计时中' : '已完成';
       statusTd.appendChild(tag);
       tr.appendChild(statusTd);
+
+      // 打错卡/重复打卡时可以删掉这条，删除要输编辑密码（复用公告栏那个删除确认弹窗）
+      const actionTd = document.createElement('td');
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'timeclock-row-del-btn';
+      delBtn.title = '删除这条记录';
+      delBtn.innerHTML = '<i class="ti ti-trash"></i>';
+      delBtn.addEventListener('click', () => openDeleteConfirm('timeclock', r));
+      actionTd.appendChild(delBtn);
+      tr.appendChild(actionTd);
       timeclockTbody.appendChild(tr);
     });
 
@@ -5233,20 +5400,27 @@
     showTimeclockMsg('');
     // 每次点开都拉一次最新的（可能别人在你关着面板的时候打过卡了）
     queryTimeclockDate(timeclockViewDate || jstTodayStr());
+    renderTimeclockUserOptions();
     renderTimeclock();
     // 计时中的秒数要一直跳，面板关掉就停掉这个定时器，不白白耗电
     if (timeclockTicker) clearInterval(timeclockTicker);
     timeclockTicker = setInterval(() => {
-      if (myOpenTimeRecord() || timeclockRecords.some((r) => !r.endAt)) renderTimeclock();
+      if (openRecordOf(currentSubmitter()) || timeclockRecords.some((r) => !r.endAt)) renderTimeclock();
     }, 1000);
   }
 
   function closeTimeclockOverlay() {
     timeclockOverlay.classList.remove('active');
+    closeTimeclockUnlockRow();
     if (timeclockTicker) {
       clearInterval(timeclockTicker);
       timeclockTicker = null;
     }
+  }
+
+  function closeTimeclockUnlockRow() {
+    timeclockUnlockRow.classList.remove('active');
+    timeclockPasswordInput.value = '';
   }
 
   function punchTimeclock(action) {
@@ -5255,13 +5429,63 @@
       return;
     }
     showTimeclockMsg('');
-    ws.send(JSON.stringify({ type: 'timeclock_punch', action }));
+    ws.send(JSON.stringify({
+      type: 'timeclock_punch',
+      action,
+      username: currentSubmitter(),
+      password: timeclockPassword,
+    }));
   }
 
   timeclockOpenBtn.addEventListener('click', openTimeclockOverlay);
   timeclockCloseBtn.addEventListener('click', closeTimeclockOverlay);
   timeclockOutBtn.addEventListener('click', () => punchTimeclock('out'));
   timeclockInBtn.addEventListener('click', () => punchTimeclock('in'));
+  timeclockUserSelect.addEventListener('change', () => {
+    showTimeclockMsg('');
+    renderTimeclock();
+  });
+
+  timeclockUnlockBtn.addEventListener('click', () => {
+    timeclockUnlockRow.classList.add('active');
+    timeclockPasswordInput.focus();
+  });
+  timeclockUnlockCancelBtn.addEventListener('click', closeTimeclockUnlockRow);
+  function submitTimeclockPassword() {
+    const pwd = timeclockPasswordInput.value;
+    if (!pwd) {
+      showTimeclockMsg('请输入编辑密码', true);
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showTimeclockMsg('还没连上服务器，稍等一下再试', true);
+      return;
+    }
+    // 先让服务器验一次，验过了才把密码留在内存里给后面的操作用
+    timeclockPendingPassword = pwd;
+    ws.send(JSON.stringify({ type: 'timeclock_verify_password', password: pwd }));
+  }
+  let timeclockPendingPassword = '';
+  timeclockUnlockOkBtn.addEventListener('click', submitTimeclockPassword);
+  timeclockPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitTimeclockPassword(); }
+  });
+
+  function addTimeclockName() {
+    const name = timeclockNameInput.value.trim();
+    if (!name) {
+      showTimeclockMsg('名字不能为空', true);
+      return;
+    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'timeclock_name_add', name, password: timeclockPassword }));
+    timeclockNameInput.value = '';
+  }
+  timeclockNameAddBtn.addEventListener('click', addTimeclockName);
+  timeclockNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTimeclockName(); }
+  });
+
   timeclockDateInput.addEventListener('change', () => {
     if (timeclockDateInput.value) queryTimeclockDate(timeclockDateInput.value);
   });

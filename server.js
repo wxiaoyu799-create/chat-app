@@ -869,6 +869,12 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
+      ws.send(JSON.stringify({
+        type: 'timeclock_update',
+        date: getJSTParts(new Date()).dateStr,
+        records: getTimeRecordsByDate(getJSTParts(new Date()).dateStr),
+        openRecords: getOpenTimeRecords(),
+      }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -1222,6 +1228,58 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ===== 时间管理：签出(开始) / 签入(结束) =====
+    if (data.type === 'timeclock_punch') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const action = data.action === 'in' ? 'in' : data.action === 'out' ? 'out' : '';
+      if (!action) return;
+      const open = findOpenTimeRecord(client.username);
+
+      if (action === 'out') {
+        if (open) {
+          ws.send(JSON.stringify({ type: 'timeclock_error', message: '你已经签出了，请先签入再重新签出' }));
+          return;
+        }
+        const record = await startTimeRecord(client.username);
+        broadcast({
+          type: 'timeclock_update',
+          date: record.workDate,
+          records: getTimeRecordsByDate(record.workDate),
+          openRecords: getOpenTimeRecords(),
+        });
+        return;
+      }
+
+      if (!open) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '你还没有签出，先点"签出"开始计时' }));
+        return;
+      }
+      await finishTimeRecord(open);
+      broadcast({
+        type: 'timeclock_update',
+        date: open.workDate,
+        records: getTimeRecordsByDate(open.workDate),
+        openRecords: getOpenTimeRecords(),
+      });
+      return;
+    }
+
+    // 查某一天的记录（切换日期/点刷新时用）
+    if (data.type === 'timeclock_query') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const date = String(data.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      ws.send(JSON.stringify({
+        type: 'timeclock_update',
+        date,
+        records: getTimeRecordsByDate(date),
+        openRecords: getOpenTimeRecords(),
+      }));
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
@@ -1407,6 +1465,161 @@ function checkReminders() {
 // 每30秒检查一次，足够精确命中每分钟的提醒时间点，又不会太频繁
 setInterval(checkReminders, 30 * 1000);
 
+// ==================== 时间管理（签出/签入打卡，按日本时间归档，可按天导出） ====================
+// 规则跟前端按钮一一对应：
+//   "签出" = 开始计时，记下点击那一刻的时间戳（毫秒），生成一条"进行中"的记录；
+//   "签入" = 结束计时，把结束时间写进同一条记录，并自动算出时长（签入时间 - 签出时间）。
+// 提交人直接取聊天室的登录昵称（clients里存的username），不用另外填。
+// 归档日期用"签出那一刻的日本时间"，这样跨零点的记录也只会算在开始那天，按天导出不会串到第二天。
+const MAX_TIME_RECORDS_IN_MEMORY = 5000;
+let timeRecords = []; // { id, username, workDate, startAt, endAt, durationMs }
+
+function rowToTimeRecord(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    workDate: row.work_date,
+    startAt: Number(row.start_at),
+    endAt: row.end_at === null || row.end_at === undefined ? null : Number(row.end_at),
+    durationMs: row.duration_ms === null || row.duration_ms === undefined ? null : Number(row.duration_ms),
+  };
+}
+
+async function ensureTimeRecordsTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS time_records (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      work_date TEXT NOT NULL,
+      start_at BIGINT NOT NULL,
+      end_at BIGINT,
+      duration_ms BIGINT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await dbPool.query('CREATE INDEX IF NOT EXISTS idx_time_records_work_date ON time_records (work_date);');
+}
+
+async function loadTimeRecordsFromDB() {
+  if (!dbPool) {
+    // 没配数据库就退化成纯内存（重启清空），跟公告栏/提醒事项的处理方式保持一致
+    timeRecords = [];
+    return;
+  }
+  try {
+    await ensureTimeRecordsTable();
+    const { rows } = await dbPool.query(
+      'SELECT * FROM time_records ORDER BY start_at DESC LIMIT $1;',
+      [MAX_TIME_RECORDS_IN_MEMORY]
+    );
+    timeRecords = rows.map(rowToTimeRecord).reverse();
+    console.log(`已从数据库加载 ${timeRecords.length} 条时间管理记录`);
+  } catch (err) {
+    console.error('[加载时间管理记录失败，暂时改用内存模式]', err.message);
+    timeRecords = [];
+  }
+}
+
+function getTimeRecordsByDate(dateStr) {
+  return timeRecords
+    .filter((r) => r.workDate === dateStr)
+    .sort((a, b) => a.startAt - b.startAt);
+}
+
+// 当前还没签入（进行中）的记录，前端用它来判断每个人现在是"计时中"还是"空闲"
+function getOpenTimeRecords() {
+  return timeRecords
+    .filter((r) => r.endAt === null)
+    .map((r) => ({ id: r.id, username: r.username, startAt: r.startAt, workDate: r.workDate }));
+}
+
+function findOpenTimeRecord(username) {
+  return timeRecords.find((r) => r.username === username && r.endAt === null) || null;
+}
+
+// 签出：开一条新记录
+async function startTimeRecord(username) {
+  const now = Date.now();
+  const { dateStr } = getJSTParts(new Date(now));
+  const record = { id: `mem-${now}`, username, workDate: dateStr, startAt: now, endAt: null, durationMs: null };
+  timeRecords.push(record);
+  if (timeRecords.length > MAX_TIME_RECORDS_IN_MEMORY) timeRecords.shift();
+  if (dbPool) {
+    try {
+      const inserted = await dbPool.query(
+        'INSERT INTO time_records (username, work_date, start_at) VALUES ($1,$2,$3) RETURNING id;',
+        [username, dateStr, now]
+      );
+      record.id = inserted.rows[0].id;
+    } catch (err) {
+      console.error('[签出记录写入数据库失败]', err.message);
+    }
+  }
+  return record;
+}
+
+// 签入：把进行中的那条记录收尾，顺带算出时长
+async function finishTimeRecord(record) {
+  const now = Date.now();
+  record.endAt = now;
+  record.durationMs = Math.max(0, now - record.startAt);
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE time_records SET end_at=$1, duration_ms=$2 WHERE id=$3;',
+        [record.endAt, record.durationMs, record.id]
+      );
+    } catch (err) {
+      console.error('[签入记录写入数据库失败]', err.message);
+    }
+  }
+  return record;
+}
+
+function formatJSTTime(ts) {
+  if (!ts) return '';
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Tokyo',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(new Date(Number(ts)));
+}
+
+function formatDurationText(ms) {
+  if (ms === null || ms === undefined) return '';
+  const totalMinutes = Math.floor(ms / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`;
+}
+
+// 按天导出CSV：/api/timeclock/export?date=2026-08-26
+// 加UTF-8 BOM，Excel直接双击打开不会乱码
+app.get('/api/timeclock/export', (req, res) => {
+  const date = String(req.query.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).send('日期格式不对，应该是 YYYY-MM-DD');
+  }
+  const rows = getTimeRecordsByDate(date);
+  const esc = (v) => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`;
+  const lines = [['日期', '提交人', '签出时间', '签入时间', '时长(小时)', '时长', '状态'].map(esc).join(',')];
+  rows.forEach((r) => {
+    lines.push([
+      r.workDate,
+      r.username,
+      formatJSTTime(r.startAt),
+      r.endAt ? formatJSTTime(r.endAt) : '',
+      r.durationMs === null ? '' : (r.durationMs / 3600000).toFixed(2),
+      formatDurationText(r.durationMs),
+      r.endAt ? '已完成' : '进行中',
+    ].map(esc).join(','));
+  });
+  const csv = '﻿' + lines.join('\r\n') + '\r\n';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="timeclock-${date}.csv"; filename*=UTF-8''${encodeURIComponent(`工时记录-${date}.csv`)}`);
+  res.send(csv);
+});
+
 async function startServer() {
   await verifyDatabaseConnection();
   await loadChatHistoryFromDB();
@@ -1414,6 +1627,7 @@ async function startServer() {
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
   await loadRemindersFromDB();
+  await loadTimeRecordsFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

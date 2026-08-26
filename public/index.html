@@ -1848,6 +1848,129 @@
   #problem-item-options-error { font-size: 12px; color: #e5534b; }
 
 
+  /* ===== 时间管理（签出/签入打卡）全屏面板 ===== */
+  #timeclock-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #timeclock-overlay.active { display: flex; }
+  #timeclock-overlay-close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  #timeclock-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #timeclock-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 28px 32px;
+  }
+  #timeclock-punch-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 20px;
+  }
+  .timeclock-who { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .timeclock-who strong { color: var(--text); font-size: 15px; }
+  #timeclock-status {
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  #timeclock-elapsed {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 14px;
+  }
+  #timeclock-elapsed.idle { color: var(--muted); }
+  .timeclock-btn-row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .timeclock-punch-btn {
+    flex: 1 1 160px;
+    min-height: 60px;
+    border: none;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: inherit;
+    color: #fff;
+    cursor: pointer;
+  }
+  #timeclock-out-btn { background: var(--accent); }
+  #timeclock-out-btn:hover { background: var(--accent-dark); }
+  #timeclock-in-btn { background: #d97757; }
+  #timeclock-in-btn:hover { background: #c4623f; }
+  .timeclock-punch-btn:disabled { background: var(--panel-alt); color: var(--muted); cursor: not-allowed; }
+  .timeclock-punch-btn .timeclock-btn-hint {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+  #timeclock-msg { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
+  #timeclock-msg.error { color: #e5534b; }
+
+  .timeclock-records-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .timeclock-records-header h3 { margin: 0; font-size: 16px; color: var(--text); }
+  #timeclock-date-input { font-size: 13px; width: auto; }
+  .timeclock-mini-btn {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .timeclock-mini-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  #timeclock-summary { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  .timeclock-table-wrap { overflow-x: auto; }
+  #timeclock-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 620px;
+  }
+  #timeclock-table th, #timeclock-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  #timeclock-table th { color: var(--muted); font-weight: 600; background: var(--panel); }
+  #timeclock-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+  #timeclock-table tr.running td { background: rgba(63, 111, 214, 0.06); }
+  .timeclock-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel-alt);
+    color: var(--muted);
+  }
+  .timeclock-tag.running { background: rgba(63, 111, 214, 0.15); color: var(--accent); }
+  .timeclock-empty { color: var(--muted); font-style: italic; font-size: 13px; padding: 18px 0; }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
@@ -2086,6 +2209,13 @@
 
     <div class="sidebar-divider"></div>
 
+    <button id="timeclock-open-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-clock"></i></span>
+      <span class="tool-entry-label">时间管理</span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
     <h3>实用工具</h3>
     <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-search"></i></span>
@@ -2156,6 +2286,54 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<div id="timeclock-overlay">
+  <div class="tool-overlay-header-bar">
+    <span id="timeclock-overlay-title"><i class="ti ti-clock"></i> 时间管理</span>
+    <button id="timeclock-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+  </div>
+  <div id="timeclock-body">
+    <div id="timeclock-punch-card">
+      <div class="timeclock-who">提交人：<strong id="timeclock-username"></strong></div>
+      <div id="timeclock-status">当前未开始计时</div>
+      <div id="timeclock-elapsed" class="idle">00:00:00</div>
+      <div class="timeclock-btn-row">
+        <button id="timeclock-out-btn" class="timeclock-punch-btn" type="button">
+          签出
+          <span class="timeclock-btn-hint">开始计时（记录点击时间）</span>
+        </button>
+        <button id="timeclock-in-btn" class="timeclock-punch-btn" type="button">
+          签入
+          <span class="timeclock-btn-hint">结束计时，自动算时长</span>
+        </button>
+      </div>
+      <div id="timeclock-msg"></div>
+    </div>
+
+    <div class="timeclock-records-header">
+      <h3>记录</h3>
+      <input type="date" id="timeclock-date-input" />
+      <button id="timeclock-today-btn" class="timeclock-mini-btn" type="button">今天</button>
+      <button id="timeclock-export-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-download"></i> 导出这天(CSV)</button>
+      <span id="timeclock-summary"></span>
+    </div>
+    <div class="timeclock-table-wrap">
+      <table id="timeclock-table">
+        <thead>
+          <tr>
+            <th>提交人</th>
+            <th>签出时间</th>
+            <th>签入时间</th>
+            <th>时长</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="timeclock-tbody"></tbody>
+      </table>
+    </div>
+    <div id="timeclock-empty" class="timeclock-empty">这一天还没有记录</div>
   </div>
 </div>
 
@@ -2599,6 +2777,16 @@
           reminderErrorMsg.classList.add('active');
           reminderPasswordInput.focus();
         }
+      } else if (data.type === 'timeclock_update') {
+        // 有人签出/签入了，或者自己切了日期/点了刷新——服务器把那一天的完整记录＋所有人的“进行中”状态一起发过来
+        timeclockOpenRecords = Array.isArray(data.openRecords) ? data.openRecords : [];
+        if (!timeclockViewDate || data.date === timeclockViewDate) {
+          timeclockViewDate = data.date;
+          timeclockRecords = Array.isArray(data.records) ? data.records : [];
+        }
+        if (timeclockOverlay.classList.contains('active')) renderTimeclock();
+      } else if (data.type === 'timeclock_error') {
+        showTimeclockMsg(data.message || '操作失败', true);
       } else if (data.type === 'reaction_update') {
         const targetWrap = messagesEl.querySelector(`[data-message-id="${data.messageId}"]`);
         if (targetWrap) {
@@ -4920,6 +5108,181 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && toolOverlay.classList.contains('active')) closeToolOverlay();
   });
+
+  // ===== 时间管理（签出=开始计时 / 签入=结束计时，App内全屏面板，所有人实时同步） =====
+  // 提交人就是聊天室的登录昵称，不用另外填；两个时间点都以"点击按钮那一刻"为准（服务器时间），
+  // 签入之后服务器自动算出时长并广播给所有人，记录可以按天筛选和导出CSV。
+  const timeclockOpenBtn = document.getElementById('timeclock-open-btn');
+  const timeclockOverlay = document.getElementById('timeclock-overlay');
+  const timeclockCloseBtn = document.getElementById('timeclock-overlay-close-btn');
+  const timeclockUsernameEl = document.getElementById('timeclock-username');
+  const timeclockStatusEl = document.getElementById('timeclock-status');
+  const timeclockElapsedEl = document.getElementById('timeclock-elapsed');
+  const timeclockOutBtn = document.getElementById('timeclock-out-btn');
+  const timeclockInBtn = document.getElementById('timeclock-in-btn');
+  const timeclockMsgEl = document.getElementById('timeclock-msg');
+  const timeclockDateInput = document.getElementById('timeclock-date-input');
+  const timeclockTodayBtn = document.getElementById('timeclock-today-btn');
+  const timeclockExportBtn = document.getElementById('timeclock-export-btn');
+  const timeclockSummaryEl = document.getElementById('timeclock-summary');
+  const timeclockTbody = document.getElementById('timeclock-tbody');
+  const timeclockEmptyEl = document.getElementById('timeclock-empty');
+
+  let timeclockRecords = [];      // 当前正在看的这一天的全部记录
+  let timeclockOpenRecords = [];  // 所有人当前"进行中"（签出了还没签入）的记录
+  let timeclockTicker = null;
+
+  // 日期/时间一律按日本时间显示，跟定时提醒那边保持一致，避免有人电脑时区不是日本就对不上
+  function jstTodayStr() {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date());
+  }
+  function formatJstClock(ts) {
+    if (!ts) return '—';
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).format(new Date(Number(ts)));
+  }
+  function formatTimeclockDuration(ms) {
+    const totalMinutes = Math.floor(ms / 60000);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return h > 0 ? h + '小时' + m + '分钟' : m + '分钟';
+  }
+  function formatElapsedClock(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = String(Math.floor(total / 3600)).padStart(2, '0');
+    const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+    const s = String(total % 60).padStart(2, '0');
+    return h + ':' + m + ':' + s;
+  }
+
+  let timeclockViewDate = jstTodayStr();
+
+  function myOpenTimeRecord() {
+    return timeclockOpenRecords.find((r) => r.username === username) || null;
+  }
+
+  function showTimeclockMsg(text, isError) {
+    timeclockMsgEl.textContent = text || '';
+    timeclockMsgEl.classList.toggle('error', !!isError);
+  }
+
+  function renderTimeclock() {
+    timeclockUsernameEl.textContent = username || '—';
+    const mine = myOpenTimeRecord();
+
+    if (mine) {
+      timeclockStatusEl.textContent = '已签出（' + formatJstClock(mine.startAt) + ' 开始），计时中…';
+      timeclockElapsedEl.textContent = formatElapsedClock(Date.now() - Number(mine.startAt));
+      timeclockElapsedEl.classList.remove('idle');
+    } else {
+      timeclockStatusEl.textContent = '当前未开始计时，点"签出"开始';
+      timeclockElapsedEl.textContent = '00:00:00';
+      timeclockElapsedEl.classList.add('idle');
+    }
+    timeclockOutBtn.disabled = !!mine;
+    timeclockInBtn.disabled = !mine;
+
+    // 记录表格
+    timeclockTbody.innerHTML = '';
+    let totalMs = 0;
+    timeclockRecords.forEach((r) => {
+      const running = !r.endAt;
+      const ms = running ? Date.now() - Number(r.startAt) : Number(r.durationMs || 0);
+      if (!running) totalMs += ms;
+      const tr = document.createElement('tr');
+      if (running) tr.className = 'running';
+      [
+        r.username,
+        formatJstClock(r.startAt),
+        running ? '—' : formatJstClock(r.endAt),
+        running ? formatElapsedClock(ms) : formatTimeclockDuration(ms),
+      ].forEach((val) => {
+        const td = document.createElement('td');
+        td.textContent = val;
+        tr.appendChild(td);
+      });
+      const statusTd = document.createElement('td');
+      const tag = document.createElement('span');
+      tag.className = running ? 'timeclock-tag running' : 'timeclock-tag';
+      tag.textContent = running ? '计时中' : '已完成';
+      statusTd.appendChild(tag);
+      tr.appendChild(statusTd);
+      timeclockTbody.appendChild(tr);
+    });
+
+    timeclockEmptyEl.style.display = timeclockRecords.length === 0 ? 'block' : 'none';
+    const doneCount = timeclockRecords.filter((r) => r.endAt).length;
+    timeclockSummaryEl.textContent = timeclockRecords.length
+      ? '共 ' + timeclockRecords.length + ' 条（已完成 ' + doneCount + ' 条），已完成合计 ' + formatTimeclockDuration(totalMs)
+      : '';
+  }
+
+  function queryTimeclockDate(date) {
+    timeclockViewDate = date;
+    timeclockDateInput.value = date;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'timeclock_query', date }));
+    }
+  }
+
+  function openTimeclockOverlay() {
+    timeclockOverlay.classList.add('active');
+    showTimeclockMsg('');
+    // 每次点开都拉一次最新的（可能别人在你关着面板的时候打过卡了）
+    queryTimeclockDate(timeclockViewDate || jstTodayStr());
+    renderTimeclock();
+    // 计时中的秒数要一直跳，面板关掉就停掉这个定时器，不白白耗电
+    if (timeclockTicker) clearInterval(timeclockTicker);
+    timeclockTicker = setInterval(() => {
+      if (myOpenTimeRecord() || timeclockRecords.some((r) => !r.endAt)) renderTimeclock();
+    }, 1000);
+  }
+
+  function closeTimeclockOverlay() {
+    timeclockOverlay.classList.remove('active');
+    if (timeclockTicker) {
+      clearInterval(timeclockTicker);
+      timeclockTicker = null;
+    }
+  }
+
+  function punchTimeclock(action) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      showTimeclockMsg('还没连上服务器，稍等一下再点', true);
+      return;
+    }
+    showTimeclockMsg('');
+    ws.send(JSON.stringify({ type: 'timeclock_punch', action }));
+  }
+
+  timeclockOpenBtn.addEventListener('click', openTimeclockOverlay);
+  timeclockCloseBtn.addEventListener('click', closeTimeclockOverlay);
+  timeclockOutBtn.addEventListener('click', () => punchTimeclock('out'));
+  timeclockInBtn.addEventListener('click', () => punchTimeclock('in'));
+  timeclockDateInput.addEventListener('change', () => {
+    if (timeclockDateInput.value) queryTimeclockDate(timeclockDateInput.value);
+  });
+  timeclockTodayBtn.addEventListener('click', () => queryTimeclockDate(jstTodayStr()));
+  timeclockExportBtn.addEventListener('click', () => {
+    if (!timeclockRecords.length) {
+      showTimeclockMsg('这一天没有记录，没什么可导出的', true);
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = '/api/timeclock/export?date=' + encodeURIComponent(timeclockViewDate);
+    a.download = '工时记录-' + timeclockViewDate + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showTimeclockMsg('已导出 ' + timeclockViewDate + ' 的记录');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && timeclockOverlay.classList.contains('active')) closeTimeclockOverlay();
+  });
+  timeclockDateInput.value = timeclockViewDate;
 
   function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;

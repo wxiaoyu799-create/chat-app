@@ -4633,6 +4633,19 @@
     const quoteText = (tagPart + shortNote).trim() || '(这条没填内容)';
     closeProblemItemOverlay();
     startReply(`问题件·${currentProblemItemCategory}`, quoteText);
+
+    // 顺手把提交人 @ 上，处理建议直接提醒到他——省得他不知道有人回了自己报的问题件。
+    // 自己报的自己回就不用 @ 自己了；重复点引用也不会叠加出两个 @。
+    // 注意：跟聊天里的 @ 一样，只有对方当前在线才会真的触发提醒，不在线的话就只是一段文字。
+    const submitter = String(report.submittedBy || '').trim();
+    if (submitter && submitter !== username) {
+      const mention = `@${submitter} `;
+      if (!textInput.value.includes(mention)) {
+        textInput.value = mention + textInput.value;
+      }
+      autoResizeTextInput();
+      textInput.setSelectionRange(textInput.value.length, textInput.value.length);
+    }
   }
 
   // ---- 提交表单 ----

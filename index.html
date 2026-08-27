@@ -1775,6 +1775,7 @@
   .problem-item-card-actions .resolve-btn:hover { border-color: #2e9e5b; color: #2e9e5b; }
   .problem-item-card-actions .transfer-btn:hover { border-color: #d98a1f; color: #d98a1f; }
   .problem-item-card-actions .shelve-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+  .problem-item-card-actions .quote-btn:hover { border-color: var(--accent); color: var(--accent); }
 
   /* 选项编辑弹层 */
   #problem-item-options-edit-panel {
@@ -4599,9 +4600,35 @@
       });
       actions.appendChild(shelveBtn);
 
+      // 引用到聊天框：把这条问题件的关键信息塞进输入框上方的引用条，
+      // 效果跟聊天里"↩ 回复"某条消息一样，方便直接在聊天室里回复处理建议
+      const quoteBtn = document.createElement('button');
+      quoteBtn.className = 'quote-btn';
+      quoteBtn.innerHTML = '<i class="ti ti-quote"></i> 引用';
+      quoteBtn.title = '引用到聊天框，直接回复处理建议';
+      quoteBtn.addEventListener('click', () => quoteProblemItemToChat(report));
+      actions.appendChild(quoteBtn);
+
       card.appendChild(actions);
       problemItemList.appendChild(card);
     });
+  }
+
+  // 把一条问题件引用到聊天输入框：关掉全屏面板回到聊天室，
+  // 然后复用聊天里那套"引用回复"的机制（输入框上方出现引用条，发出去的消息会带着这段引用）
+  function quoteProblemItemToChat(report) {
+    const tags = (report.issueTypes || []).join('、');
+    const inspectorStr = (report.inspectorNames && report.inspectorNames.length > 0)
+      ? report.inspectorNames.join('、')
+      : '';
+    const parts = [];
+    if (tags) parts.push(tags);
+    if (report.orderNote) parts.push(report.orderNote);
+    if (inspectorStr) parts.push(`检品：${inspectorStr}`);
+    if (report.submittedBy) parts.push(`提交人：${report.submittedBy}`);
+    const quoteText = parts.join(' · ').slice(0, 300) || '(这条没填内容)';
+    closeProblemItemOverlay();
+    startReply(`问题件·${currentProblemItemCategory}`, quoteText);
   }
 
   // ---- 提交表单 ----

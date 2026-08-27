@@ -4615,18 +4615,22 @@
   }
 
   // 把一条问题件引用到聊天输入框：关掉全屏面板回到聊天室，
-  // 然后复用聊天里那套"引用回复"的机制（输入框上方出现引用条，发出去的消息会带着这段引用）
+  // 然后复用聊天里那套"引用回复"的机制（输入框上方出现引用条，发出去的消息会带着这段引用）。
+  // 引用条是单行显示的，太长会把消息气泡撑得很宽、观感很差，所以这里只留最关键的
+  // "问题类型 + 备注"，检品人员/提交人这些在问题件面板里本来就看得到，不往引用里塞；
+  // 整条引用的长度封顶在 QUOTE_TOTAL_MAX 个字：问题类型超过2个就折叠成"等N项"，
+  // 剩下的额度留给备注，超了就截断加省略号——这样不管原始内容多长，气泡宽度都是可控的。
+  const QUOTE_TOTAL_MAX = 40;
   function quoteProblemItemToChat(report) {
-    const tags = (report.issueTypes || []).join('、');
-    const inspectorStr = (report.inspectorNames && report.inspectorNames.length > 0)
-      ? report.inspectorNames.join('、')
-      : '';
-    const parts = [];
-    if (tags) parts.push(tags);
-    if (report.orderNote) parts.push(report.orderNote);
-    if (inspectorStr) parts.push(`检品：${inspectorStr}`);
-    if (report.submittedBy) parts.push(`提交人：${report.submittedBy}`);
-    const quoteText = parts.join(' · ').slice(0, 300) || '(这条没填内容)';
+    const tagList = (report.issueTypes || []).filter(Boolean);
+    const tagStr = tagList.length > 2
+      ? `${tagList.slice(0, 2).join('、')}等${tagList.length}项`
+      : tagList.join('、');
+    const tagPart = tagStr ? `[${tagStr}] ` : '';
+    const note = String(report.orderNote || '').replace(/\s+/g, ' ').trim();
+    const room = Math.max(8, QUOTE_TOTAL_MAX - tagPart.length);
+    const shortNote = note.length > room ? note.slice(0, room) + '…' : note;
+    const quoteText = (tagPart + shortNote).trim() || '(这条没填内容)';
     closeProblemItemOverlay();
     startReply(`问题件·${currentProblemItemCategory}`, quoteText);
   }

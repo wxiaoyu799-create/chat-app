@@ -1027,6 +1027,76 @@
   }
   #file-pick-btn:hover { filter: brightness(0.95); }
 
+  /* 常用文本下拉（放在附件按钮后面，配色沿用同一套柔和色板：图片蓝 / 文件绿 / 这里用紫） */
+  #quick-insert-wrap { position: relative; flex-shrink: 0; align-self: flex-end; }
+  #quick-insert-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #CECBF6;
+    border: none;
+    border-radius: 9px;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0;
+  }
+  #quick-insert-btn:hover { filter: brightness(0.95); }
+  #quick-insert-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    min-width: 260px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 6px;
+    z-index: 20;
+  }
+  #quick-insert-menu.active { display: block; }
+  #quick-insert-menu .quick-insert-hint {
+    font-size: 11px;
+    color: var(--muted);
+    padding: 4px 8px 8px;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .quick-insert-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+  .quick-insert-item:hover { background: var(--hover-dark); color: var(--text); }
+
+  /* 发送前的校验提示（缺ID / 没@人），浮在输入框上方，几秒后自动消失 */
+  #input-warning-tip {
+    display: none;
+    position: absolute;
+    bottom: 62px;
+    left: 16px;
+    background: #e5534b;
+    color: #fff;
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+    z-index: 30;
+  }
+  #input-warning-tip.active { display: block; }
+
   /* 消息气泡里的文件卡片 */
   .msg-file-card {
     display: flex;
@@ -2172,6 +2242,7 @@
     <div id="messages"></div>
     <div id="typing"></div>
     <div id="mention-menu"></div>
+    <div id="input-warning-tip"></div>
     <div id="reply-preview-bar">
       <div class="quote-block">
         <span class="quote-name" id="reply-preview-name"></span>
@@ -2194,6 +2265,10 @@
       <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
       <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）"><i class="ti ti-paperclip"></i></button>
       <input id="file-file-input" type="file" multiple style="display:none" />
+      <div id="quick-insert-wrap">
+        <button id="quick-insert-btn" type="button" title="常用文本"><i class="ti ti-template"></i></button>
+        <div id="quick-insert-menu"></div>
+      </div>
       <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
     </div>
@@ -2701,7 +2776,10 @@
 
   const QUICK_STORAGE_KEY = 'chatQuickPhrases';
   const REACTION_EMOJIS = ['👍', '❓'];
-  const DEFAULT_QUICK_PHRASES = [
+  // 这里以前预置了代拍/代购/煤炉的几条模板，现在统一挪到输入框旁边那个"常用文本"下拉里了
+  // （那边有ID和@对象的强制校验）。这个侧边栏只留每个人自己加的内容，默认是空的。
+  const DEFAULT_QUICK_PHRASES = [];
+  const LEGACY_QUICK_PHRASES = [
     '代拍 运费到付 运单号：',
     '煤炉运费更新 ID  运单号',
     '代购订单ID：帮忙确认下工单内容',
@@ -2709,6 +2787,7 @@
     '代拍运费或者手续费变更，ID：',
     '代拍运费和手续变更 ID：',
   ];
+  const REMOVED_QUICK_CATEGORIES = ['代拍', '代购', '煤炉'];
 
   function connect() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -4882,7 +4961,7 @@
 
   // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
   const QUICK_CATEGORY_STORAGE_KEY = 'chatQuickCategories';
-  const DEFAULT_QUICK_CATEGORIES = ['代拍', '代购', '煤炉', '常用语'];
+  const DEFAULT_QUICK_CATEGORIES = ['常用语'];
 
   function loadQuickCategories() {
     try {
@@ -4941,6 +5020,24 @@
   }
 
   let quickPhrases = loadQuickPhrases();
+
+  // 一次性迁移：代拍/代购/煤炉这三个内置分类连同自带的模板已经下线，
+  // 把老用户 localStorage 里存着的这三个分类清掉。自己在这些分类下面加过的内容不删，
+  // 挪到兜底分类里继续留着，免得误伤。
+  (function migrateQuickData() {
+    const hasRemovedCategory = quickCategories.some((c) => REMOVED_QUICK_CATEGORIES.includes(c));
+    const hasLegacyPhrase = quickPhrases.some((p) => LEGACY_QUICK_PHRASES.includes(p.text));
+    if (!hasRemovedCategory && !hasLegacyPhrase) return;
+
+    quickCategories = quickCategories.filter((c) => !REMOVED_QUICK_CATEGORIES.includes(c));
+    if (quickCategories.length === 0) quickCategories = DEFAULT_QUICK_CATEGORIES.slice();
+    const fallback = quickCategories[quickCategories.length - 1];
+    quickPhrases = quickPhrases
+      .filter((p) => !LEGACY_QUICK_PHRASES.includes(p.text))
+      .map((p) => (REMOVED_QUICK_CATEGORIES.includes(p.category) ? { ...p, category: fallback } : p));
+    saveQuickCategories(quickCategories);
+    saveQuickPhrases(quickPhrases);
+  })();
   // 上面加载的时候，如果是老数据格式(纯字符串)，已经在内存里迁移成新格式了，
   // 但还没写回localStorage——这里立刻存一次，让迁移"落盘"，避免每次刷新都用当时最新的分类列表重新猜一遍，
   // 那样如果分类改过名字，旧数据的归属就会跟着"漂移"，不稳定
@@ -5592,6 +5689,14 @@
     const readyFiles = pendingFiles.filter((p) => p.uploadedUrl && !p.failed);
     if (!text && readyImages.length === 0 && readyFiles.length === 0) return; // 文字/图片/文件都没有，没什么可发的
 
+    // 用了固定模板的消息，ID和@对象都得齐全才让发
+    const templateProblem = checkQuickTemplateRules(text);
+    if (templateProblem) {
+      showInputWarning(templateProblem);
+      textInput.focus();
+      return;
+    }
+
     const payload = { type: 'message', text };
     if (readyImages.length > 0) payload.images = readyImages.map((p) => p.uploadedUrl);
     if (readyFiles.length > 0) {
@@ -5601,11 +5706,110 @@
     ws.send(JSON.stringify(payload));
     textInput.value = '';
     autoResizeTextInput();
+    hideInputWarning();
     closeMentionMenu();
     cancelReply();
     resetImagePreview();
     resetFilePreview();
   }
+
+  // ===== 输入框旁边的"常用文本"下拉 =====
+  // 这几条是固定模板，点一下带进输入框，光标自动停在 "ID：" 后面，直接打单号就行。
+  // 两条硬性规则在发送时校验（见 checkQuickTemplateRules）：
+  //   1. "ID："后面必须有数字（煤炉那条是 "ID：" 和 "单号：" 之间必须有数字）
+  //   2. 必须 @ 上具体的人，不然对方收不到提醒，等于白发
+  const QUICK_TEMPLATES = [
+    { text: '煤炉运费更新ID：单号：', marker: '煤炉运费更新ID：', endMarker: '单号：' },
+    { text: '代拍运费或者手续费变更ID：', marker: '代拍运费或者手续费变更ID：' },
+    { text: '代拍18禁ID：', marker: '代拍18禁ID：' },
+    { text: '代购确认工单内容ID：', marker: '代购确认工单内容ID：' },
+  ];
+
+  const quickInsertWrap = document.getElementById('quick-insert-wrap');
+  const quickInsertBtn = document.getElementById('quick-insert-btn');
+  const quickInsertMenu = document.getElementById('quick-insert-menu');
+  const inputWarningTip = document.getElementById('input-warning-tip');
+  let inputWarningTimer = null;
+
+  function hideInputWarning() {
+    clearTimeout(inputWarningTimer);
+    inputWarningTip.classList.remove('active');
+  }
+
+  function showInputWarning(message) {
+    inputWarningTip.textContent = message;
+    inputWarningTip.classList.add('active');
+    clearTimeout(inputWarningTimer);
+    inputWarningTimer = setTimeout(() => inputWarningTip.classList.remove('active'), 3000);
+  }
+
+  function buildQuickInsertMenu() {
+    quickInsertMenu.innerHTML = '';
+    const hint = document.createElement('div');
+    hint.className = 'quick-insert-hint';
+    hint.textContent = '选完记得填 ID 并 @ 上对应的人，否则发不出去';
+    quickInsertMenu.appendChild(hint);
+    QUICK_TEMPLATES.forEach((tpl) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quick-insert-item';
+      btn.textContent = tpl.text;
+      btn.addEventListener('click', () => insertQuickTemplate(tpl));
+      quickInsertMenu.appendChild(btn);
+    });
+  }
+
+  function insertQuickTemplate(tpl) {
+    const current = textInput.value;
+    const prefix = current && !/\s$/.test(current) ? current + ' ' : current;
+    textInput.value = prefix + tpl.text;
+    autoResizeTextInput();
+    quickInsertMenu.classList.remove('active');
+    // 光标落在 "ID：" 后面，接着敲数字就行（煤炉那条正好停在"单号："前面）
+    const caret = prefix.length + tpl.text.indexOf('ID：') + 'ID：'.length;
+    textInput.focus();
+    textInput.setSelectionRange(caret, caret);
+  }
+
+  // 消息里出现了上面某条模板，就按规则校验；没用模板的普通消息不受影响
+  function checkQuickTemplateRules(text) {
+    const hit = QUICK_TEMPLATES.find((t) => text.includes(t.marker));
+    if (!hit) return '';
+    const startIdx = text.indexOf(hit.marker) + hit.marker.length;
+    let segment;
+    if (hit.endMarker) {
+      const endIdx = text.indexOf(hit.endMarker, startIdx);
+      segment = endIdx === -1 ? text.slice(startIdx) : text.slice(startIdx, endIdx);
+    } else {
+      segment = text.slice(startIdx);
+    }
+    // 把 @某人 先剔掉再找数字，避免"@张三3"这种名字里的数字被当成ID蒙混过关
+    if (!/\d/.test(segment.replace(/@\S+/g, ' '))) return '请输入ID';
+    if (!textHasMention(text)) return '请选择@对象';
+    return '';
+  }
+
+  // 跟服务器端 extractMentions 用同一套判断：只有@到当前在线的人（或@所有人）才算数，
+  // 不然发出去对方根本收不到提醒
+  function textHasMention(text) {
+    if (/@所有人/.test(text)) return true;
+    return onlineUsers.some((name) => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`@${escaped}(?=\\s|[，,。.!！?？]|$)`).test(text);
+    });
+  }
+
+  quickInsertBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    quickInsertMenu.classList.toggle('active');
+  });
+  document.addEventListener('click', (e) => {
+    if (!quickInsertWrap.contains(e.target)) quickInsertMenu.classList.remove('active');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') quickInsertMenu.classList.remove('active');
+  });
+  buildQuickInsertMenu();
 
   // ===== @ 提及自动补全 =====
   let mentionActive = false;

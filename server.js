@@ -880,6 +880,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
       ws.send(JSON.stringify(timeclockPayload(getJSTParts(new Date()).dateStr)));
+      ws.send(JSON.stringify(shiftPayload()));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -1354,6 +1355,80 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ===== 人员管理（班表）=====
+    if (data.type === 'shift_query') {
+      const client = clients.get(ws);
+      if (!client) return;
+      ws.send(JSON.stringify(shiftPayload()));
+      return;
+    }
+
+    if (data.type === 'shift_save') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const workDate = String(data.workDate || '');
+      const personName = String(data.personName || '').trim().slice(0, 20);
+      const startMin = Number(data.startMin);
+      const endMin = Number(data.endMin);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate) || !personName) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '姓名和日期不能为空' }));
+        return;
+      }
+      if (!Number.isInteger(startMin) || !Number.isInteger(endMin) ||
+          startMin < 0 || endMin > 24 * 60 || endMin <= startMin) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '时间不对，下班时间要晚于上班时间' }));
+        return;
+      }
+      if (data.id) {
+        const updated = await updateShiftEntry(data.id, personName, startMin, endMin);
+        if (!updated) {
+          ws.send(JSON.stringify({ type: 'shift_error', message: '没找到这条排班，可能已经被别人删了' }));
+          return;
+        }
+      } else {
+        await addShiftEntry(workDate, personName, startMin, endMin);
+      }
+      broadcast(shiftPayload());
+      return;
+    }
+
+    if (data.type === 'shift_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const ok = await deleteShiftEntry(data.id);
+      if (!ok) return;
+      broadcast(shiftPayload());
+      return;
+    }
+
+    // 导入：前端把Excel/CSV解析成一行行 { workDate, personName, startMin, endMin } 再发过来，
+    // 服务器只做校验和落库，不在服务器上解析表格文件
+    if (data.type === 'shift_import') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const rows = Array.isArray(data.rows) ? data.rows : [];
+      const cleaned = rows
+        .map((r) => ({
+          workDate: String(r.workDate || ''),
+          personName: String(r.personName || '').trim().slice(0, 20),
+          startMin: Number(r.startMin),
+          endMin: Number(r.endMin),
+        }))
+        .filter((r) =>
+          /^\d{4}-\d{2}-\d{2}$/.test(r.workDate) && r.personName &&
+          Number.isInteger(r.startMin) && Number.isInteger(r.endMin) &&
+          r.startMin >= 0 && r.endMin <= 24 * 60 && r.endMin > r.startMin)
+        .slice(0, 2000);
+      if (cleaned.length === 0) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '没解析出有效的排班行，检查一下表格格式' }));
+        return;
+      }
+      const dates = await importShiftEntries(cleaned);
+      broadcast(shiftPayload());
+      ws.send(JSON.stringify({ type: 'shift_import_ok', count: cleaned.length, dates }));
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
@@ -1653,6 +1728,150 @@ async function deleteTimeclockName(name) {
   return true;
 }
 
+// ==================== 人员管理（班表：谁哪天几点到几点上班） ====================
+// 只做未来三天（今天/明天/后天）的排班展示，历史班表不在这里翻，所以数据量很小，
+// 直接全量放内存 + 落库，改动后广播给所有人，跟公告栏那套一模一样。
+// 时间统一用"从0点开始的分钟数"存（比如 9:00 = 540），前端画柱状图和算工时都直接用数字，
+// 不用反复解析字符串，也不受时区影响（班表是本地作息，跟日本时间的日期口径一致）。
+let shiftEntries = []; // { id, workDate, personName, startMin, endMin }
+
+function rowToShiftEntry(row) {
+  return {
+    id: row.id,
+    workDate: row.work_date,
+    personName: row.person_name,
+    startMin: Number(row.start_min),
+    endMin: Number(row.end_min),
+  };
+}
+
+async function ensureShiftsTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS staff_shifts (
+      id BIGSERIAL PRIMARY KEY,
+      work_date TEXT NOT NULL,
+      person_name TEXT NOT NULL,
+      start_min INT NOT NULL,
+      end_min INT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await dbPool.query('CREATE INDEX IF NOT EXISTS idx_staff_shifts_date ON staff_shifts (work_date);');
+}
+
+async function loadShiftsFromDB() {
+  if (!dbPool) {
+    shiftEntries = [];
+    return;
+  }
+  try {
+    await ensureShiftsTable();
+    // 只把"今天往后"的班表读进内存，过期的留在库里当历史，不占内存
+    const { dateStr } = getJSTParts(new Date());
+    const { rows } = await dbPool.query(
+      'SELECT * FROM staff_shifts WHERE work_date >= $1 ORDER BY work_date ASC, start_min ASC;',
+      [dateStr]
+    );
+    shiftEntries = rows.map(rowToShiftEntry);
+    console.log(`已从数据库加载 ${shiftEntries.length} 条班表记录`);
+  } catch (err) {
+    console.error('[加载班表失败，暂时改用内存模式]', err.message);
+    shiftEntries = [];
+  }
+}
+
+// 从今天（日本时间）开始的连续三天
+function getShiftWindowDates() {
+  const { dateStr } = getJSTParts(new Date());
+  const base = new Date(`${dateStr}T00:00:00Z`);
+  return [0, 1, 2].map((offset) => {
+    const d = new Date(base.getTime() + offset * 86400000);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+function getShiftsForWindow() {
+  const dates = getShiftWindowDates();
+  return {
+    dates,
+    shifts: shiftEntries
+      .filter((e) => dates.includes(e.workDate))
+      .sort((a, b) => (a.workDate === b.workDate ? a.startMin - b.startMin : a.workDate < b.workDate ? -1 : 1)),
+  };
+}
+
+function shiftPayload() {
+  const { dates, shifts } = getShiftsForWindow();
+  return { type: 'shift_update', dates, shifts };
+}
+
+async function addShiftEntry(workDate, personName, startMin, endMin) {
+  const entry = { id: `mem-${Date.now()}-${Math.round(Math.random() * 1e6)}`, workDate, personName, startMin, endMin };
+  shiftEntries.push(entry);
+  if (dbPool) {
+    try {
+      const inserted = await dbPool.query(
+        'INSERT INTO staff_shifts (work_date, person_name, start_min, end_min) VALUES ($1,$2,$3,$4) RETURNING id;',
+        [workDate, personName, startMin, endMin]
+      );
+      entry.id = inserted.rows[0].id;
+    } catch (err) {
+      console.error('[新增班表写入数据库失败]', err.message);
+    }
+  }
+  return entry;
+}
+
+async function updateShiftEntry(id, personName, startMin, endMin) {
+  const idx = shiftEntries.findIndex((e) => String(e.id) === String(id));
+  if (idx === -1) return null;
+  shiftEntries[idx] = { ...shiftEntries[idx], personName, startMin, endMin };
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE staff_shifts SET person_name=$1, start_min=$2, end_min=$3 WHERE id=$4;',
+        [personName, startMin, endMin, id]
+      );
+    } catch (err) {
+      console.error('[修改班表写入数据库失败]', err.message);
+    }
+  }
+  return shiftEntries[idx];
+}
+
+async function deleteShiftEntry(id) {
+  const idx = shiftEntries.findIndex((e) => String(e.id) === String(id));
+  if (idx === -1) return false;
+  shiftEntries.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM staff_shifts WHERE id=$1;', [id]);
+    } catch (err) {
+      console.error('[删除班表失败]', err.message);
+    }
+  }
+  return true;
+}
+
+// 导入：按"日期"整天覆盖——导入文件里出现了哪几天，就把那几天原有的排班先清掉再写新的，
+// 没出现在文件里的日期一律不动，避免一次导入把别的日子也冲掉
+async function importShiftEntries(rows) {
+  const dates = Array.from(new Set(rows.map((r) => r.workDate)));
+  shiftEntries = shiftEntries.filter((e) => !dates.includes(e.workDate));
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM staff_shifts WHERE work_date = ANY($1::text[]);', [dates]);
+    } catch (err) {
+      console.error('[导入班表时清理旧数据失败]', err.message);
+    }
+  }
+  for (const r of rows) {
+    await addShiftEntry(r.workDate, r.personName, r.startMin, r.endMin);
+  }
+  return dates;
+}
+
 // 删掉一条打卡记录（打错卡、重复打卡时用），跟公告栏/提醒事项一样要编辑密码
 async function deleteTimeRecord(id) {
   const idx = timeRecords.findIndex((r) => String(r.id) === String(id));
@@ -1787,6 +2006,7 @@ async function startServer() {
   await loadRemindersFromDB();
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();
+  await loadShiftsFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

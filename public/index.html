@@ -2165,6 +2165,194 @@
   .timeclock-row-del-btn:hover { color: #e5534b; background: transparent; }
   .timeclock-empty { color: var(--muted); font-style: italic; font-size: 13px; padding: 18px 0; }
 
+  /* ===== 人员管理（班表）全屏面板 ===== */
+  #staff-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #staff-overlay.active { display: flex; }
+  .staff-header-actions { display: flex; align-items: center; gap: 8px; }
+  #staff-overlay-close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  #staff-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #staff-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px 32px; }
+  #staff-msg { font-size: 12px; color: var(--muted); min-height: 16px; margin-bottom: 10px; }
+  #staff-msg.error { color: #e5534b; }
+  #staff-msg.ok { color: #2e9e5b; }
+
+  #staff-help-panel {
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  #staff-help-panel.active { display: block; }
+  .staff-help-title { font-weight: 700; margin-bottom: 8px; }
+  .staff-help-block { margin-bottom: 10px; }
+  .staff-help-block pre {
+    background: var(--panel-alt);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 6px 0 0;
+    overflow-x: auto;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .staff-help-note { color: var(--muted); }
+
+  .staff-day-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+    margin-bottom: 18px;
+    background: var(--panel);
+  }
+  .staff-day-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .staff-day-title { font-size: 15px; font-weight: 700; color: var(--text); }
+  .staff-day-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+  }
+  .staff-day-count { font-size: 12px; color: var(--muted); }
+  .staff-day-add-btn {
+    margin-left: auto;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 8px;
+  }
+  .staff-day-add-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+  /* 甘特图：左边名字，中间时间轴，右边工时 */
+  .staff-grid { width: 100%; }
+  .staff-grid-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 92px 30px;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+  }
+  .staff-grid-row + .staff-grid-row { margin-top: 4px; }
+  .staff-grid-head { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .staff-name {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .staff-track {
+    position: relative;
+    height: 24px;
+    background: var(--panel-alt);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .staff-track-ticks { position: absolute; inset: 0; }
+  .staff-track-ticks span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+  }
+  .staff-hour-labels {
+    position: relative;
+    height: 14px;
+  }
+  .staff-hour-labels span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .staff-bar {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #2b2f38;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .staff-bar:hover { filter: brightness(0.94); }
+  .staff-hours { font-size: 12px; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+  .staff-hours .staff-hours-raw { color: var(--muted); font-size: 11px; }
+  .staff-row-edit {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 2px 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .staff-row-edit:hover { color: var(--accent); background: transparent; }
+  .staff-day-empty { font-size: 12px; color: var(--muted); font-style: italic; padding: 10px 0; }
+  .staff-day-total { font-size: 12px; color: var(--muted); margin-top: 10px; text-align: right; }
+
+  /* 编辑弹窗 */
+  #staff-edit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.72);
+    z-index: 10001;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #staff-edit-overlay.active { display: flex; }
+  #staff-edit-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    width: 100%;
+    max-width: 320px;
+  }
+  .staff-edit-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: var(--text); }
+  .staff-edit-field { margin-bottom: 12px; }
+  .staff-edit-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .staff-edit-field input { width: 100%; font-size: 13px; padding: 8px 10px; }
+  .staff-edit-error { font-size: 12px; color: #e5534b; min-height: 16px; margin-bottom: 8px; }
+  .staff-edit-actions { display: flex; gap: 8px; }
+  .staff-edit-actions button { flex: 1; font-size: 13px; padding: 9px; }
+  #staff-edit-delete-btn { background: transparent; border: 1px solid var(--border); color: #e5534b; }
+  #staff-edit-delete-btn:hover { border-color: #e5534b; background: transparent; }
+  #staff-edit-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  #staff-edit-cancel-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
@@ -2292,6 +2480,10 @@
 
     <button id="timeclock-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-clock"></i></span> 时间管理</span>
+    </button>
+
+    <button id="staff-open-btn" class="sidebar-toggle" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
   </div>
   <div id="chat-col">
@@ -2548,6 +2740,64 @@
       </table>
     </div>
     <div id="timeclock-empty" class="timeclock-empty">这一天还没有记录</div>
+  </div>
+</div>
+
+<div id="staff-overlay">
+  <div class="tool-overlay-header-bar">
+    <span id="staff-overlay-title"><i class="ti ti-users-group"></i> 人员管理 · 未来三天班表</span>
+    <div class="staff-header-actions">
+      <button id="staff-import-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-file-spreadsheet"></i> 导入班表</button>
+      <input type="file" id="staff-import-input" accept=".xlsx,.xls,.csv" style="display:none" />
+      <button id="staff-help-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-help"></i> 表格格式</button>
+      <button id="staff-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="staff-body">
+    <div id="staff-msg"></div>
+    <div id="staff-help-panel">
+      <div class="staff-help-title">支持两种表格格式（.xlsx / .xls / .csv 都行）</div>
+      <div class="staff-help-block">
+        <b>一、每行一条排班</b><br />
+        表头包含「姓名」「日期」「上班」「下班」四列（叫「开始/结束」也认）：
+        <pre>姓名    日期          上班    下班
+张三    2026-08-29    9:00    18:00
+李四    2026-08-29    10:00   16:30</pre>
+      </div>
+      <div class="staff-help-block">
+        <b>二、横向班表</b><br />
+        第一列是姓名，后面每一列是一天，格子里写时间段，休息写「休」或留空：
+        <pre>姓名    8/29        8/30        8/31
+张三    9:00-18:00  休          10:00-19:00
+李四    10-16:30    9:00-18:00</pre>
+      </div>
+      <div class="staff-help-note">导入是按天覆盖：文件里出现的日期，那天原有的排班会被整天替换；没出现的日期不受影响。只会保留今天起三天内的日期。</div>
+    </div>
+    <div id="staff-days"></div>
+  </div>
+</div>
+
+<div id="staff-edit-overlay">
+  <div id="staff-edit-card">
+    <div class="staff-edit-title" id="staff-edit-title">编辑排班</div>
+    <div class="staff-edit-field">
+      <label>姓名</label>
+      <input type="text" id="staff-edit-name" maxlength="20" placeholder="姓名" />
+    </div>
+    <div class="staff-edit-field">
+      <label>上班时间</label>
+      <input type="time" id="staff-edit-start" step="300" />
+    </div>
+    <div class="staff-edit-field">
+      <label>下班时间</label>
+      <input type="time" id="staff-edit-end" step="300" />
+    </div>
+    <div class="staff-edit-error" id="staff-edit-error"></div>
+    <div class="staff-edit-actions">
+      <button id="staff-edit-delete-btn" type="button">删除</button>
+      <button id="staff-edit-cancel-btn" type="button">取消</button>
+      <button id="staff-edit-save-btn" type="button">保存</button>
+    </div>
   </div>
 </div>
 
@@ -3041,6 +3291,14 @@
         renderTimeclockUserOptions();
         renderTimeclock();
         showTimeclockMsg('已解锁，可以从下拉里选人代提交了');
+      } else if (data.type === 'shift_update') {
+        staffDates = Array.isArray(data.dates) ? data.dates : [];
+        staffShifts = Array.isArray(data.shifts) ? data.shifts : [];
+        if (staffOverlay.classList.contains('active')) renderStaffDays();
+      } else if (data.type === 'shift_import_ok') {
+        showStaffMsg(`✓ 已导入 ${data.count} 条排班（${(data.dates || []).join('、')}）`, 'ok');
+      } else if (data.type === 'shift_error') {
+        showStaffMsg(data.message || '操作失败', 'error');
       } else if (data.type === 'timeclock_error') {
         // 正在走删除弹窗的话，错误就显示在弹窗里，不然显示在面板上
         if (pendingDeleteAction && pendingDeleteAction.kind === 'timeclock') {
@@ -5918,6 +6176,453 @@
     if (e.key === 'Escape' && timeclockOverlay.classList.contains('active')) closeTimeclockOverlay();
   });
   timeclockDateInput.value = timeclockViewDate;
+
+  // ===== 人员管理（班表：今天起三天，甘特图式展示，可导入Excel/CSV，可手动改） =====
+  // 时间统一用"从0点开始的分钟数"表示（9:00 = 540），画柱子和算工时都是纯数字运算。
+  // 图表横轴固定 9:00~18:00；超出这个范围的班次柱子会被截到边界，但右边的工时汇总算的是真实时长。
+  const STAFF_CHART_START = 9 * 60;
+  const STAFF_CHART_END = 18 * 60;
+  const STAFF_BREAK_THRESHOLD = 6 * 60;   // 超过6小时
+  const STAFF_BREAK_DEDUCT = 60;          // 自动扣掉1小时休息
+  // 每个人一个固定颜色，用名字算个稳定的下标，这样同一个人在三天里颜色一致，换个浏览器也一样
+  const STAFF_COLORS = ['#B5D4F4', '#9FE1CB', '#F5C4B3', '#F4C0D1', '#CECBF6', '#C0DD97', '#F7DFA5', '#BFD9DE'];
+
+  const staffOpenBtn = document.getElementById('staff-open-btn');
+  const staffOverlay = document.getElementById('staff-overlay');
+  const staffCloseBtn = document.getElementById('staff-overlay-close-btn');
+  const staffBodyEl = document.getElementById('staff-days');
+  const staffMsgEl = document.getElementById('staff-msg');
+  const staffImportBtn = document.getElementById('staff-import-btn');
+  const staffImportInput = document.getElementById('staff-import-input');
+  const staffHelpBtn = document.getElementById('staff-help-btn');
+  const staffHelpPanel = document.getElementById('staff-help-panel');
+  const staffEditOverlay = document.getElementById('staff-edit-overlay');
+  const staffEditTitle = document.getElementById('staff-edit-title');
+  const staffEditName = document.getElementById('staff-edit-name');
+  const staffEditStart = document.getElementById('staff-edit-start');
+  const staffEditEnd = document.getElementById('staff-edit-end');
+  const staffEditError = document.getElementById('staff-edit-error');
+  const staffEditSaveBtn = document.getElementById('staff-edit-save-btn');
+  const staffEditCancelBtn = document.getElementById('staff-edit-cancel-btn');
+  const staffEditDeleteBtn = document.getElementById('staff-edit-delete-btn');
+
+  let staffShifts = [];
+  let staffDates = [];
+  let staffEditing = null; // { id?, workDate, personName, startMin, endMin }
+
+  function staffColorFor(name) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return STAFF_COLORS[hash % STAFF_COLORS.length];
+  }
+
+  function minutesToHHMM(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  // 实际工时：超过6小时的自动扣掉1小时休息
+  function staffNetMinutes(startMin, endMin) {
+    const raw = Math.max(0, endMin - startMin);
+    return raw > STAFF_BREAK_THRESHOLD ? raw - STAFF_BREAK_DEDUCT : raw;
+  }
+
+  function formatStaffHours(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m === 0 ? h + '小时' : h + '小时' + m + '分';
+  }
+
+  function staffDateLabel(dateStr, index) {
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(Date.UTC(y, mo - 1, d)).getUTCDay()];
+    const prefix = index === 0 ? '今天' : index === 1 ? '明天' : '后天';
+    return { prefix, text: `${mo}月${d}日（周${weekday}）` };
+  }
+
+  function showStaffMsg(text, kind) {
+    staffMsgEl.textContent = text || '';
+    staffMsgEl.className = kind || '';
+  }
+
+  function renderStaffDays() {
+    staffBodyEl.innerHTML = '';
+    if (staffDates.length === 0) return;
+
+    staffDates.forEach((dateStr, dayIndex) => {
+      const dayShifts = staffShifts
+        .filter((s) => s.workDate === dateStr)
+        .sort((a, b) => (a.startMin - b.startMin) || a.personName.localeCompare(b.personName, 'zh'));
+
+      const card = document.createElement('div');
+      card.className = 'staff-day-card';
+
+      const head = document.createElement('div');
+      head.className = 'staff-day-head';
+      const label = staffDateLabel(dateStr, dayIndex);
+      const badge = document.createElement('span');
+      badge.className = 'staff-day-badge';
+      badge.textContent = label.prefix;
+      head.appendChild(badge);
+      const title = document.createElement('span');
+      title.className = 'staff-day-title';
+      title.textContent = label.text;
+      head.appendChild(title);
+      const count = document.createElement('span');
+      count.className = 'staff-day-count';
+      count.textContent = `${dayShifts.length} 人`;
+      head.appendChild(count);
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'staff-day-add-btn';
+      addBtn.innerHTML = '<i class="ti ti-plus"></i> 加一条';
+      addBtn.addEventListener('click', () => openStaffEdit({ workDate: dateStr, personName: '', startMin: 9 * 60, endMin: 18 * 60 }));
+      head.appendChild(addBtn);
+      card.appendChild(head);
+
+      // 顶部时间刻度（9~18点）
+      const grid = document.createElement('div');
+      grid.className = 'staff-grid';
+      const headRow = document.createElement('div');
+      headRow.className = 'staff-grid-row staff-grid-head';
+      headRow.appendChild(document.createElement('div'));
+      const hourLabels = document.createElement('div');
+      hourLabels.className = 'staff-hour-labels';
+      for (let h = 9; h <= 18; h++) {
+        const sp = document.createElement('span');
+        sp.style.left = ((h * 60 - STAFF_CHART_START) / (STAFF_CHART_END - STAFF_CHART_START) * 100) + '%';
+        sp.textContent = h;
+        hourLabels.appendChild(sp);
+      }
+      headRow.appendChild(hourLabels);
+      const hoursHead = document.createElement('div');
+      hoursHead.className = 'staff-hours';
+      hoursHead.textContent = '工时';
+      headRow.appendChild(hoursHead);
+      headRow.appendChild(document.createElement('div'));
+      grid.appendChild(headRow);
+
+      if (dayShifts.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'staff-day-empty';
+        empty.textContent = '这天还没有排班，点右上角"加一条"或导入班表';
+        card.appendChild(grid);
+        card.appendChild(empty);
+        staffBodyEl.appendChild(card);
+        return;
+      }
+
+      let dayTotal = 0;
+      dayShifts.forEach((shift) => {
+        const row = document.createElement('div');
+        row.className = 'staff-grid-row';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'staff-name';
+        nameEl.textContent = shift.personName;
+        nameEl.title = shift.personName;
+        row.appendChild(nameEl);
+
+        const track = document.createElement('div');
+        track.className = 'staff-track';
+        const ticks = document.createElement('div');
+        ticks.className = 'staff-track-ticks';
+        for (let h = 10; h < 18; h++) {
+          const line = document.createElement('span');
+          line.style.left = ((h * 60 - STAFF_CHART_START) / (STAFF_CHART_END - STAFF_CHART_START) * 100) + '%';
+          ticks.appendChild(line);
+        }
+        track.appendChild(ticks);
+
+        // 柱子：超出9~18点的部分截到边界，但下面算工时用的还是真实时间
+        const barStart = Math.max(shift.startMin, STAFF_CHART_START);
+        const barEnd = Math.min(shift.endMin, STAFF_CHART_END);
+        if (barEnd > barStart) {
+          const span = STAFF_CHART_END - STAFF_CHART_START;
+          const bar = document.createElement('div');
+          bar.className = 'staff-bar';
+          bar.style.left = ((barStart - STAFF_CHART_START) / span * 100) + '%';
+          bar.style.width = ((barEnd - barStart) / span * 100) + '%';
+          bar.style.background = staffColorFor(shift.personName);
+          bar.textContent = `${minutesToHHMM(shift.startMin)}-${minutesToHHMM(shift.endMin)}`;
+          bar.title = `${shift.personName} ${minutesToHHMM(shift.startMin)}-${minutesToHHMM(shift.endMin)}（点一下可以改）`;
+          bar.addEventListener('click', () => openStaffEdit(shift));
+          track.appendChild(bar);
+        }
+        row.appendChild(track);
+
+        const raw = Math.max(0, shift.endMin - shift.startMin);
+        const net = staffNetMinutes(shift.startMin, shift.endMin);
+        dayTotal += net;
+        const hoursEl = document.createElement('div');
+        hoursEl.className = 'staff-hours';
+        hoursEl.textContent = formatStaffHours(net);
+        if (net !== raw) {
+          const rawEl = document.createElement('div');
+          rawEl.className = 'staff-hours-raw';
+          rawEl.textContent = `含休1h`;
+          hoursEl.appendChild(rawEl);
+          hoursEl.title = `实际在岗 ${formatStaffHours(raw)}，超过6小时自动扣1小时休息`;
+        }
+        row.appendChild(hoursEl);
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'staff-row-edit';
+        editBtn.title = '修改 / 删除';
+        editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+        editBtn.addEventListener('click', () => openStaffEdit(shift));
+        row.appendChild(editBtn);
+
+        grid.appendChild(row);
+      });
+
+      card.appendChild(grid);
+      const total = document.createElement('div');
+      total.className = 'staff-day-total';
+      total.textContent = `当天合计 ${formatStaffHours(dayTotal)}`;
+      card.appendChild(total);
+      staffBodyEl.appendChild(card);
+    });
+  }
+
+  // ---- 编辑 / 新增 / 删除 ----
+  function openStaffEdit(shift) {
+    staffEditing = { ...shift };
+    staffEditTitle.textContent = shift.id ? '修改排班' : '添加排班';
+    staffEditName.value = shift.personName || '';
+    staffEditStart.value = minutesToHHMM(shift.startMin);
+    staffEditEnd.value = minutesToHHMM(shift.endMin);
+    staffEditError.textContent = '';
+    staffEditDeleteBtn.style.display = shift.id ? '' : 'none';
+    staffEditOverlay.classList.add('active');
+    staffEditName.focus();
+  }
+  function closeStaffEdit() {
+    staffEditOverlay.classList.remove('active');
+    staffEditing = null;
+  }
+  function hhmmToMinutes(value) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (h > 24 || min > 59) return null;
+    return h * 60 + min;
+  }
+  function saveStaffEdit() {
+    if (!staffEditing) return;
+    const name = staffEditName.value.trim();
+    const startMin = hhmmToMinutes(staffEditStart.value);
+    const endMin = hhmmToMinutes(staffEditEnd.value);
+    if (!name) { staffEditError.textContent = '请填写姓名'; return; }
+    if (startMin === null || endMin === null) { staffEditError.textContent = '时间格式不对'; return; }
+    if (endMin <= startMin) { staffEditError.textContent = '下班时间要晚于上班时间'; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { staffEditError.textContent = '连接已断开，请稍后重试'; return; }
+    ws.send(JSON.stringify({
+      type: 'shift_save',
+      id: staffEditing.id,
+      workDate: staffEditing.workDate,
+      personName: name,
+      startMin,
+      endMin,
+    }));
+    closeStaffEdit();
+  }
+  staffEditSaveBtn.addEventListener('click', saveStaffEdit);
+  staffEditCancelBtn.addEventListener('click', closeStaffEdit);
+  staffEditDeleteBtn.addEventListener('click', () => {
+    if (!staffEditing || !staffEditing.id) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'shift_delete', id: staffEditing.id }));
+    }
+    closeStaffEdit();
+  });
+  staffEditOverlay.addEventListener('click', (e) => { if (e.target === staffEditOverlay) closeStaffEdit(); });
+  [staffEditName, staffEditStart, staffEditEnd].forEach((el) => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveStaffEdit(); } });
+  });
+
+  // ---- 面板开关 ----
+  function openStaffOverlay() {
+    staffOverlay.classList.add('active');
+    showStaffMsg('');
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'shift_query' }));
+    renderStaffDays();
+  }
+  function closeStaffOverlay() {
+    staffOverlay.classList.remove('active');
+    staffHelpPanel.classList.remove('active');
+  }
+  staffOpenBtn.addEventListener('click', openStaffOverlay);
+  staffCloseBtn.addEventListener('click', closeStaffOverlay);
+  staffHelpBtn.addEventListener('click', () => staffHelpPanel.classList.toggle('active'));
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (staffEditOverlay.classList.contains('active')) { closeStaffEdit(); return; }
+    if (staffOverlay.classList.contains('active')) closeStaffOverlay();
+  });
+
+  // ---- 导入 Excel / CSV ----
+  // 解析放在浏览器里做，服务器只收解析好的数据。xlsx 用 SheetJS（第一次导入时才按需加载），
+  // csv 自己解析，不依赖外部库——这样万一 CDN 连不上，另存为 CSV 一样能导入。
+  let sheetJsLoading = null;
+  function loadSheetJs() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (sheetJsLoading) return sheetJsLoading;
+    sheetJsLoading = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+      script.onload = () => resolve(window.XLSX);
+      script.onerror = () => reject(new Error('解析库加载失败'));
+      document.head.appendChild(script);
+    });
+    return sheetJsLoading;
+  }
+
+  function parseCsvText(text) {
+    return text.replace(/^﻿/, '').split(/\r?\n/).filter((line) => line.trim())
+      .map((line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, '')));
+  }
+
+  // "9:00" "9" "09:30" "9点" 都认；Excel 里把时间存成小数(0.375=9:00)的情况也处理
+  function parseTimeCell(value) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') {
+      if (value > 0 && value < 1) return Math.round(value * 24 * 60);
+      if (value >= 1 && value <= 24) return Math.round(value * 60);
+      return null;
+    }
+    const str = String(value).trim().replace(/[点时]/g, ':').replace(/：/g, ':').replace(/分/g, '');
+    if (!str) return null;
+    const m = /^(\d{1,2})(?::(\d{1,2}))?:?$/.exec(str);
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = m[2] ? Number(m[2]) : 0;
+    if (h > 24 || min > 59) return null;
+    return h * 60 + min;
+  }
+
+  // 表头里的日期可能是 "2026-08-29" "8/29" "8月29日" "29"，也可能是 Excel 的日期序列号
+  function parseDateCell(value, fallbackYear) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'number' && value > 20000 && value < 60000) {
+      // Excel 日期序列号：1899-12-30 起算
+      const d = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+      return d.toISOString().slice(0, 10);
+    }
+    const str = String(value).trim();
+    let m = /^(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})/.exec(str);
+    if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+    m = /^(\d{1,2})[-/月](\d{1,2})/.exec(str);
+    if (m) return `${fallbackYear}-${String(m[1]).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+    return '';
+  }
+
+  // 单元格里的时间段："9:00-18:00" "9-18" "9:00~18:00"，"休"/"公休"/空 表示不上班
+  function parseRangeCell(value) {
+    if (value === null || value === undefined) return null;
+    const str = String(value).trim();
+    if (!str || /^(休|公休|休息|off|-|—)$/i.test(str)) return null;
+    const parts = str.split(/[-~～—至]/).map((v) => v.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    const startMin = parseTimeCell(parts[0]);
+    const endMin = parseTimeCell(parts[1]);
+    if (startMin === null || endMin === null || endMin <= startMin) return null;
+    return { startMin, endMin };
+  }
+
+  function findHeaderIndex(header, keywords) {
+    return header.findIndex((cell) => {
+      const t = String(cell || '').trim();
+      return keywords.some((k) => t.includes(k));
+    });
+  }
+
+  // 两种表格布局都试：竖式（每行一条排班）和横式（第一列姓名、每列一天）
+  function parseShiftRows(rows) {
+    const cleanRows = rows.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? '').trim()));
+    if (cleanRows.length < 2) return [];
+    const header = cleanRows[0];
+    const year = new Date().getFullYear();
+
+    const nameIdx = findHeaderIndex(header, ['姓名', '名字', '人员', '员工']);
+    const dateIdx = findHeaderIndex(header, ['日期', 'date']);
+    const startIdx = findHeaderIndex(header, ['上班', '开始', '起始', 'start']);
+    const endIdx = findHeaderIndex(header, ['下班', '结束', 'end']);
+
+    const out = [];
+    if (nameIdx !== -1 && dateIdx !== -1 && startIdx !== -1 && endIdx !== -1) {
+      // 竖式
+      cleanRows.slice(1).forEach((row) => {
+        const personName = String(row[nameIdx] ?? '').trim();
+        const workDate = parseDateCell(row[dateIdx], year);
+        const startMin = parseTimeCell(row[startIdx]);
+        const endMin = parseTimeCell(row[endIdx]);
+        if (personName && workDate && startMin !== null && endMin !== null && endMin > startMin) {
+          out.push({ workDate, personName, startMin, endMin });
+        }
+      });
+      return out;
+    }
+
+    // 横式：表头第2列往后是日期
+    const dateCols = [];
+    header.forEach((cell, idx) => {
+      if (idx === 0) return;
+      const d = parseDateCell(cell, year);
+      if (d) dateCols.push({ idx, workDate: d });
+    });
+    if (dateCols.length === 0) return [];
+    cleanRows.slice(1).forEach((row) => {
+      const personName = String(row[0] ?? '').trim();
+      if (!personName) return;
+      dateCols.forEach(({ idx, workDate }) => {
+        const range = parseRangeCell(row[idx]);
+        if (range) out.push({ workDate, personName, startMin: range.startMin, endMin: range.endMin });
+      });
+    });
+    return out;
+  }
+
+  async function importStaffFile(file) {
+    showStaffMsg('⏳ 正在解析…');
+    try {
+      let rows;
+      if (/\.csv$/i.test(file.name)) {
+        rows = parseCsvText(await file.text());
+      } else {
+        const XLSX = await loadSheetJs();
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+      }
+      const parsed = parseShiftRows(rows);
+      if (parsed.length === 0) {
+        showStaffMsg('没解析出有效的排班行，点右上角"表格格式"看看要求的格式', 'error');
+        return;
+      }
+      // 只导入今天起三天窗口内的日期，其他日期直接忽略（这个面板本来也只看三天）
+      const inWindow = parsed.filter((r) => staffDates.includes(r.workDate));
+      const skipped = parsed.length - inWindow.length;
+      if (inWindow.length === 0) {
+        showStaffMsg(`解析到 ${parsed.length} 行，但没有一行是今天起三天内的日期（${staffDates.join('、')}）`, 'error');
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'shift_import', rows: inWindow }));
+      if (skipped > 0) showStaffMsg(`已导入 ${inWindow.length} 条，另有 ${skipped} 条不在三天窗口内被跳过`);
+    } catch (err) {
+      showStaffMsg('导入失败：' + err.message + '（xlsx 解析需要联网，也可以另存为 CSV 再导入）', 'error');
+    }
+  }
+
+  staffImportBtn.addEventListener('click', () => staffImportInput.click());
+  staffImportInput.addEventListener('change', () => {
+    const file = staffImportInput.files && staffImportInput.files[0];
+    if (file) importStaffFile(file);
+    staffImportInput.value = '';
+  });
 
   function scrollToBottom() {
     messagesEl.scrollTop = messagesEl.scrollHeight;

@@ -173,7 +173,7 @@ app.get('/api/problem-item-export', async (req, res) => {
   try {
     const result = await dbPool.query(query, params);
     const escapeCsv = (val) => `"${String(val == null ? '' : val).replace(/"/g, '""')}"`;
-    const lines = ['分类,问题类型,检品人员,订单ID/备注,提交人,提交时间,状态,处理人,处理时间'];
+    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,备注,图片,提交人,提交时间,状态,处理人,处理时间'];
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
@@ -184,7 +184,9 @@ app.get('/api/problem-item-export', async (req, res) => {
         escapeCsv(row.category),
         escapeCsv(issueTypes),
         escapeCsv(inspectorNames),
+        escapeCsv(row.order_id ? `${row.id_kind === 'tracking' ? '快递单号' : '订单ID'}：${row.order_id}` : ''),
         escapeCsv(row.order_note),
+        escapeCsv(Array.isArray(row.images) ? row.images.join(' ') : ''),
         escapeCsv(row.submitted_by),
         escapeCsv(submittedTime),
         escapeCsv(statusLabel),
@@ -653,6 +655,11 @@ async function ensureProblemItemTables() {
       resolved_at TIMESTAMPTZ
     );
   `);
+  // 后加的三列：订单ID/快递单号、这个号是哪一种、附带的图片地址数组。
+  // 用 ADD COLUMN IF NOT EXISTS 就地升级，已经在跑的老库不用手动改表也不会丢数据
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS order_id TEXT;`);
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS id_kind TEXT;`);
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS images JSONB;`);
 }
 
 function rowToProblemItemOption(row) {
@@ -665,6 +672,9 @@ function rowToProblemItemReport(row) {
     issueTypes: row.issue_types,
     inspectorNames: row.inspector_names,
     orderNote: row.order_note || '',
+    orderId: row.order_id || '',
+    idKind: row.id_kind === 'tracking' ? 'tracking' : 'order',
+    images: Array.isArray(row.images) ? row.images : [],
     submittedBy: row.submitted_by,
     submittedAt: new Date(row.submitted_at).getTime(),
     status: row.status,
@@ -726,21 +736,21 @@ async function loadProblemItemDataFromDB() {
   }
 }
 
-async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy) {
+async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images) {
   const now = Date.now();
   let id = `mem-${now}`;
   if (dbPool) {
     try {
       const result = await dbPool.query(
-        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by) VALUES ($1, $2, $3, $4, $5) RETURNING id, submitted_at;',
-        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy]
+        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by, order_id, id_kind, images) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, submitted_at;',
+        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy, orderId, idKind, JSON.stringify(images)]
       );
       id = result.rows[0].id;
     } catch (err) {
-      console.error('[问题件提醒记录写入数据库失败]', err.message);
+      console.error('[问题件列表记录写入数据库失败]', err.message);
     }
   }
-  const report = { id, category, issueTypes, inspectorNames, orderNote, submittedBy, submittedAt: now, status: 'pending' };
+  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending' };
   problemItemReports[category].push(report);
   return report;
 }
@@ -1124,8 +1134,26 @@ wss.on('connection', (ws) => {
       const issueTypes = Array.isArray(data.issueTypes) ? data.issueTypes.filter((v) => typeof v === 'string').slice(0, 20) : [];
       const inspectorNames = Array.isArray(data.inspectorNames) ? data.inspectorNames.filter((v) => typeof v === 'string').slice(0, 20) : [];
       const orderNote = String(data.orderNote || '').slice(0, 500);
+
+      // 订单ID / 快递单号：必填，而且只能是数字。选了"找不到…"这类问题类型时前端会切成快递单号，
+      // 这里只按前端传过来的 idKind 记录是哪一种，校验规则两者一样
+      const idKind = data.idKind === 'tracking' ? 'tracking' : 'order';
+      const orderId = String(data.orderId || '').trim().slice(0, 40);
+      if (!/^\d+$/.test(orderId)) {
+        ws.send(JSON.stringify({
+          type: 'problem_item_error',
+          message: idKind === 'tracking' ? '请填写快递单号（只能填数字）' : '请填写订单ID（只能填数字）',
+        }));
+        return;
+      }
+
+      // 图片：只接受我们自己 /upload 接口生成的路径，最多3张
+      const images = Array.isArray(data.images)
+        ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+        : [];
+
       // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
-      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username);
+      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images);
       broadcast({ type: 'problem_item_report_added', category, report });
       return;
     }

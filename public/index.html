@@ -1596,7 +1596,7 @@
   #inspection-edit-password { width: 140px; font-size: 13px; }
   #inspection-error-msg { font-size: 12px; color: #e5534b; }
 
-  /* ===== 问题件提醒：侧栏红点计数徽章 ===== */
+  /* ===== 问题件列表：侧栏红点计数徽章 ===== */
   .problem-item-cat-btn { position: relative; }
   .problem-item-badge {
     display: none;
@@ -1616,7 +1616,7 @@
   }
   .problem-item-badge.show { display: block; }
 
-  /* ===== 问题件提醒全屏面板 ===== */
+  /* ===== 问题件列表全屏面板 ===== */
   #problem-item-overlay {
     display: none;
     position: fixed;
@@ -1777,6 +1777,78 @@
   .multi-select-option:hover { background: var(--panel-alt); }
   .multi-select-option input[type="checkbox"] { width: auto; flex-shrink: 0; accent-color: var(--accent); }
   .multi-select-empty { padding: 10px; font-size: 12px; color: var(--muted); text-align: center; }
+
+  .problem-item-field input[type="text"] {
+    width: 100%;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .problem-item-field-tip { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  #problem-item-image-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #problem-item-image-btn {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 8px;
+  }
+  #problem-item-image-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  #problem-item-image-status { font-size: 12px; color: var(--muted); }
+  #problem-item-image-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .problem-item-thumb {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .problem-item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .problem-item-thumb .thumb-del {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    border: none;
+  }
+  .problem-item-thumb.uploading { opacity: 0.5; }
+
+  /* 卡片上的单号行和图片 */
+  .problem-item-card-id { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .problem-item-card-imgs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .problem-item-card-img {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .problem-item-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .problem-item-card-img .img-download {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    padding: 3px 5px;
+    text-decoration: none;
+  }
+  .problem-item-card-img .img-download:hover { background: rgba(0,0,0,0.8); }
 
   #problem-item-submit-btn {
     background: var(--accent);
@@ -2161,7 +2233,7 @@
     <div class="sidebar-divider"></div>
 
     <button id="problem-item-toggle" class="sidebar-toggle" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-alert-triangle"></i></span> 问题件提醒</span>
+      <span><span class="module-icon-badge"><i class="ti ti-alert-triangle"></i></span> 问题件列表</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="problem-item-body">
@@ -2491,7 +2563,7 @@
 
 <div id="problem-item-overlay">
   <div class="tool-overlay-header-bar">
-    <span><i class="ti ti-alert-triangle"></i> 问题件提醒</span>
+    <span><i class="ti ti-alert-triangle"></i> 问题件列表</span>
     <button id="problem-item-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
   </div>
   <div id="problem-item-overlay-body">
@@ -2552,8 +2624,22 @@
           <div id="problem-item-inspector-display"></div>
         </div>
         <div class="problem-item-field">
-          <label class="problem-item-field-label">订单ID / 备注</label>
-          <textarea id="problem-item-note-input" rows="2" placeholder="填写订单编号或其他补充说明…（选填）"></textarea>
+          <label class="problem-item-field-label" id="problem-item-id-label">订单ID</label>
+          <input type="text" id="problem-item-id-input" inputmode="numeric" maxlength="40" placeholder="只能填数字" />
+          <div class="problem-item-field-tip" id="problem-item-id-tip">选了"找不到…"类的问题类型时，这里会自动切成快递单号</div>
+        </div>
+        <div class="problem-item-field">
+          <label class="problem-item-field-label">备注（选填）</label>
+          <textarea id="problem-item-note-input" rows="2" placeholder="补充说明…（选填）"></textarea>
+        </div>
+        <div class="problem-item-field">
+          <label class="problem-item-field-label">问题件图片（选填，最多3张）</label>
+          <div id="problem-item-image-row">
+            <button type="button" id="problem-item-image-btn"><i class="ti ti-photo-plus"></i> 添加图片</button>
+            <input type="file" id="problem-item-image-input" accept="image/*" multiple style="display:none" />
+            <span id="problem-item-image-status"></span>
+          </div>
+          <div id="problem-item-image-thumbs"></div>
         </div>
         <button id="problem-item-submit-btn" type="button">提交</button>
         <span id="problem-item-submit-hint"></span>
@@ -2723,6 +2809,13 @@
   const issueTypePanel = document.getElementById('issue-type-panel');
   const problemItemInspectorDisplay = document.getElementById('problem-item-inspector-display');
   const problemItemNoteInput = document.getElementById('problem-item-note-input');
+  const problemItemIdLabel = document.getElementById('problem-item-id-label');
+  const problemItemIdInput = document.getElementById('problem-item-id-input');
+  const problemItemIdTip = document.getElementById('problem-item-id-tip');
+  const problemItemImageBtn = document.getElementById('problem-item-image-btn');
+  const problemItemImageInput = document.getElementById('problem-item-image-input');
+  const problemItemImageStatus = document.getElementById('problem-item-image-status');
+  const problemItemImageThumbs = document.getElementById('problem-item-image-thumbs');
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
   const problemItemList = document.getElementById('problem-item-list');
@@ -2873,6 +2966,9 @@
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] };
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
+      } else if (data.type === 'problem_item_error') {
+        problemItemSubmitHint.textContent = data.message || '提交失败';
+        problemItemSubmitHint.style.color = '#e5534b';
       } else if (data.type === 'problem_item_report_added') {
         const cat = data.category;
         if (!problemItemData.reports[cat]) problemItemData.reports[cat] = [];
@@ -4460,7 +4556,7 @@
     if (e.key === 'Escape' && inspectionOverlay.classList.contains('active')) closeInspectionOverlay();
   });
 
-  // ===== 问题件提醒（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
+  // ===== 问题件列表（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
   const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉', '贵重品'];
   // 跟服务端的逻辑保持一致：代购/代拍/煤炉共用issueTypes这组问题类型选项，
   // 贵重品单独用issueTypesGuizhongpin这组，两组互相独立
@@ -4481,7 +4577,7 @@
   let editingIssueTypes = [];
   let pendingOptionsSaveCount = 0;
 
-  // 侧栏"问题件提醒"整体展开/收起（跟其他侧栏分组一样的交互）
+  // 侧栏"问题件列表"整体展开/收起（跟其他侧栏分组一样的交互）
   problemItemToggle.addEventListener('click', () => {
     const collapsed = problemItemBody.classList.toggle('collapsed');
     problemItemToggle.classList.toggle('collapsed', collapsed);
@@ -4556,12 +4652,126 @@
   }
   setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
 
+  // ---- 订单ID / 快递单号 ----
+  // 选了"找不到订单"这类问题类型时，手上根本没有订单号，能填的只有快递单号，
+  // 所以这里跟着问题类型自动切换标签；两种都必须是纯数字，空的不让提交。
+  const PROBLEM_ITEM_MAX_IMAGES = 3;
+  let problemItemPendingImages = []; // { id, url, uploading, previewUrl }
+
+  function currentIdKind() {
+    return Array.from(selectedIssueTypes).some((t) => t.includes('找不到')) ? 'tracking' : 'order';
+  }
+  function updateProblemItemIdField() {
+    const isTracking = currentIdKind() === 'tracking';
+    problemItemIdLabel.textContent = isTracking ? '快递单号' : '订单ID';
+    problemItemIdInput.placeholder = isTracking ? '只能填数字' : '只能填数字';
+    problemItemIdTip.textContent = isTracking
+      ? '当前选的问题类型里有"找不到…"，填快递单号'
+      : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
+  }
+
+  // ---- 图片（选填，最多3张）----
+  // 手机直接拍的照片动辄好几MB，服务器磁盘吃不消，所以上传前先在浏览器里缩到长边1280px、
+  // 转成JPEG(质量0.75)再传，一般4MB的照片能压到200KB左右，肉眼看没什么差别。
+  function compressImageFile(file) {
+    return new Promise((resolve) => {
+      if (!/^image\//.test(file.type)) { resolve(file); return; }
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX_EDGE = 1280;
+        const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (!blob || blob.size >= file.size) { resolve(file); return; } // 压完反而更大就用原图
+          resolve(new File([blob], (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.75);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+      img.src = objectUrl;
+    });
+  }
+
+  function renderProblemItemThumbs() {
+    problemItemImageThumbs.innerHTML = '';
+    problemItemPendingImages.forEach((item) => {
+      const box = document.createElement('div');
+      box.className = 'problem-item-thumb' + (item.uploading ? ' uploading' : '');
+      const img = document.createElement('img');
+      img.src = item.url || item.previewUrl;
+      box.appendChild(img);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'thumb-del';
+      del.textContent = '✕';
+      del.title = '移除这张';
+      del.addEventListener('click', () => {
+        problemItemPendingImages = problemItemPendingImages.filter((x) => x.id !== item.id);
+        renderProblemItemThumbs();
+      });
+      box.appendChild(del);
+      problemItemImageThumbs.appendChild(box);
+    });
+  }
+
+  async function addProblemItemImages(files) {
+    const room = PROBLEM_ITEM_MAX_IMAGES - problemItemPendingImages.length;
+    if (room <= 0) {
+      problemItemImageStatus.textContent = `最多只能传 ${PROBLEM_ITEM_MAX_IMAGES} 张`;
+      return;
+    }
+    const list = Array.from(files).slice(0, room);
+    for (const file of list) {
+      const item = { id: `img-${Date.now()}-${Math.round(Math.random() * 1e6)}`, url: '', uploading: true, previewUrl: URL.createObjectURL(file) };
+      problemItemPendingImages.push(item);
+      renderProblemItemThumbs();
+      problemItemImageStatus.textContent = '⏳ 上传中…';
+      try {
+        const compressed = await compressImageFile(file);
+        const formData = new FormData();
+        formData.append('image', compressed, compressed.name);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+        item.url = data.url;
+        item.uploading = false;
+        problemItemImageStatus.textContent = '';
+      } catch (err) {
+        problemItemPendingImages = problemItemPendingImages.filter((x) => x.id !== item.id);
+        problemItemImageStatus.textContent = '上传失败：' + err.message;
+      }
+      renderProblemItemThumbs();
+    }
+  }
+
+  problemItemImageBtn.addEventListener('click', () => problemItemImageInput.click());
+  problemItemImageInput.addEventListener('change', () => {
+    if (problemItemImageInput.files && problemItemImageInput.files.length) {
+      addProblemItemImages(problemItemImageInput.files);
+    }
+    problemItemImageInput.value = '';
+  });
+
+  function resetProblemItemForm() {
+    selectedIssueTypes = new Set();
+    problemItemIdInput.value = '';
+    problemItemNoteInput.value = '';
+    problemItemPendingImages = [];
+    problemItemImageStatus.textContent = '';
+    renderProblemItemThumbs();
+  }
+
   // ---- 全屏面板开关、分类切换 ----
   function openProblemItemOverlay(category) {
     currentProblemItemCategory = category;
     problemItemOverlay.classList.add('active');
-    selectedIssueTypes = new Set();
-    problemItemNoteInput.value = '';
+    resetProblemItemForm();
     updateProblemItemPanelForCategory();
   }
   function closeProblemItemOverlay() {
@@ -4577,8 +4787,12 @@
     problemItemInspectorDisplay.textContent = username || '（未知用户）';
     const issueTypesForThisCategory = getIssueTypesForCategory(currentProblemItemCategory);
     renderMultiSelectPanel(issueTypePanel, issueTypesForThisCategory, selectedIssueTypes,
-      () => updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…'));
+      () => {
+        updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
+        updateProblemItemIdField();
+      });
     updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
+    updateProblemItemIdField();
     renderProblemItemList();
   }
 
@@ -4589,8 +4803,7 @@
   problemItemPanelCatBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       currentProblemItemCategory = btn.dataset.category;
-      selectedIssueTypes = new Set();
-      problemItemNoteInput.value = '';
+      resetProblemItemForm();
       updateProblemItemPanelForCategory();
     });
   });
@@ -4638,11 +4851,44 @@
       meta.textContent = `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
       card.appendChild(meta);
 
+      if (report.orderId) {
+        const idRow = document.createElement('div');
+        idRow.className = 'problem-item-card-id';
+        idRow.textContent = `${report.idKind === 'tracking' ? '快递单号' : '订单ID'}：${report.orderId}`;
+        card.appendChild(idRow);
+      }
+
       if (report.orderNote) {
         const note = document.createElement('div');
         note.className = 'problem-item-card-note';
         note.textContent = report.orderNote;
         card.appendChild(note);
+      }
+
+      // 图片：点缩略图用现成的大图查看器打开（可左右翻），右下角小按钮直接下载原图到本地
+      const imgs = Array.isArray(report.images) ? report.images : [];
+      if (imgs.length > 0) {
+        const imgRow = document.createElement('div');
+        imgRow.className = 'problem-item-card-imgs';
+        imgs.forEach((url, idx) => {
+          const box = document.createElement('div');
+          box.className = 'problem-item-card-img';
+          const im = document.createElement('img');
+          im.src = url;
+          im.alt = '问题件图片';
+          im.addEventListener('click', () => openImageLightbox(imgs, idx));
+          box.appendChild(im);
+          const dl = document.createElement('a');
+          dl.className = 'img-download';
+          dl.href = url;
+          dl.download = `问题件-${report.orderId || report.id}-${idx + 1}.jpg`;
+          dl.title = '下载到本地';
+          dl.innerHTML = '<i class="ti ti-download"></i>';
+          dl.addEventListener('click', (e) => e.stopPropagation());
+          box.appendChild(dl);
+          imgRow.appendChild(box);
+        });
+        card.appendChild(imgRow);
       }
 
       const actions = document.createElement('div');
@@ -4706,7 +4952,9 @@
       ? `${tagList.slice(0, 2).join('、')}等${tagList.length}项`
       : tagList.join('、');
     const tagPart = tagStr ? `[${tagStr}] ` : '';
-    const note = String(report.orderNote || '').replace(/\s+/g, ' ').trim();
+    const idText = report.orderId ? `${report.idKind === 'tracking' ? '快递单号' : '订单ID'}：${report.orderId}` : '';
+    const noteRaw = String(report.orderNote || '').replace(/\s+/g, ' ').trim();
+    const note = [idText, noteRaw].filter(Boolean).join(' ');
     const room = Math.max(8, QUOTE_TOTAL_MAX - tagPart.length);
     const shortNote = note.length > room ? note.slice(0, room) + '…' : note;
     const quoteText = (tagPart + shortNote).trim() || '(这条没填内容)';
@@ -4734,6 +4982,26 @@
       problemItemSubmitHint.style.color = '#e5534b';
       return;
     }
+    const idKind = currentIdKind();
+    const idValue = problemItemIdInput.value.trim();
+    const idLabel = idKind === 'tracking' ? '快递单号' : '订单ID';
+    if (!idValue) {
+      problemItemSubmitHint.textContent = `请填写${idLabel}`;
+      problemItemSubmitHint.style.color = '#e5534b';
+      problemItemIdInput.focus();
+      return;
+    }
+    if (!/^\d+$/.test(idValue)) {
+      problemItemSubmitHint.textContent = `${idLabel}只能填数字`;
+      problemItemSubmitHint.style.color = '#e5534b';
+      problemItemIdInput.focus();
+      return;
+    }
+    if (problemItemPendingImages.some((img) => img.uploading)) {
+      problemItemSubmitHint.textContent = '图片还在上传中，请稍等一下';
+      problemItemSubmitHint.style.color = '#e5534b';
+      return;
+    }
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       problemItemSubmitHint.textContent = '连接已断开，请稍后重试';
       problemItemSubmitHint.style.color = '#e5534b';
@@ -4744,11 +5012,13 @@
       category: currentProblemItemCategory,
       issueTypes: Array.from(selectedIssueTypes),
       inspectorNames: [username],
+      orderId: idValue,
+      idKind,
       orderNote: problemItemNoteInput.value.trim(),
+      images: problemItemPendingImages.filter((img) => img.url).map((img) => img.url),
     }));
     // 提交完清空表单，方便连续录入下一条，不用每次都重新打开面板
-    selectedIssueTypes = new Set();
-    problemItemNoteInput.value = '';
+    resetProblemItemForm();
     updateProblemItemPanelForCategory();
     problemItemSubmitHint.textContent = '✓ 已提交';
     problemItemSubmitHint.style.color = '#2e9e5b';

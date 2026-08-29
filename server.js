@@ -1453,17 +1453,30 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // 在班表里点某人名字旁边的铃铛，把他加进/移出"上班提醒接收人"
-    if (data.type === 'shift_alert_toggle') {
+    // 出勤社员名单：增 / 删 / 切换提醒开关（都要编辑密码）
+    if (data.type === 'staff_member_add' || data.type === 'staff_member_delete' || data.type === 'staff_member_toggle') {
       const client = clients.get(ws);
       if (!client) return;
       if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改提醒接收人' }));
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改社员名单' }));
         return;
       }
       const name = String(data.name || '').trim().slice(0, 20);
-      if (!name) return;
-      await toggleShiftAlertRecipient(name);
+      if (!name) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '名字不能为空' }));
+        return;
+      }
+      if (data.type === 'staff_member_add') {
+        const added = await addStaffMember(name);
+        if (!added) {
+          ws.send(JSON.stringify({ type: 'shift_error', message: `"${name}"已经在名单里了` }));
+          return;
+        }
+      } else if (data.type === 'staff_member_delete') {
+        await deleteStaffMember(name);
+      } else {
+        await toggleStaffMemberAlert(name);
+      }
       broadcast(shiftPayload());
       return;
     }
@@ -1668,11 +1681,12 @@ function formatShiftStartText(startMin) {
 
 function fireShiftAlert(entry) {
   const online = getOnlineUsers();
-  // 指定了接收人就只 @ 这几个人（在线的才 @ 得到），没指定就当成@所有人
-  const targeted = shiftAlertRecipients.filter((name) => online.includes(name));
-  const useAll = shiftAlertRecipients.length === 0;
-  const mentions = useAll ? online : targeted;
-  const mentionText = useAll ? '@所有人 ' : targeted.map((n) => `@${n}`).join(' ') + (targeted.length ? ' ' : '');
+  // 只 @ 名单里点亮了铃铛、而且当前在线的人（按聊天登录名匹配）。
+  // 一个都没点亮/都不在线时，消息照样发到聊天室，只是不 @ 任何人，不会打扰无关的人。
+  const mentions = staffMembers
+    .filter((m) => m.alertOn && online.includes(m.name))
+    .map((m) => m.name);
+  const mentionText = mentions.length ? mentions.map((n) => `@${n}`).join(' ') + ' ' : '';
 
   const msg = {
     type: 'message',
@@ -1682,7 +1696,7 @@ function fireShiftAlert(entry) {
     images: [],
     files: [],
     mentions,
-    mentionsAll: useAll,
+    mentionsAll: false,
     quote: null,
     reactions: {},
     pending: null,
@@ -1691,7 +1705,7 @@ function fireShiftAlert(entry) {
   pushHistory(msg);
   saveChatMessageToDB(msg);
   broadcast(msg);
-  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班`);
+  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班，已@ ${mentions.join('、') || '（没人点亮铃铛或都不在线）'}`);
 }
 
 function checkShiftAlerts() {
@@ -1883,53 +1897,77 @@ async function loadShiftsFromDB() {
   }
 }
 
-// 上班提醒的接收人：在人员管理表格里点名字旁边的铃铛指定，按姓名记。
-// 留空表示"没指定"，这时提醒发给所有在线的人（先能用起来，之后再收窄到具体几个人）。
-let shiftAlertRecipients = [];
+// 出勤社员名单：人员管理面板最上面那个模块，名字是手输的（所以管理者这种不在班表里的人也能加进来）。
+// 每个名字带一个"铃铛"开关，点亮 = 这个人要收上班提醒；开关是持久的，一直有效到手动关掉。
+// 提醒发出去的时候按"聊天室登录名"匹配：谁的登录名和点亮的名字一样，就 @ 谁。
+let staffMembers = []; // { name, alertOn }
 
-async function ensureShiftAlertTable() {
+async function ensureStaffMembersTable() {
   if (!dbPool) return;
   await dbPool.query(`
-    CREATE TABLE IF NOT EXISTS shift_alert_recipients (
+    CREATE TABLE IF NOT EXISTS staff_members (
       id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
+      alert_on BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 }
 
-async function loadShiftAlertRecipientsFromDB() {
+async function loadStaffMembersFromDB() {
   if (!dbPool) {
-    shiftAlertRecipients = [];
+    staffMembers = [];
     return;
   }
   try {
-    await ensureShiftAlertTable();
-    const { rows } = await dbPool.query('SELECT name FROM shift_alert_recipients ORDER BY id ASC;');
-    shiftAlertRecipients = rows.map((r) => r.name);
+    await ensureStaffMembersTable();
+    const { rows } = await dbPool.query('SELECT name, alert_on FROM staff_members ORDER BY id ASC;');
+    staffMembers = rows.map((r) => ({ name: r.name, alertOn: !!r.alert_on }));
   } catch (err) {
-    console.error('[加载上班提醒接收人失败]', err.message);
-    shiftAlertRecipients = [];
+    console.error('[加载出勤社员名单失败]', err.message);
+    staffMembers = [];
   }
 }
 
-async function toggleShiftAlertRecipient(name) {
-  const idx = shiftAlertRecipients.indexOf(name);
-  const adding = idx === -1;
-  if (adding) shiftAlertRecipients.push(name);
-  else shiftAlertRecipients.splice(idx, 1);
+async function addStaffMember(name) {
+  if (staffMembers.some((m) => m.name === name)) return false;
+  staffMembers.push({ name, alertOn: false });
   if (dbPool) {
     try {
-      if (adding) {
-        await dbPool.query('INSERT INTO shift_alert_recipients (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
-      } else {
-        await dbPool.query('DELETE FROM shift_alert_recipients WHERE name=$1;', [name]);
-      }
+      await dbPool.query('INSERT INTO staff_members (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
     } catch (err) {
-      console.error('[保存上班提醒接收人失败]', err.message);
+      console.error('[新增出勤社员失败]', err.message);
     }
   }
-  return adding;
+  return true;
+}
+
+async function deleteStaffMember(name) {
+  const idx = staffMembers.findIndex((m) => m.name === name);
+  if (idx === -1) return false;
+  staffMembers.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM staff_members WHERE name=$1;', [name]);
+    } catch (err) {
+      console.error('[删除出勤社员失败]', err.message);
+    }
+  }
+  return true;
+}
+
+async function toggleStaffMemberAlert(name) {
+  const member = staffMembers.find((m) => m.name === name);
+  if (!member) return false;
+  member.alertOn = !member.alertOn;
+  if (dbPool) {
+    try {
+      await dbPool.query('UPDATE staff_members SET alert_on=$1 WHERE name=$2;', [member.alertOn, name]);
+    } catch (err) {
+      console.error('[切换出勤社员提醒开关失败]', err.message);
+    }
+  }
+  return true;
 }
 
 // 从今天（日本时间）开始的连续三天
@@ -1954,7 +1992,7 @@ function getShiftsForWindow() {
 
 function shiftPayload() {
   const { dates, shifts } = getShiftsForWindow();
-  return { type: 'shift_update', dates, shifts, alertRecipients: shiftAlertRecipients };
+  return { type: 'shift_update', dates, shifts, members: staffMembers };
 }
 
 async function addShiftEntry(workDate, personName, startMin, endMin) {
@@ -2158,7 +2196,7 @@ async function startServer() {
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();
   await loadShiftsFromDB();
-  await loadShiftAlertRecipientsFromDB();
+  await loadStaffMembersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

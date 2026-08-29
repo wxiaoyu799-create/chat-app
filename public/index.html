@@ -2223,17 +2223,33 @@
   }
   #staff-unlock-row.active { display: flex; }
   #staff-password-input { width: 220px; font-size: 13px; }
-  #staff-alert-info {
-    font-size: 12px;
-    color: var(--muted);
+  #staff-members-box {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 12px;
-    margin-bottom: 10px;
-    line-height: 1.6;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
   }
-  #staff-alert-info b { color: var(--text); }
+  .staff-members-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .staff-members-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .staff-members-hint { font-size: 11px; color: var(--muted); }
+  #staff-members-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 10px; }
+  #staff-members-list .staff-members-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+  .staff-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px 4px 12px;
+    font-size: 13px;
+    color: var(--text);
+  }
+  .staff-member-chip.alert-on { border-color: #d98a1f; }
+  .staff-members-add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #staff-member-input { width: 200px; font-size: 13px; }
+
   .staff-bell {
     background: transparent;
     border: none;
@@ -2793,7 +2809,17 @@
       <button id="staff-unlock-ok-btn" class="timeclock-mini-btn" type="button">确定</button>
       <button id="staff-unlock-cancel-btn" class="timeclock-mini-btn" type="button">取消</button>
     </div>
-    <div id="staff-alert-info"></div>
+    <div id="staff-members-box">
+      <div class="staff-members-head">
+        <span class="staff-members-title">今天出勤社员</span>
+        <span class="staff-members-hint">点亮铃铛的人会收到上班提醒（按聊天登录名匹配，长期有效）</span>
+      </div>
+      <div id="staff-members-list"></div>
+      <div class="staff-members-add-row">
+        <input type="text" id="staff-member-input" maxlength="20" placeholder="输入名字后回车添加…" />
+        <button id="staff-member-add-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-plus"></i> 添加</button>
+      </div>
+    </div>
     <div id="staff-msg"></div>
     <div id="staff-help-panel">
       <div class="staff-help-title">支持两种表格格式（.xlsx / .xls / .csv 都行）</div>
@@ -3334,9 +3360,9 @@
       } else if (data.type === 'shift_update') {
         staffDates = Array.isArray(data.dates) ? data.dates : [];
         staffShifts = Array.isArray(data.shifts) ? data.shifts : [];
-        staffAlertRecipients = Array.isArray(data.alertRecipients) ? data.alertRecipients : [];
+        staffMembers = Array.isArray(data.members) ? data.members : [];
         if (staffOverlay.classList.contains('active')) {
-          renderStaffAlertInfo();
+          renderStaffMembers();
           renderStaffDays();
         }
       } else if (data.type === 'shift_password_ok') {
@@ -6261,11 +6287,13 @@
   const staffPasswordInput = document.getElementById('staff-password-input');
   const staffUnlockOkBtn = document.getElementById('staff-unlock-ok-btn');
   const staffUnlockCancelBtn = document.getElementById('staff-unlock-cancel-btn');
-  const staffAlertInfo = document.getElementById('staff-alert-info');
+  const staffMembersList = document.getElementById('staff-members-list');
+  const staffMemberInput = document.getElementById('staff-member-input');
+  const staffMemberAddBtn = document.getElementById('staff-member-add-btn');
 
   let staffShifts = [];
   let staffDates = [];
-  let staffAlertRecipients = [];
+  let staffMembers = []; // { name, alertOn }
   let staffPassword = '';         // 解锁后记在内存里，刷新页面要重新输
   let staffPendingPassword = '';
   let staffEditing = null; // { id?, workDate, personName, startMin, endMin }
@@ -6280,18 +6308,70 @@
     return false;
   }
 
-  function renderStaffAlertInfo() {
-    const names = staffAlertRecipients;
-    staffAlertInfo.innerHTML = '';
-    const line1 = document.createElement('div');
-    line1.innerHTML = '当天上班时间在 <b>9:30~15:00</b> 之间的人，系统会在他上班前 <b>10 分钟</b> 自动在聊天室发提醒：「XXX将X点上班，请注意工作内容安排。」';
-    staffAlertInfo.appendChild(line1);
-    const line2 = document.createElement('div');
-    line2.innerHTML = names.length
-      ? `提醒接收人：<b>${names.map((n) => escapeHtml(n)).join('、')}</b>（点名字旁边的铃铛可增删）`
-      : '提醒接收人：<b>未指定</b>，当前会提醒所有在线的人。点表格里名字旁边的铃铛可以指定具体的人。';
-    staffAlertInfo.appendChild(line2);
+  // 出勤社员名单：名字是手输的，所以不在班表里的管理者也能加进来。
+  // 铃铛点亮 = 这个人收上班提醒，按聊天登录名匹配，一直有效到手动关掉。
+  function renderStaffMembers() {
+    staffMembersList.innerHTML = '';
+    if (staffMembers.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'staff-members-empty';
+      empty.textContent = '还没有添加社员，在下面输入名字添加';
+      staffMembersList.appendChild(empty);
+      return;
+    }
+    staffMembers.forEach((member) => {
+      const chip = document.createElement('span');
+      chip.className = 'staff-member-chip' + (member.alertOn ? ' alert-on' : '');
+
+      const nameEl = document.createElement('span');
+      nameEl.textContent = member.name;
+      chip.appendChild(nameEl);
+
+      const bell = document.createElement('button');
+      bell.type = 'button';
+      bell.className = 'staff-bell' + (member.alertOn ? ' on' : '');
+      bell.innerHTML = member.alertOn ? '<i class="ti ti-bell-filled"></i>' : '<i class="ti ti-bell"></i>';
+      bell.title = member.alertOn
+        ? `${member.name} 会收到上班提醒，点一下关掉`
+        : `点亮后，${member.name} 会收到上班提醒`;
+      bell.addEventListener('click', () => {
+        if (!requireStaffUnlock()) return;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'staff_member_toggle', name: member.name, password: staffPassword }));
+        }
+      });
+      chip.appendChild(bell);
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'staff-bell';
+      del.innerHTML = '✕';
+      del.title = `把 ${member.name} 从名单里删掉`;
+      del.addEventListener('click', () => {
+        if (!requireStaffUnlock()) return;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'staff_member_delete', name: member.name, password: staffPassword }));
+        }
+      });
+      chip.appendChild(del);
+
+      staffMembersList.appendChild(chip);
+    });
   }
+
+  function addStaffMemberFromInput() {
+    const name = staffMemberInput.value.trim();
+    if (!name) { showStaffMsg('请输入名字', 'error'); return; }
+    if (!requireStaffUnlock()) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'staff_member_add', name, password: staffPassword }));
+      staffMemberInput.value = '';
+    }
+  }
+  staffMemberAddBtn.addEventListener('click', addStaffMemberFromInput);
+  staffMemberInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addStaffMemberFromInput(); }
+  });
 
   function staffColorFor(name) {
     let hash = 0;
@@ -6401,30 +6481,11 @@
         const row = document.createElement('div');
         row.className = 'staff-grid-row';
 
-        const nameWrap = document.createElement('div');
-        nameWrap.className = 'staff-name-wrap';
         const nameEl = document.createElement('div');
         nameEl.className = 'staff-name';
         nameEl.textContent = shift.personName;
         nameEl.title = shift.personName;
-        nameWrap.appendChild(nameEl);
-        // 铃铛：指定这个人上班时要提醒谁——点亮表示"这个人是提醒接收人"
-        const bell = document.createElement('button');
-        bell.type = 'button';
-        const isRecipient = staffAlertRecipients.includes(shift.personName);
-        bell.className = 'staff-bell' + (isRecipient ? ' on' : '');
-        bell.innerHTML = isRecipient ? '<i class="ti ti-bell-filled"></i>' : '<i class="ti ti-bell"></i>';
-        bell.title = isRecipient
-          ? `${shift.personName} 会收到上班提醒，点一下取消`
-          : `点一下让 ${shift.personName} 接收上班提醒`;
-        bell.addEventListener('click', () => {
-          if (!requireStaffUnlock()) return;
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'shift_alert_toggle', name: shift.personName, password: staffPassword }));
-          }
-        });
-        nameWrap.appendChild(bell);
-        row.appendChild(nameWrap);
+        row.appendChild(nameEl);
 
         const track = document.createElement('div');
         track.className = 'staff-track';
@@ -6553,7 +6614,7 @@
     staffOverlay.classList.add('active');
     showStaffMsg('');
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'shift_query' }));
-    renderStaffAlertInfo();
+    renderStaffMembers();
     renderStaffDays();
   }
   function closeStaffOverlay() {

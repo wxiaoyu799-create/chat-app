@@ -3373,7 +3373,13 @@
         staffUnlockBtn.innerHTML = '<i class="ti ti-lock-open"></i> 已解锁';
         showStaffMsg('✓ 已解锁，现在可以改班表、导入、点铃铛指定提醒接收人', 'ok');
       } else if (data.type === 'shift_import_ok') {
-        showStaffMsg(`✓ 已导入 ${data.count} 条排班（${(data.dates || []).join('、')}）`, 'ok');
+        // 整月导入时日期有几十个，全列出来太长，只报条数和覆盖的日期范围
+        const days = (data.dates || []).slice().sort();
+        const range = days.length === 0 ? ''
+          : days.length <= 3 ? `（${days.join('、')}）`
+          : `（${days.length} 天：${days[0]} ~ ${days[days.length - 1]}）`;
+        const shown = staffShifts.length;
+        showStaffMsg(`✓ 已导入 ${data.count} 条排班${range}，面板显示最近三天的 ${shown} 条`, 'ok');
       } else if (data.type === 'shift_error') {
         showStaffMsg(data.message || '操作失败', 'error');
       } else if (data.type === 'timeclock_error') {
@@ -6717,23 +6723,50 @@
     return a.localeCompare(b, 'zh');
   }
 
-  // 表头只写了几号（1、2、3…15）的情况：补上年月。取"离今天最近"的那个月，
-  // 这样月初导入下个月的表、月末导入上个月的表都不会错位。
-  function dayNumberToDate(dayNum) {
+  // 表头只写了几号（1、2、3…18）的情况：光看单个数字没法判断是哪个月，
+  // 而且"就近取月"会出错——比如今天8/29导9月的表，14号会被算成8/14（比9/14离今天近）。
+  // 正确做法是把整行日号当成一个连续序列：第一个数字用"离今天最近的月份"定锚点，
+  // 后面只要数字没有变大（比如 …30, 31, 1, 2…）就翻到下个月，整张表的月份就都对了。
+  function anchorMonthForDay(dayNum) {
     const today = new Date();
     const candidates = [-1, 0, 1].map((offset) => {
       const d = new Date(today.getFullYear(), today.getMonth() + offset, dayNum);
       return d.getDate() === dayNum ? d : null;
     }).filter(Boolean);
-    if (candidates.length === 0) return '';
+    if (candidates.length === 0) return null;
     let best = candidates[0];
-    candidates.forEach((c) => {
-      if (Math.abs(c - today) < Math.abs(best - today)) best = c;
-    });
-    const y = best.getFullYear();
-    const m = String(best.getMonth() + 1).padStart(2, '0');
-    const d = String(best.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    candidates.forEach((c) => { if (Math.abs(c - today) < Math.abs(best - today)) best = c; });
+    return best;
+  }
+
+  function fmtDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // entries: [{ idx, fullDate } 或 { idx, dayNum }]，按表格里从左到右的顺序
+  function resolveHeaderDates(entries) {
+    const dayNums = entries.filter((e) => e.dayNum !== undefined);
+    let cursor = null;
+    if (dayNums.length > 0) {
+      const anchor = anchorMonthForDay(dayNums[0].dayNum);
+      if (anchor) cursor = { year: anchor.getFullYear(), month: anchor.getMonth() };
+    }
+    let prevDay = null;
+    return entries.map((e) => {
+      if (e.fullDate) {
+        prevDay = null;
+        return { idx: e.idx, workDate: e.fullDate };
+      }
+      if (!cursor) return null;
+      if (prevDay !== null && e.dayNum <= prevDay) {
+        cursor.month += 1;
+        if (cursor.month > 11) { cursor.month = 0; cursor.year += 1; }
+      }
+      prevDay = e.dayNum;
+      const d = new Date(cursor.year, cursor.month, e.dayNum);
+      if (d.getDate() !== e.dayNum) return null; // 比如2月30号这种不存在的日子
+      return { idx: e.idx, workDate: fmtDate(d) };
+    }).filter(Boolean);
   }
 
   // 表头里的日期可能是 "2026-08-29" "8/29" "8月29日" "29"，也可能是 Excel 的日期序列号
@@ -6817,25 +6850,30 @@
       const looksLikeHeaderStart = !firstCell || /姓名|名字|日期|星期|人员|员工/.test(firstCell);
       if (!looksLikeHeaderStart) continue;
 
-      const cols = [];
+      const entries = [];
       const dayNums = [];
       cleanRows[i].forEach((cell, idx) => {
         if (idx === 0) return;
         const raw = String(cell ?? '').trim();
         if (!raw) return;
-        let workDate = parseDateCell(cell, year);
-        if (!workDate) {
-          const dayNum = Number(raw.replace(/[日号]/g, ''));
-          if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 31) {
-            workDate = dayNumberToDate(dayNum);
-            dayNums.push(dayNum);
-          }
+        const fullDate = parseDateCell(cell, year);
+        if (fullDate) {
+          entries.push({ idx, fullDate });
+          return;
         }
-        if (workDate) cols.push({ idx, workDate });
+        const dayNum = Number(raw.replace(/[日号]/g, ''));
+        if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 31) {
+          entries.push({ idx, dayNum });
+          dayNums.push(dayNum);
+        }
       });
+      if (entries.length === 0) continue;
+      const cols = resolveHeaderDates(entries);
       if (cols.length === 0) continue;
 
-      const increasing = dayNums.length >= 2 && dayNums.every((n, k) => k === 0 || n > dayNums[k - 1]);
+      // 日号基本是递增的（跨月那次回落不算），递增的行优先——用来跟"统计人数"那种行区分开
+      const drops = dayNums.filter((n, k) => k > 0 && n <= dayNums[k - 1]).length;
+      const increasing = dayNums.length >= 2 && drops <= 1;
       const score = cols.length + (increasing ? 100 : 0);
       if (score > headerScore) {
         headerScore = score;
@@ -6899,15 +6937,25 @@
         showStaffMsg('没解析出有效的排班行，点右上角"表格格式"看看要求的格式', 'error');
         return;
       }
-      // 只导入今天起三天窗口内的日期，其他日期直接忽略（这个面板本来也只看三天）
-      const inWindow = parsed.filter((r) => staffDates.includes(r.workDate));
-      const skipped = parsed.length - inWindow.length;
-      if (inWindow.length === 0) {
-        showStaffMsg(`解析到 ${parsed.length} 行，但没有一行是今天起三天内的日期（${staffDates.join('、')}）`, 'error');
+      // 整个月的班表都能一次导进来：面板只显示今天起三天，但数据全部存下来，
+      // 日子一天天过去，后面的排班会自动滚进视野，上班提醒也照常按当天的班表发。
+      // 只把"今天之前"的过期日期丢掉，导进去也没意义。
+      const today = staffDates[0] || jstTodayStr();
+      const future = parsed.filter((r) => r.workDate >= today);
+      const expired = parsed.length - future.length;
+      if (future.length === 0) {
+        showStaffMsg(`解析到 ${parsed.length} 行，但全部是 ${today} 之前的日期，没什么可导的`, 'error');
         return;
       }
-      ws.send(JSON.stringify({ type: 'shift_import', rows: inWindow, password: staffPassword }));
-      if (skipped > 0) showStaffMsg(`已导入 ${inWindow.length} 条，另有 ${skipped} 条不在三天窗口内被跳过`);
+      const importDates = Array.from(new Set(future.map((r) => r.workDate))).sort();
+      const inWindow = future.filter((r) => staffDates.includes(r.workDate)).length;
+      ws.send(JSON.stringify({ type: 'shift_import', rows: future, password: staffPassword }));
+      const extras = [];
+      if (expired > 0) extras.push(`${expired} 条过期日期已跳过`);
+      if (importDates.length > 3) {
+        extras.push(`共 ${importDates.length} 天（${importDates[0]} ~ ${importDates[importDates.length - 1]}），面板只显示最近三天的 ${inWindow} 条，其余到日子会自动出现`);
+      }
+      if (extras.length) showStaffMsg(`已导入 ${future.length} 条：${extras.join('；')}`);
     } catch (err) {
       showStaffMsg('导入失败：' + err.message + '（xlsx 解析需要联网，也可以另存为 CSV 再导入）', 'error');
     }

@@ -1366,6 +1366,10 @@ wss.on('connection', (ws) => {
     if (data.type === 'shift_save') {
       const client = clients.get(ws);
       if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改班表' }));
+        return;
+      }
       const workDate = String(data.workDate || '');
       const personName = String(data.personName || '').trim().slice(0, 20);
       const startMin = Number(data.startMin);
@@ -1395,6 +1399,10 @@ wss.on('connection', (ws) => {
     if (data.type === 'shift_delete') {
       const client = clients.get(ws);
       if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法删除排班' }));
+        return;
+      }
       const ok = await deleteShiftEntry(data.id);
       if (!ok) return;
       broadcast(shiftPayload());
@@ -1406,6 +1414,10 @@ wss.on('connection', (ws) => {
     if (data.type === 'shift_import') {
       const client = clients.get(ws);
       if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法导入班表' }));
+        return;
+      }
       const rows = Array.isArray(data.rows) ? data.rows : [];
       const cleaned = rows
         .map((r) => ({
@@ -1426,6 +1438,33 @@ wss.on('connection', (ws) => {
       const dates = await importShiftEntries(cleaned);
       broadcast(shiftPayload());
       ws.send(JSON.stringify({ type: 'shift_import_ok', count: cleaned.length, dates }));
+      return;
+    }
+
+    // 人员管理的编辑权限：跟公告栏用同一个密码，前端验一次记在内存里，之后每个操作都带着发过来
+    if (data.type === 'shift_verify_password') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误' }));
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'shift_password_ok' }));
+      return;
+    }
+
+    // 在班表里点某人名字旁边的铃铛，把他加进/移出"上班提醒接收人"
+    if (data.type === 'shift_alert_toggle') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改提醒接收人' }));
+        return;
+      }
+      const name = String(data.name || '').trim().slice(0, 20);
+      if (!name) return;
+      await toggleShiftAlertRecipient(name);
+      broadcast(shiftPayload());
       return;
     }
 
@@ -1611,6 +1650,69 @@ function checkReminders() {
   });
 }
 
+// ==================== 晚班上班提醒（结合班表自动发）====================
+// 规则：当天班表里，上班时间落在 9:30~15:00 之间的（也就是不是一早就来的那些人），
+// 在他上班前10分钟自动发一条提醒，@ 上指定的接收人：
+//   "张三将10点上班，请注意工作内容安排。"
+// 接收人在人员管理表格里点名字旁边的铃铛指定；一个都没指定时，发给所有在线的人。
+const SHIFT_ALERT_MIN_START = 9 * 60 + 30;  // 9:30
+const SHIFT_ALERT_MAX_START = 15 * 60;      // 15:00
+const SHIFT_ALERT_LEAD_MINUTES = 10;
+const shiftAlertFired = {}; // `日期-排班id-上班分钟` -> true，防止重复发；把上班时间也放进key里，改了时间会重新提醒
+
+function formatShiftStartText(startMin) {
+  const h = Math.floor(startMin / 60);
+  const m = startMin % 60;
+  return m === 0 ? `${h}点` : `${h}点${String(m).padStart(2, '0')}分`;
+}
+
+function fireShiftAlert(entry) {
+  const online = getOnlineUsers();
+  // 指定了接收人就只 @ 这几个人（在线的才 @ 得到），没指定就当成@所有人
+  const targeted = shiftAlertRecipients.filter((name) => online.includes(name));
+  const useAll = shiftAlertRecipients.length === 0;
+  const mentions = useAll ? online : targeted;
+  const mentionText = useAll ? '@所有人 ' : targeted.map((n) => `@${n}`).join(' ') + (targeted.length ? ' ' : '');
+
+  const msg = {
+    type: 'message',
+    id: nextMessageId++,
+    username: '📋 班表提醒',
+    text: `${mentionText}${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
+    images: [],
+    files: [],
+    mentions,
+    mentionsAll: useAll,
+    quote: null,
+    reactions: {},
+    pending: null,
+    time: Date.now(),
+  };
+  pushHistory(msg);
+  saveChatMessageToDB(msg);
+  broadcast(msg);
+  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班`);
+}
+
+function checkShiftAlerts() {
+  const { dateStr, hour, minute } = getJSTParts(new Date());
+  const nowMin = hour * 60 + minute;
+  shiftEntries.forEach((entry) => {
+    if (entry.workDate !== dateStr) return;
+    if (entry.startMin < SHIFT_ALERT_MIN_START || entry.startMin > SHIFT_ALERT_MAX_START) return;
+    const alertMin = entry.startMin - SHIFT_ALERT_LEAD_MINUTES;
+    // 用"到点了但还没到上班时间"这个区间判断，而不是死等某一分钟——
+    // 服务器重启、卡顿几分钟都不会把提醒整个漏掉
+    if (nowMin < alertMin || nowMin >= entry.startMin) return;
+    const key = `${dateStr}-${entry.id}-${entry.startMin}`;
+    if (shiftAlertFired[key]) return;
+    shiftAlertFired[key] = true;
+    fireShiftAlert(entry);
+  });
+}
+
+setInterval(checkShiftAlerts, 30 * 1000);
+
 // 每30秒检查一次，足够精确命中每分钟的提醒时间点，又不会太频繁
 setInterval(checkReminders, 30 * 1000);
 
@@ -1781,6 +1883,55 @@ async function loadShiftsFromDB() {
   }
 }
 
+// 上班提醒的接收人：在人员管理表格里点名字旁边的铃铛指定，按姓名记。
+// 留空表示"没指定"，这时提醒发给所有在线的人（先能用起来，之后再收窄到具体几个人）。
+let shiftAlertRecipients = [];
+
+async function ensureShiftAlertTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS shift_alert_recipients (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function loadShiftAlertRecipientsFromDB() {
+  if (!dbPool) {
+    shiftAlertRecipients = [];
+    return;
+  }
+  try {
+    await ensureShiftAlertTable();
+    const { rows } = await dbPool.query('SELECT name FROM shift_alert_recipients ORDER BY id ASC;');
+    shiftAlertRecipients = rows.map((r) => r.name);
+  } catch (err) {
+    console.error('[加载上班提醒接收人失败]', err.message);
+    shiftAlertRecipients = [];
+  }
+}
+
+async function toggleShiftAlertRecipient(name) {
+  const idx = shiftAlertRecipients.indexOf(name);
+  const adding = idx === -1;
+  if (adding) shiftAlertRecipients.push(name);
+  else shiftAlertRecipients.splice(idx, 1);
+  if (dbPool) {
+    try {
+      if (adding) {
+        await dbPool.query('INSERT INTO shift_alert_recipients (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
+      } else {
+        await dbPool.query('DELETE FROM shift_alert_recipients WHERE name=$1;', [name]);
+      }
+    } catch (err) {
+      console.error('[保存上班提醒接收人失败]', err.message);
+    }
+  }
+  return adding;
+}
+
 // 从今天（日本时间）开始的连续三天
 function getShiftWindowDates() {
   const { dateStr } = getJSTParts(new Date());
@@ -1803,7 +1954,7 @@ function getShiftsForWindow() {
 
 function shiftPayload() {
   const { dates, shifts } = getShiftsForWindow();
-  return { type: 'shift_update', dates, shifts };
+  return { type: 'shift_update', dates, shifts, alertRecipients: shiftAlertRecipients };
 }
 
 async function addShiftEntry(workDate, personName, startMin, endMin) {
@@ -2007,6 +2158,7 @@ async function startServer() {
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();
   await loadShiftsFromDB();
+  await loadShiftAlertRecipientsFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

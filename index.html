@@ -2798,6 +2798,7 @@
     <div class="staff-header-actions">
       <button id="staff-unlock-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-lock"></i> 解锁编辑</button>
       <button id="staff-import-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-file-spreadsheet"></i> 导入班表</button>
+      <button id="staff-export-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-download"></i> 导出Excel</button>
       <input type="file" id="staff-import-input" accept=".xlsx,.xls,.csv" style="display:none" />
       <button id="staff-help-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-help"></i> 表格格式</button>
       <button id="staff-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
@@ -6416,7 +6417,7 @@
     staffDates.forEach((dateStr, dayIndex) => {
       const dayShifts = staffShifts
         .filter((s) => s.workDate === dateStr)
-        .sort((a, b) => (a.startMin - b.startMin) || a.personName.localeCompare(b.personName, 'zh'));
+        .sort((a, b) => compareStaffName(a.personName, b.personName) || (a.startMin - b.startMin));
 
       const card = document.createElement('div');
       card.className = 'staff-day-card';
@@ -6687,12 +6688,52 @@
     }
     const str = String(value).trim().replace(/[点时]/g, ':').replace(/：/g, ':').replace(/分/g, '');
     if (!str) return null;
+    // 小数写法：14.5 = 14:30、9.5 = 9:30（很多排班表就是这么填的）
+    const dec = /^(\d{1,2})\.(\d+)$/.exec(str);
+    if (dec) {
+      const h = Number(dec[1]);
+      if (h > 24) return null;
+      return h * 60 + Math.round(Number('0.' + dec[2]) * 60);
+    }
     const m = /^(\d{1,2})(?::(\d{1,2}))?:?$/.exec(str);
     if (!m) return null;
     const h = Number(m[1]);
     const min = m[2] ? Number(m[2]) : 0;
     if (h > 24 || min > 59) return null;
     return h * 60 + min;
+  }
+
+  // 班表里的人名固定按这个顺序排（跟你们纸质/Excel班表上的行顺序一致），
+  // 显示和导出都用它。名单之外的人排在后面。以后有人员变动，改这一行就行。
+  const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家辉'];
+  function staffNameRank(name) {
+    const idx = STAFF_NAME_ORDER.indexOf(name);
+    return idx === -1 ? STAFF_NAME_ORDER.length : idx;
+  }
+  function compareStaffName(a, b) {
+    const ra = staffNameRank(a);
+    const rb = staffNameRank(b);
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b, 'zh');
+  }
+
+  // 表头只写了几号（1、2、3…15）的情况：补上年月。取"离今天最近"的那个月，
+  // 这样月初导入下个月的表、月末导入上个月的表都不会错位。
+  function dayNumberToDate(dayNum) {
+    const today = new Date();
+    const candidates = [-1, 0, 1].map((offset) => {
+      const d = new Date(today.getFullYear(), today.getMonth() + offset, dayNum);
+      return d.getDate() === dayNum ? d : null;
+    }).filter(Boolean);
+    if (candidates.length === 0) return '';
+    let best = candidates[0];
+    candidates.forEach((c) => {
+      if (Math.abs(c - today) < Math.abs(best - today)) best = c;
+    });
+    const y = best.getFullYear();
+    const m = String(best.getMonth() + 1).padStart(2, '0');
+    const d = String(best.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
 
   // 表头里的日期可能是 "2026-08-29" "8/29" "8月29日" "29"，也可能是 Excel 的日期序列号
@@ -6731,45 +6772,109 @@
     });
   }
 
-  // 两种表格布局都试：竖式（每行一条排班）和横式（第一列姓名、每列一天）
+  // 表格布局自动识别，三种都支持：
+  //   A 竖式：表头有「姓名/日期/上班/下班」，每行一条排班
+  //   B 横式单列：第一列姓名，每天一列，格子里写 "9:00-18:00"
+  //   C 横式双列：每天占两列（上班、下班），时间常写成小数（14.5 = 14:30），
+  //     表头只写几号（1、2、3…），上面还可能有星期行、统计行——这是最常见的排班表长相
   function parseShiftRows(rows) {
     const cleanRows = rows.filter((r) => Array.isArray(r) && r.some((c) => String(c ?? '').trim()));
     if (cleanRows.length < 2) return [];
-    const header = cleanRows[0];
     const year = new Date().getFullYear();
 
-    const nameIdx = findHeaderIndex(header, ['姓名', '名字', '人员', '员工']);
-    const dateIdx = findHeaderIndex(header, ['日期', 'date']);
-    const startIdx = findHeaderIndex(header, ['上班', '开始', '起始', 'start']);
-    const endIdx = findHeaderIndex(header, ['下班', '结束', 'end']);
-
-    const out = [];
-    if (nameIdx !== -1 && dateIdx !== -1 && startIdx !== -1 && endIdx !== -1) {
-      // 竖式
-      cleanRows.slice(1).forEach((row) => {
-        const personName = String(row[nameIdx] ?? '').trim();
-        const workDate = parseDateCell(row[dateIdx], year);
-        const startMin = parseTimeCell(row[startIdx]);
-        const endMin = parseTimeCell(row[endIdx]);
-        if (personName && workDate && startMin !== null && endMin !== null && endMin > startMin) {
-          out.push({ workDate, personName, startMin, endMin });
-        }
-      });
-      return out;
+    // --- A 竖式 ---
+    for (let i = 0; i < Math.min(cleanRows.length, 8); i++) {
+      const header = cleanRows[i];
+      const nameIdx = findHeaderIndex(header, ['姓名', '名字', '人员', '员工']);
+      const dateIdx = findHeaderIndex(header, ['日期', 'date']);
+      const startIdx = findHeaderIndex(header, ['上班', '开始', '起始', 'start']);
+      const endIdx = findHeaderIndex(header, ['下班', '结束', 'end']);
+      if (nameIdx !== -1 && dateIdx !== -1 && startIdx !== -1 && endIdx !== -1) {
+        const out = [];
+        cleanRows.slice(i + 1).forEach((row) => {
+          const personName = String(row[nameIdx] ?? '').trim();
+          const workDate = parseDateCell(row[dateIdx], year);
+          const startMin = parseTimeCell(row[startIdx]);
+          const endMin = parseTimeCell(row[endIdx]);
+          if (personName && workDate && startMin !== null && endMin !== null && endMin > startMin) {
+            out.push({ workDate, personName, startMin, endMin });
+          }
+        });
+        if (out.length) return out;
+      }
     }
 
-    // 横式：表头第2列往后是日期
-    const dateCols = [];
-    header.forEach((cell, idx) => {
-      if (idx === 0) return;
-      const d = parseDateCell(cell, year);
-      if (d) dateCols.push({ idx, workDate: d });
+    // --- B/C 横式：先找出哪一行是"日期表头行" ---
+    // 只写了几号的表头（1、2、3…）跟数据行里的时间数字（9、18）长得一样，光看"有几个数字"会认错行，
+    // 所以加两道限制：
+    //   1. 表头行第一列必须是空的，或者写着"姓名/日期/星期"这类标题（数据行第一列一定是人名）
+    //   2. 日号通常是递增的（1,2,3…），递增的行优先——这样也能跟"统计人数"那种行区分开
+    let headerRowIdx = -1;
+    let headerCols = [];
+    let headerScore = -1;
+    for (let i = 0; i < Math.min(cleanRows.length, 8); i++) {
+      const firstCell = String(cleanRows[i][0] ?? '').trim();
+      const looksLikeHeaderStart = !firstCell || /姓名|名字|日期|星期|人员|员工/.test(firstCell);
+      if (!looksLikeHeaderStart) continue;
+
+      const cols = [];
+      const dayNums = [];
+      cleanRows[i].forEach((cell, idx) => {
+        if (idx === 0) return;
+        const raw = String(cell ?? '').trim();
+        if (!raw) return;
+        let workDate = parseDateCell(cell, year);
+        if (!workDate) {
+          const dayNum = Number(raw.replace(/[日号]/g, ''));
+          if (Number.isInteger(dayNum) && dayNum >= 1 && dayNum <= 31) {
+            workDate = dayNumberToDate(dayNum);
+            dayNums.push(dayNum);
+          }
+        }
+        if (workDate) cols.push({ idx, workDate });
+      });
+      if (cols.length === 0) continue;
+
+      const increasing = dayNums.length >= 2 && dayNums.every((n, k) => k === 0 || n > dayNums[k - 1]);
+      const score = cols.length + (increasing ? 100 : 0);
+      if (score > headerScore) {
+        headerScore = score;
+        headerCols = cols;
+        headerRowIdx = i;
+      }
+    }
+    if (headerRowIdx === -1 || headerCols.length === 0) return [];
+
+    // 判断是不是"每天两列"：日期格右边那一列表头是空的（合并单元格就是这个样子），
+    // 而且下面的数据行里那一列有内容
+    const headerRow = cleanRows[headerRowIdx];
+    const dayCols = headerCols.map((col, i) => {
+      const nextHeaderEmpty = !String(headerRow[col.idx + 1] ?? '').trim();
+      const nextIsAnotherDay = headerCols[i + 1] && headerCols[i + 1].idx === col.idx + 1;
+      return {
+        ...col,
+        endIdx: (nextHeaderEmpty && !nextIsAnotherDay) ? col.idx + 1 : null,
+      };
     });
-    if (dateCols.length === 0) return [];
-    cleanRows.slice(1).forEach((row) => {
+
+    // 数据行：第一列是人名。跳过星期行、统计数字行这些非人名行
+    const out = [];
+    cleanRows.slice(headerRowIdx + 1).forEach((row) => {
       const personName = String(row[0] ?? '').trim();
       if (!personName) return;
-      dateCols.forEach(({ idx, workDate }) => {
+      if (/^(周|星期)[一二三四五六日天]$/.test(personName)) return;
+      if (/^[\d.]+$/.test(personName)) return;
+      dayCols.forEach(({ idx, endIdx, workDate }) => {
+        if (endIdx !== null) {
+          // C：上班/下班分两列
+          const startMin = parseTimeCell(row[idx]);
+          const endMin = parseTimeCell(row[endIdx]);
+          if (startMin !== null && endMin !== null && endMin > startMin) {
+            out.push({ workDate, personName, startMin, endMin });
+            return;
+          }
+        }
+        // B：一个格子里写整段
         const range = parseRangeCell(row[idx]);
         if (range) out.push({ workDate, personName, startMin: range.startMin, endMin: range.endMin });
       });
@@ -6807,6 +6912,76 @@
       showStaffMsg('导入失败：' + err.message + '（xlsx 解析需要联网，也可以另存为 CSV 再导入）', 'error');
     }
   }
+
+  // 导出成 Excel：横向布局，跟你们现有的排班表长一样——
+  // 第一列姓名，每天占两列（上班/下班），时间用小数（14.5 = 14:30），
+  // 人名顺序按 STAFF_NAME_ORDER 固定排，名单外的人排在后面。
+  const staffExportBtn = document.getElementById('staff-export-btn');
+
+  function minutesToDecimal(min) {
+    return Math.round((min / 60) * 100) / 100;
+  }
+
+  async function exportStaffExcel() {
+    if (staffShifts.length === 0) {
+      showStaffMsg('这三天还没有排班，没什么可导出的', 'error');
+      return;
+    }
+    showStaffMsg('⏳ 正在生成…');
+    try {
+      const XLSX = await loadSheetJs();
+      const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+
+      // 参与排序的人名：固定名单里的 + 班表里出现过但不在名单里的
+      const inShift = Array.from(new Set(staffShifts.map((s) => s.personName)));
+      const names = Array.from(new Set(STAFF_NAME_ORDER.concat(inShift))).sort(compareStaffName);
+
+      // 第一行：日号；第二行：星期；两行都是每天占两列
+      const headRow1 = ['姓名'];
+      const headRow2 = [''];
+      staffDates.forEach((dateStr) => {
+        const [y, mo, d] = dateStr.split('-').map(Number);
+        headRow1.push(d, '');
+        headRow2.push('周' + WEEK[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()], '');
+      });
+      headRow1.push('合计工时');
+      headRow2.push('');
+
+      const aoa = [headRow1, headRow2];
+      names.forEach((name) => {
+        const row = [name];
+        let totalMin = 0;
+        staffDates.forEach((dateStr) => {
+          const shift = staffShifts.find((s) => s.workDate === dateStr && s.personName === name);
+          if (shift) {
+            row.push(minutesToDecimal(shift.startMin), minutesToDecimal(shift.endMin));
+            totalMin += staffNetMinutes(shift.startMin, shift.endMin);
+          } else {
+            row.push('', '');
+          }
+        });
+        row.push(Math.round((totalMin / 60) * 100) / 100);
+        aoa.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      // 日号和星期两行做跨两列的合并，看起来跟原来的表一致
+      ws['!merges'] = staffDates.map((_, i) => ([
+        { s: { r: 0, c: 1 + i * 2 }, e: { r: 0, c: 2 + i * 2 } },
+        { s: { r: 1, c: 1 + i * 2 }, e: { r: 1, c: 2 + i * 2 } },
+      ])).flat();
+      ws['!cols'] = [{ wch: 10 }].concat(staffDates.flatMap(() => [{ wch: 6 }, { wch: 6 }])).concat([{ wch: 10 }]);
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '班表');
+      const fileName = `班表-${staffDates[0]}至${staffDates[staffDates.length - 1]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showStaffMsg(`✓ 已导出 ${fileName}`, 'ok');
+    } catch (err) {
+      showStaffMsg('导出失败：' + err.message + '（生成xlsx需要联网加载解析库）', 'error');
+    }
+  }
+  staffExportBtn.addEventListener('click', exportStaffExcel);
 
   staffImportBtn.addEventListener('click', () => {
     if (!requireStaffUnlock()) return;

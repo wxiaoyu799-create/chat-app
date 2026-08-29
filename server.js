@@ -2159,6 +2159,14 @@ function formatDurationText(ms) {
   return h > 0 ? `${h}小时${m}分钟` : `${m}分钟`;
 }
 
+// 导出时的人名顺序，跟班表上的行顺序一致（前端 index.html 里也有一份同样的常量，
+// 人员有变动两边一起改）。不在名单里的人排在后面。
+const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家辉'];
+function staffNameRank(name) {
+  const idx = STAFF_NAME_ORDER.indexOf(name);
+  return idx === -1 ? STAFF_NAME_ORDER.length : idx;
+}
+
 // 按天导出CSV：/api/timeclock/export?date=2026-08-26
 // 加UTF-8 BOM，Excel直接双击打开不会乱码
 app.get('/api/timeclock/export', (req, res) => {
@@ -2166,7 +2174,11 @@ app.get('/api/timeclock/export', (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).send('日期格式不对，应该是 YYYY-MM-DD');
   }
-  const rows = getTimeRecordsByDate(date);
+  const rows = getTimeRecordsByDate(date)
+    .slice()
+    .sort((a, b) => (staffNameRank(a.username) - staffNameRank(b.username))
+      || a.username.localeCompare(b.username, 'zh')
+      || (a.startAt - b.startAt));
   const esc = (v) => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`;
   const lines = [['日期', '提交人', '签出时间', '签入时间', '时长(小时)', '时长', '状态'].map(esc).join(',')];
   rows.forEach((r) => {

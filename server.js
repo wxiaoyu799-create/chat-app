@@ -881,6 +881,12 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
       ws.send(JSON.stringify(timeclockPayload(getJSTParts(new Date()).dateStr)));
       ws.send(JSON.stringify(shiftPayload()));
+      ws.send(JSON.stringify({
+        type: 'problem_item_owner_update',
+        weekKey: currentWeekKey(),
+        owner: problemItemWeekOwners[currentWeekKey()] || '',
+        managers: staffManagers,
+      }));
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -1276,7 +1282,15 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'timeclock_error', message: `${who}已经签出了，请先签入再重新签出` }));
           return;
         }
-        const record = await startTimeRecord(target);
+        // 签出必须勾选工作内容，不然记录没法回溯这段时间在干什么
+        const selectedWorkItems = Array.isArray(data.workItems)
+          ? data.workItems.filter((v) => typeof v === 'string' && workItems.includes(v)).slice(0, 20)
+          : [];
+        if (selectedWorkItems.length === 0) {
+          ws.send(JSON.stringify({ type: 'timeclock_error', message: '请勾选工作内容' }));
+          return;
+        }
+        const record = await startTimeRecord(target, selectedWorkItems);
         broadcast(timeclockPayload(record.workDate));
         return;
       }
@@ -1441,6 +1455,30 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // 工作内容选项的增删改：密码同公告栏
+    if (data.type === 'work_items_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '密码错误，无法修改工作内容' }));
+        return;
+      }
+      const list = Array.isArray(data.items)
+        ? Array.from(new Set(data.items
+            .map((v) => String(v || '').trim().slice(0, 20))
+            .filter(Boolean)))
+          .slice(0, 40)
+        : [];
+      if (list.length === 0) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '至少要保留一项工作内容' }));
+        return;
+      }
+      await replaceWorkItems(list);
+      broadcast(timeclockPayload(getJSTParts(new Date()).dateStr));
+      ws.send(JSON.stringify({ type: 'work_items_ok' }));
+      return;
+    }
+
     // 人员管理的编辑权限：跟公告栏用同一个密码，前端验一次记在内存里，之后每个操作都带着发过来
     if (data.type === 'shift_verify_password') {
       const client = clients.get(ws);
@@ -1453,12 +1491,12 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // 出勤社员名单：增 / 删 / 切换提醒开关（都要编辑密码）
-    if (data.type === 'staff_member_add' || data.type === 'staff_member_delete' || data.type === 'staff_member_toggle') {
+    // 现场管理人员名单：勾上 = 加入，取消勾选 = 移出（都要编辑密码）
+    if (data.type === 'staff_manager_add' || data.type === 'staff_manager_remove') {
       const client = clients.get(ws);
       if (!client) return;
       if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改社员名单' }));
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改现场管理人员' }));
         return;
       }
       const name = String(data.name || '').trim().slice(0, 20);
@@ -1466,18 +1504,25 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'shift_error', message: '名字不能为空' }));
         return;
       }
-      if (data.type === 'staff_member_add') {
-        const added = await addStaffMember(name);
-        if (!added) {
-          ws.send(JSON.stringify({ type: 'shift_error', message: `"${name}"已经在名单里了` }));
-          return;
-        }
-      } else if (data.type === 'staff_member_delete') {
-        await deleteStaffMember(name);
-      } else {
-        await toggleStaffMemberAlert(name);
-      }
+      if (data.type === 'staff_manager_add') await addStaffManager(name);
+      else await removeStaffManager(name);
       broadcast(shiftPayload());
+      broadcast({ type: 'problem_item_owner_update', weekKey: currentWeekKey(), owner: problemItemWeekOwners[currentWeekKey()] || '', managers: staffManagers });
+      return;
+    }
+
+    // 问题件"本周负责人"：从现场管理人员里选，按周记录
+    if (data.type === 'problem_item_owner_set') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const owner = String(data.owner || '').trim().slice(0, 20);
+      if (owner && !staffManagers.includes(owner)) {
+        ws.send(JSON.stringify({ type: 'problem_item_error', message: '只能从现场管理人员里选负责人' }));
+        return;
+      }
+      const weekKey = currentWeekKey();
+      await setWeekOwner(weekKey, owner, client.username);
+      broadcast({ type: 'problem_item_owner_update', weekKey, owner, managers: staffManagers });
       return;
     }
 
@@ -1680,32 +1725,39 @@ function formatShiftStartText(startMin) {
 }
 
 function fireShiftAlert(entry) {
-  const online = getOnlineUsers();
-  // 只 @ 名单里点亮了铃铛、而且当前在线的人（按聊天登录名匹配）。
-  // 一个都没点亮/都不在线时，消息照样发到聊天室，只是不 @ 任何人，不会打扰无关的人。
-  const mentions = staffMembers
-    .filter((m) => m.alertOn && online.includes(m.name))
-    .map((m) => m.name);
-  const mentionText = mentions.length ? mentions.map((n) => `@${n}`).join(' ') + ' ' : '';
+  // 私信推送：只发给"现场管理人员"名单里当前在线的人，群里不留痕迹。
+  // 这条消息不进聊天历史、不写数据库，别人翻记录看不到，本人刷新后也不会再出现——
+  // 它是一条到点提醒，不是聊天内容。
+  const targets = [];
+  clients.forEach((client, sock) => {
+    if (staffManagers.includes(client.username) && sock.readyState === WebSocket.OPEN) {
+      targets.push({ sock, username: client.username });
+    }
+  });
 
-  const msg = {
-    type: 'message',
-    id: nextMessageId++,
-    username: '📋 班表提醒',
-    text: `${mentionText}${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
-    images: [],
-    files: [],
-    mentions,
-    mentionsAll: false,
-    quote: null,
-    reactions: {},
-    pending: null,
-    time: Date.now(),
-  };
-  pushHistory(msg);
-  saveChatMessageToDB(msg);
-  broadcast(msg);
-  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班，已@ ${mentions.join('、') || '（没人点亮铃铛或都不在线）'}`);
+  if (targets.length === 0) {
+    console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班——没有在线的现场管理人员，本次没发出去`);
+    return;
+  }
+
+  targets.forEach(({ sock, username }) => {
+    sock.send(JSON.stringify({
+      type: 'message',
+      id: nextMessageId++,
+      username: '📋 班表提醒',
+      text: `@${username} ${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
+      images: [],
+      files: [],
+      mentions: [username],
+      mentionsAll: false,
+      quote: null,
+      reactions: {},
+      pending: null,
+      private: true,
+      time: Date.now(),
+    }));
+  });
+  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班，已私信 ${targets.map((t) => t.username).join('、')}`);
 }
 
 function checkShiftAlerts() {
@@ -1747,6 +1799,7 @@ function rowToTimeRecord(row) {
     startAt: Number(row.start_at),
     endAt: row.end_at === null || row.end_at === undefined ? null : Number(row.end_at),
     durationMs: row.duration_ms === null || row.duration_ms === undefined ? null : Number(row.duration_ms),
+    workItems: Array.isArray(row.work_items) ? row.work_items : [],
   };
 }
 
@@ -1764,6 +1817,8 @@ async function ensureTimeRecordsTable() {
     );
   `);
   await dbPool.query('CREATE INDEX IF NOT EXISTS idx_time_records_work_date ON time_records (work_date);');
+  // 后加的一列：这次签出勾选的工作内容
+  await dbPool.query(`ALTER TABLE time_records ADD COLUMN IF NOT EXISTS work_items JSONB;`);
 }
 
 async function loadTimeRecordsFromDB() {
@@ -1844,6 +1899,57 @@ async function deleteTimeclockName(name) {
   return true;
 }
 
+// ==================== 工作内容（签出时必须勾选，选项可在面板里改，密码同公告栏）====================
+const DEFAULT_WORK_ITEMS = ['代购检品', '代拍检品', '煤炉检品', '贵重品检品', '问题件处理', '入库', '出库', '其他'];
+let workItems = [];
+
+async function ensureWorkItemsTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS work_items (
+      id BIGSERIAL PRIMARY KEY,
+      value TEXT NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function loadWorkItemsFromDB() {
+  if (!dbPool) {
+    workItems = DEFAULT_WORK_ITEMS.slice();
+    return;
+  }
+  try {
+    await ensureWorkItemsTable();
+    const { rows } = await dbPool.query('SELECT value FROM work_items ORDER BY sort_order ASC, id ASC;');
+    if (rows.length === 0) {
+      for (let i = 0; i < DEFAULT_WORK_ITEMS.length; i++) {
+        await dbPool.query('INSERT INTO work_items (value, sort_order) VALUES ($1,$2);', [DEFAULT_WORK_ITEMS[i], i]);
+      }
+      workItems = DEFAULT_WORK_ITEMS.slice();
+    } else {
+      workItems = rows.map((r) => r.value);
+    }
+  } catch (err) {
+    console.error('[加载工作内容选项失败，改用默认值]', err.message);
+    workItems = DEFAULT_WORK_ITEMS.slice();
+  }
+}
+
+async function replaceWorkItems(list) {
+  workItems = list;
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM work_items;');
+    for (let i = 0; i < list.length; i++) {
+      await dbPool.query('INSERT INTO work_items (value, sort_order) VALUES ($1,$2);', [list[i], i]);
+    }
+  } catch (err) {
+    console.error('[保存工作内容选项失败]', err.message);
+  }
+}
+
 // ==================== 人员管理（班表：谁哪天几点到几点上班） ====================
 // 只做未来三天（今天/明天/后天）的排班展示，历史班表不在这里翻，所以数据量很小，
 // 直接全量放内存 + 落库，改动后广播给所有人，跟公告栏那套一模一样。
@@ -1897,10 +2003,10 @@ async function loadShiftsFromDB() {
   }
 }
 
-// 出勤社员名单：人员管理面板最上面那个模块，名字是手输的（所以管理者这种不在班表里的人也能加进来）。
-// 每个名字带一个"铃铛"开关，点亮 = 这个人要收上班提醒；开关是持久的，一直有效到手动关掉。
-// 提醒发出去的时候按"聊天室登录名"匹配：谁的登录名和点亮的名字一样，就 @ 谁。
-let staffMembers = []; // { name, alertOn }
+// 现场管理人员名单：人员管理面板最上面那个多选下拉里勾出来的人。
+// 被勾中 = 现场管理人员 = 收上班提醒（按聊天登录名匹配），同时也是问题件"本周负责人"的候选人。
+// 名字是手输/勾选的，所以管理者这种不在班表里的人也能进来；没勾的人不会显示在面板上。
+let staffManagers = [];
 
 async function ensureStaffMembersTable() {
   if (!dbPool) return;
@@ -1914,60 +2020,114 @@ async function ensureStaffMembersTable() {
   `);
 }
 
-async function loadStaffMembersFromDB() {
+async function loadStaffManagersFromDB() {
   if (!dbPool) {
-    staffMembers = [];
+    staffManagers = [];
     return;
   }
   try {
     await ensureStaffMembersTable();
-    const { rows } = await dbPool.query('SELECT name, alert_on FROM staff_members ORDER BY id ASC;');
-    staffMembers = rows.map((r) => ({ name: r.name, alertOn: !!r.alert_on }));
+    const { rows } = await dbPool.query('SELECT name FROM staff_members ORDER BY id ASC;');
+    staffManagers = rows.map((r) => r.name);
   } catch (err) {
-    console.error('[加载出勤社员名单失败]', err.message);
-    staffMembers = [];
+    console.error('[加载现场管理人员名单失败]', err.message);
+    staffManagers = [];
   }
 }
 
-async function addStaffMember(name) {
-  if (staffMembers.some((m) => m.name === name)) return false;
-  staffMembers.push({ name, alertOn: false });
+async function addStaffManager(name) {
+  if (staffManagers.includes(name)) return false;
+  staffManagers.push(name);
   if (dbPool) {
     try {
-      await dbPool.query('INSERT INTO staff_members (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
+      await dbPool.query('INSERT INTO staff_members (name, alert_on) VALUES ($1, true) ON CONFLICT (name) DO NOTHING;', [name]);
     } catch (err) {
-      console.error('[新增出勤社员失败]', err.message);
+      console.error('[新增现场管理人员失败]', err.message);
     }
   }
   return true;
 }
 
-async function deleteStaffMember(name) {
-  const idx = staffMembers.findIndex((m) => m.name === name);
+async function removeStaffManager(name) {
+  const idx = staffManagers.indexOf(name);
   if (idx === -1) return false;
-  staffMembers.splice(idx, 1);
+  staffManagers.splice(idx, 1);
   if (dbPool) {
     try {
       await dbPool.query('DELETE FROM staff_members WHERE name=$1;', [name]);
     } catch (err) {
-      console.error('[删除出勤社员失败]', err.message);
+      console.error('[移除现场管理人员失败]', err.message);
     }
   }
   return true;
 }
 
-async function toggleStaffMemberAlert(name) {
-  const member = staffMembers.find((m) => m.name === name);
-  if (!member) return false;
-  member.alertOn = !member.alertOn;
+// ==================== 问题件"本周负责人" ====================
+// 按周存（周一算一周的开头），负责人从现场管理人员里选
+let problemItemWeekOwners = {}; // { '2026-W36': '陈经理' }
+
+function getWeekKey(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // ISO周：周四所在的那一年那一周
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+function currentWeekKey() {
+  return getWeekKey(getJSTParts(new Date()).dateStr);
+}
+
+async function ensureWeekOwnerTable() {
+  if (!dbPool) return;
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS problem_item_week_owner (
+      week_key TEXT PRIMARY KEY,
+      owner TEXT NOT NULL,
+      updated_by TEXT,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+async function loadWeekOwnersFromDB() {
+  if (!dbPool) {
+    problemItemWeekOwners = {};
+    return;
+  }
+  try {
+    await ensureWeekOwnerTable();
+    const { rows } = await dbPool.query('SELECT week_key, owner FROM problem_item_week_owner;');
+    problemItemWeekOwners = {};
+    rows.forEach((r) => { problemItemWeekOwners[r.week_key] = r.owner; });
+  } catch (err) {
+    console.error('[加载问题件本周负责人失败]', err.message);
+    problemItemWeekOwners = {};
+  }
+}
+
+async function setWeekOwner(weekKey, owner, byUsername) {
+  if (owner) problemItemWeekOwners[weekKey] = owner;
+  else delete problemItemWeekOwners[weekKey];
   if (dbPool) {
     try {
-      await dbPool.query('UPDATE staff_members SET alert_on=$1 WHERE name=$2;', [member.alertOn, name]);
+      if (owner) {
+        await dbPool.query(
+          `INSERT INTO problem_item_week_owner (week_key, owner, updated_by, updated_at)
+           VALUES ($1,$2,$3, now())
+           ON CONFLICT (week_key) DO UPDATE SET owner = EXCLUDED.owner, updated_by = EXCLUDED.updated_by, updated_at = now();`,
+          [weekKey, owner, byUsername]
+        );
+      } else {
+        await dbPool.query('DELETE FROM problem_item_week_owner WHERE week_key=$1;', [weekKey]);
+      }
     } catch (err) {
-      console.error('[切换出勤社员提醒开关失败]', err.message);
+      console.error('[保存问题件本周负责人失败]', err.message);
     }
   }
-  return true;
 }
 
 // 从今天（日本时间）开始的连续三天
@@ -1992,7 +2152,7 @@ function getShiftsForWindow() {
 
 function shiftPayload() {
   const { dates, shifts } = getShiftsForWindow();
-  return { type: 'shift_update', dates, shifts, members: staffMembers };
+  return { type: 'shift_update', dates, shifts, managers: staffManagers };
 }
 
 async function addShiftEntry(workDate, personName, startMin, endMin) {
@@ -2084,6 +2244,7 @@ function timeclockPayload(dateStr) {
     records: getTimeRecordsByDate(dateStr),
     openRecords: getOpenTimeRecords(),
     names: timeclockNames,
+    workItems,
   };
 }
 
@@ -2097,7 +2258,7 @@ function getTimeRecordsByDate(dateStr) {
 function getOpenTimeRecords() {
   return timeRecords
     .filter((r) => r.endAt === null)
-    .map((r) => ({ id: r.id, username: r.username, startAt: r.startAt, workDate: r.workDate }));
+    .map((r) => ({ id: r.id, username: r.username, startAt: r.startAt, workDate: r.workDate, workItems: r.workItems || [] }));
 }
 
 function findOpenTimeRecord(username) {
@@ -2105,17 +2266,17 @@ function findOpenTimeRecord(username) {
 }
 
 // 签出：开一条新记录
-async function startTimeRecord(username) {
+async function startTimeRecord(username, selectedWorkItems) {
   const now = Date.now();
   const { dateStr } = getJSTParts(new Date(now));
-  const record = { id: `mem-${now}`, username, workDate: dateStr, startAt: now, endAt: null, durationMs: null };
+  const record = { id: `mem-${now}`, username, workDate: dateStr, startAt: now, endAt: null, durationMs: null, workItems: selectedWorkItems };
   timeRecords.push(record);
   if (timeRecords.length > MAX_TIME_RECORDS_IN_MEMORY) timeRecords.shift();
   if (dbPool) {
     try {
       const inserted = await dbPool.query(
-        'INSERT INTO time_records (username, work_date, start_at) VALUES ($1,$2,$3) RETURNING id;',
-        [username, dateStr, now]
+        'INSERT INTO time_records (username, work_date, start_at, work_items) VALUES ($1,$2,$3,$4) RETURNING id;',
+        [username, dateStr, now, JSON.stringify(selectedWorkItems)]
       );
       record.id = inserted.rows[0].id;
     } catch (err) {
@@ -2180,7 +2341,7 @@ app.get('/api/timeclock/export', (req, res) => {
       || a.username.localeCompare(b.username, 'zh')
       || (a.startAt - b.startAt));
   const esc = (v) => `"${String(v === null || v === undefined ? '' : v).replace(/"/g, '""')}"`;
-  const lines = [['日期', '提交人', '签出时间', '签入时间', '时长(小时)', '时长', '状态'].map(esc).join(',')];
+  const lines = [['日期', '提交人', '签出时间', '签入时间', '时长(小时)', '时长', '工作内容', '状态'].map(esc).join(',')];
   rows.forEach((r) => {
     lines.push([
       r.workDate,
@@ -2189,6 +2350,7 @@ app.get('/api/timeclock/export', (req, res) => {
       r.endAt ? formatJSTTime(r.endAt) : '',
       r.durationMs === null ? '' : (r.durationMs / 3600000).toFixed(2),
       formatDurationText(r.durationMs),
+      (r.workItems || []).join('、'),
       r.endAt ? '已完成' : '进行中',
     ].map(esc).join(','));
   });
@@ -2207,8 +2369,10 @@ async function startServer() {
   await loadRemindersFromDB();
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();
+  await loadWorkItemsFromDB();
   await loadShiftsFromDB();
-  await loadStaffMembersFromDB();
+  await loadStaffManagersFromDB();
+  await loadWeekOwnersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

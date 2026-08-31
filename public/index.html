@@ -2103,6 +2103,57 @@
     line-height: 1;
   }
   .timeclock-name-chip button:hover { color: #e5534b; background: transparent; }
+  .msg-private-tag {
+    font-size: 10px;
+    color: #7c3aed;
+    border: 1px solid #cbb8f5;
+    border-radius: 999px;
+    padding: 1px 6px;
+    margin-left: 6px;
+  }
+
+  #timeclock-work-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin: 12px 0;
+  }
+  .timeclock-work-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .timeclock-work-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .timeclock-work-required { font-size: 11px; font-weight: 400; color: #e5534b; }
+  .timeclock-work-head .timeclock-mini-btn { margin-left: auto; }
+  #timeclock-work-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .timeclock-work-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .timeclock-work-option input { width: auto; accent-color: var(--accent); }
+  #timeclock-work-edit-row { display: none; margin-top: 10px; }
+  #timeclock-work-edit-row.active { display: block; }
+  #timeclock-work-edit-input { width: 100%; font-size: 13px; font-family: inherit; }
+  .timeclock-work-edit-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+  #timeclock-work-password { width: 150px; font-size: 13px; }
+
+  #problem-item-owner-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+  }
+  #problem-item-owner-bar .owner-label { font-size: 13px; font-weight: 600; color: var(--text); }
+  #problem-item-owner-select { font-size: 13px; width: auto; min-width: 140px; padding: 5px 8px; }
+  #problem-item-owner-hint { font-size: 11px; color: var(--muted); }
+
   #timeclock-msg { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
   #timeclock-msg.error { color: #e5534b; }
 
@@ -2143,6 +2194,7 @@
   }
   #timeclock-table th { color: var(--muted); font-weight: 600; background: var(--panel); }
   #timeclock-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+  #timeclock-table td:nth-child(5) { white-space: normal; max-width: 240px; font-variant-numeric: normal; }
   #timeclock-table tr.running td { background: rgba(63, 111, 214, 0.06); }
   .timeclock-tag {
     display: inline-block;
@@ -2233,21 +2285,8 @@
   .staff-members-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
   .staff-members-title { font-size: 14px; font-weight: 700; color: var(--text); }
   .staff-members-hint { font-size: 11px; color: var(--muted); }
-  #staff-members-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 10px; }
-  #staff-members-list .staff-members-empty { font-size: 12px; color: var(--muted); font-style: italic; }
-  .staff-member-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 4px 8px 4px 12px;
-    font-size: 13px;
-    color: var(--text);
-  }
-  .staff-member-chip.alert-on { border-color: #d98a1f; }
-  .staff-members-add-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .staff-members-pick-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .staff-members-pick-row .multi-select-dropdown { min-width: 240px; }
   #staff-member-input { width: 200px; font-size: 13px; }
 
   .staff-bell {
@@ -2753,6 +2792,21 @@
       </div>
       <div id="timeclock-status">当前未开始计时</div>
       <div id="timeclock-elapsed" class="idle">00:00:00</div>
+      <div id="timeclock-work-box">
+        <div class="timeclock-work-head">
+          <span class="timeclock-work-title">工作内容<span class="timeclock-work-required">（签出前必选）</span></span>
+          <button id="timeclock-work-edit-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-settings"></i> 编辑选项</button>
+        </div>
+        <div id="timeclock-work-list"></div>
+        <div id="timeclock-work-edit-row">
+          <textarea id="timeclock-work-edit-input" rows="4" placeholder="一行一个工作内容…"></textarea>
+          <div class="timeclock-work-edit-actions">
+            <input type="password" id="timeclock-work-password" placeholder="编辑密码" autocomplete="off" />
+            <button id="timeclock-work-save-btn" class="timeclock-mini-btn" type="button">保存</button>
+            <button id="timeclock-work-cancel-btn" class="timeclock-mini-btn" type="button">取消</button>
+          </div>
+        </div>
+      </div>
       <div class="timeclock-btn-row">
         <button id="timeclock-out-btn" class="timeclock-punch-btn" type="button">
           签出
@@ -2781,6 +2835,7 @@
             <th>签出时间</th>
             <th>签入时间</th>
             <th>时长</th>
+            <th>工作内容</th>
             <th>状态</th>
             <th></th>
           </tr>
@@ -2812,12 +2867,15 @@
     </div>
     <div id="staff-members-box">
       <div class="staff-members-head">
-        <span class="staff-members-title">今天出勤社员</span>
-        <span class="staff-members-hint">点亮铃铛的人会收到上班提醒（按聊天登录名匹配，长期有效）</span>
+        <span class="staff-members-title">现场管理人员</span>
+        <span class="staff-members-hint">勾中的人会收到上班提醒（私信，按聊天登录名匹配），也是问题件本周负责人的候选</span>
       </div>
-      <div id="staff-members-list"></div>
-      <div class="staff-members-add-row">
-        <input type="text" id="staff-member-input" maxlength="20" placeholder="输入名字后回车添加…" />
+      <div class="staff-members-pick-row">
+        <div class="multi-select-dropdown" id="staff-manager-dropdown">
+          <button type="button" class="multi-select-trigger" id="staff-manager-trigger">请选择现场管理人员…</button>
+          <div class="multi-select-panel" id="staff-manager-panel"></div>
+        </div>
+        <input type="text" id="staff-member-input" maxlength="20" placeholder="名单里没有的名字，输入后回车添加…" />
         <button id="staff-member-add-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-plus"></i> 添加</button>
       </div>
     </div>
@@ -2891,6 +2949,11 @@
       <button class="problem-item-panel-cat-btn" data-category="贵重品">贵重品</button>
     </div>
     <div id="problem-item-content-area">
+      <div id="problem-item-owner-bar">
+        <span class="owner-label">本周问题件负责人</span>
+        <select id="problem-item-owner-select"></select>
+        <span id="problem-item-owner-hint">候选人来自人员管理里的现场管理人员</span>
+      </div>
       <div id="problem-item-content-header">
         <span id="problem-item-content-title">代购</span>
         <div id="problem-item-header-actions">
@@ -3136,6 +3199,8 @@
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
   const problemItemList = document.getElementById('problem-item-list');
+  const problemItemOwnerSelect = document.getElementById('problem-item-owner-select');
+  const problemItemOwnerHint = document.getElementById('problem-item-owner-hint');
   const problemItemOptionsEditPanel = document.getElementById('problem-item-options-edit-panel');
   const issueTypeOptionsTags = document.getElementById('issue-type-options-tags');
   const issueTypeAddInput = document.getElementById('issue-type-add-input');
@@ -3283,6 +3348,11 @@
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] };
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
+      } else if (data.type === 'problem_item_owner_update') {
+        problemItemWeekKey = data.weekKey || '';
+        problemItemWeekOwner = data.owner || '';
+        if (Array.isArray(data.managers)) staffManagers = data.managers;
+        renderProblemItemOwner();
       } else if (data.type === 'problem_item_error') {
         problemItemSubmitHint.textContent = data.message || '提交失败';
         problemItemSubmitHint.style.color = '#e5534b';
@@ -3340,6 +3410,7 @@
         // 有人签出/签入了，或者自己切了日期/点了刷新——服务器把那一天的完整记录＋所有人的“进行中”状态＋提交人名单一起发过来
         timeclockOpenRecords = Array.isArray(data.openRecords) ? data.openRecords : [];
         if (Array.isArray(data.names)) timeclockNames = data.names;
+        if (Array.isArray(data.workItems)) timeclockWorkItems = data.workItems;
         if (!timeclockViewDate || data.date === timeclockViewDate) {
           timeclockViewDate = data.date;
           timeclockRecords = Array.isArray(data.records) ? data.records : [];
@@ -3361,9 +3432,9 @@
       } else if (data.type === 'shift_update') {
         staffDates = Array.isArray(data.dates) ? data.dates : [];
         staffShifts = Array.isArray(data.shifts) ? data.shifts : [];
-        staffMembers = Array.isArray(data.members) ? data.members : [];
+        staffManagers = Array.isArray(data.managers) ? data.managers : [];
         if (staffOverlay.classList.contains('active')) {
-          renderStaffMembers();
+          renderStaffManagers();
           renderStaffDays();
         }
       } else if (data.type === 'shift_password_ok') {
@@ -3382,6 +3453,9 @@
         showStaffMsg(`✓ 已导入 ${data.count} 条排班${range}，面板显示最近三天的 ${shown} 条`, 'ok');
       } else if (data.type === 'shift_error') {
         showStaffMsg(data.message || '操作失败', 'error');
+      } else if (data.type === 'work_items_ok') {
+        timeclockWorkEditRow.classList.remove('active');
+        showTimeclockMsg('✓ 工作内容已保存');
       } else if (data.type === 'timeclock_error') {
         // 正在走删除弹窗的话，错误就显示在弹窗里，不然显示在面板上
         if (pendingDeleteAction && pendingDeleteAction.kind === 'timeclock') {
@@ -3564,8 +3638,19 @@
     name.textContent = data.username;
     const timeInName = document.createElement('span');
     timeInName.className = 'name-time';
-    timeInName.textContent = new Date(data.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    // 时间前面带上年月日——聊天记录会往前翻很久，只有时分的话根本看不出是哪天的事
+    timeInName.textContent = new Date(data.time).toLocaleString('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
     name.appendChild(timeInName);
+    // 只推给你一个人的消息（比如班表上班提醒），标一下，免得以为群里所有人都看到了
+    if (data.private) {
+      const privateTag = document.createElement('span');
+      privateTag.className = 'msg-private-tag';
+      privateTag.textContent = '仅你可见';
+      name.appendChild(privateTag);
+    }
     if (data.editedAt && !data.deletedAt) {
       const editedTag = document.createElement('span');
       editedTag.className = 'msg-edited-tag';
@@ -5125,6 +5210,7 @@
       btn.classList.toggle('active', btn.dataset.category === currentProblemItemCategory);
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
+    renderProblemItemOwner();
     problemItemInspectorDisplay.textContent = username || '（未知用户）';
     const issueTypesForThisCategory = getIssueTypesForCategory(currentProblemItemCategory);
     renderMultiSelectPanel(issueTypePanel, issueTypesForThisCategory, selectedIssueTypes,
@@ -5155,6 +5241,34 @@
     const pad = (n) => String(n).padStart(2, '0');
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
+
+  // ---- 本周问题件负责人：候选人就是人员管理里勾中的"现场管理人员" ----
+  let problemItemWeekOwner = '';
+  let problemItemWeekKey = '';
+
+  function renderProblemItemOwner() {
+    const options = staffManagers.slice();
+    problemItemOwnerSelect.innerHTML = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '（未指定）';
+    problemItemOwnerSelect.appendChild(blank);
+    options.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      problemItemOwnerSelect.appendChild(opt);
+    });
+    problemItemOwnerSelect.value = options.includes(problemItemWeekOwner) ? problemItemWeekOwner : '';
+    problemItemOwnerHint.textContent = options.length === 0
+      ? '还没有现场管理人员，先去人员管理里勾选'
+      : `本周（${problemItemWeekKey || '—'}）· 候选人来自人员管理的现场管理人员`;
+  }
+
+  problemItemOwnerSelect.addEventListener('change', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'problem_item_owner_set', owner: problemItemOwnerSelect.value }));
+  });
 
   function renderProblemItemList() {
     const reports = problemItemData.reports[currentProblemItemCategory] || [];
@@ -5981,12 +6095,21 @@
   const timeclockTodayBtn = document.getElementById('timeclock-today-btn');
   const timeclockExportBtn = document.getElementById('timeclock-export-btn');
   const timeclockSummaryEl = document.getElementById('timeclock-summary');
+  const timeclockWorkList = document.getElementById('timeclock-work-list');
+  const timeclockWorkEditBtn = document.getElementById('timeclock-work-edit-btn');
+  const timeclockWorkEditRow = document.getElementById('timeclock-work-edit-row');
+  const timeclockWorkEditInput = document.getElementById('timeclock-work-edit-input');
+  const timeclockWorkPassword = document.getElementById('timeclock-work-password');
+  const timeclockWorkSaveBtn = document.getElementById('timeclock-work-save-btn');
+  const timeclockWorkCancelBtn = document.getElementById('timeclock-work-cancel-btn');
   const timeclockTbody = document.getElementById('timeclock-tbody');
   const timeclockEmptyEl = document.getElementById('timeclock-empty');
 
   let timeclockRecords = [];      // 当前正在看的这一天的全部记录
   let timeclockOpenRecords = [];  // 所有人当前"进行中"（签出了还没签入）的记录
   let timeclockNames = [];        // 共享的提交人名单（代别人提交时可选）
+  let timeclockWorkItems = [];    // 工作内容选项（大家共用，可在面板里改，密码同公告栏）
+  let timeclockWorkSelected = new Set(); // 本次签出勾选的工作内容
   let timeclockPassword = '';     // 解锁后记住的编辑密码，只放内存，刷新就没了
   let timeclockTicker = null;
 
@@ -6087,6 +6210,16 @@
     timeclockOutBtn.disabled = !!mine;
     timeclockInBtn.disabled = !mine;
 
+    // 计时中的时候，工作内容就是签出那一刻锁定的那几项，显示出来但不让改；
+    // 签入之后才恢复成可勾选状态，准备下一次签出
+    if (mine) {
+      timeclockWorkSelected = new Set(mine.workItems || []);
+      renderTimeclockWorkItems();
+      timeclockWorkList.querySelectorAll('input').forEach((cb) => { cb.disabled = true; });
+    } else {
+      renderTimeclockWorkItems();
+    }
+
     timeclockLockHint.textContent = timeclockUnlocked()
       ? '已解锁，可以代别人提交'
       : '默认提交人是你自己';
@@ -6107,6 +6240,7 @@
         formatJstClock(r.startAt),
         running ? '—' : formatJstClock(r.endAt),
         running ? formatElapsedClock(ms) : formatTimeclockDuration(ms),
+        (r.workItems || []).join('、') || '—',
       ].forEach((val) => {
         const td = document.createElement('td');
         td.textContent = val;
@@ -6139,6 +6273,53 @@
       : '';
   }
 
+  const SPLIT_LINES_RE = new RegExp(String.fromCharCode(92) + 'r?' + String.fromCharCode(92) + 'n');
+  // ---- 工作内容：签出前必须勾至少一项 ----
+  function renderTimeclockWorkItems() {
+    timeclockWorkList.innerHTML = '';
+    if (timeclockWorkItems.length === 0) {
+      const empty = document.createElement('span');
+      empty.style.fontSize = '12px';
+      empty.style.color = 'var(--muted)';
+      empty.textContent = '还没有工作内容选项，点右边"编辑选项"添加';
+      timeclockWorkList.appendChild(empty);
+      return;
+    }
+    timeclockWorkItems.forEach((item) => {
+      const label = document.createElement('label');
+      label.className = 'timeclock-work-option';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = timeclockWorkSelected.has(item);
+      cb.addEventListener('change', () => {
+        if (cb.checked) timeclockWorkSelected.add(item);
+        else timeclockWorkSelected.delete(item);
+      });
+      label.appendChild(cb);
+      const span = document.createElement('span');
+      span.textContent = item;
+      label.appendChild(span);
+      timeclockWorkList.appendChild(label);
+    });
+  }
+
+  timeclockWorkEditBtn.addEventListener('click', () => {
+    const active = timeclockWorkEditRow.classList.toggle('active');
+    if (active) {
+      timeclockWorkEditInput.value = timeclockWorkItems.join(String.fromCharCode(10));
+      timeclockWorkPassword.value = '';
+      timeclockWorkEditInput.focus();
+    }
+  });
+  timeclockWorkCancelBtn.addEventListener('click', () => timeclockWorkEditRow.classList.remove('active'));
+  timeclockWorkSaveBtn.addEventListener('click', () => {
+    const items = timeclockWorkEditInput.value.split(SPLIT_LINES_RE).map((v) => v.trim()).filter(Boolean);
+    if (items.length === 0) { showTimeclockMsg('至少要保留一项工作内容', true); return; }
+    if (!timeclockWorkPassword.value) { showTimeclockMsg('请输入编辑密码', true); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { showTimeclockMsg('连接已断开，请稍后重试', true); return; }
+    ws.send(JSON.stringify({ type: 'work_items_update', items, password: timeclockWorkPassword.value }));
+  });
+
   function queryTimeclockDate(date) {
     timeclockViewDate = date;
     timeclockDateInput.value = date;
@@ -6153,6 +6334,7 @@
     // 每次点开都拉一次最新的（可能别人在你关着面板的时候打过卡了）
     queryTimeclockDate(timeclockViewDate || jstTodayStr());
     renderTimeclockUserOptions();
+    renderTimeclockWorkItems();
     renderTimeclock();
     // 计时中的秒数要一直跳，面板关掉就停掉这个定时器，不白白耗电
     if (timeclockTicker) clearInterval(timeclockTicker);
@@ -6180,12 +6362,18 @@
       showTimeclockMsg('还没连上服务器，稍等一下再点', true);
       return;
     }
+    // 签出必须勾工作内容（服务器那边也会再校验一次，改前端绕不过去）
+    if (action === 'out' && timeclockWorkSelected.size === 0) {
+      showTimeclockMsg('请勾选工作内容', true);
+      return;
+    }
     showTimeclockMsg('');
     ws.send(JSON.stringify({
       type: 'timeclock_punch',
       action,
       username: currentSubmitter(),
       password: timeclockPassword,
+      workItems: Array.from(timeclockWorkSelected),
     }));
   }
 
@@ -6294,13 +6482,14 @@
   const staffPasswordInput = document.getElementById('staff-password-input');
   const staffUnlockOkBtn = document.getElementById('staff-unlock-ok-btn');
   const staffUnlockCancelBtn = document.getElementById('staff-unlock-cancel-btn');
-  const staffMembersList = document.getElementById('staff-members-list');
+  const staffManagerTrigger = document.getElementById('staff-manager-trigger');
+  const staffManagerPanel = document.getElementById('staff-manager-panel');
   const staffMemberInput = document.getElementById('staff-member-input');
   const staffMemberAddBtn = document.getElementById('staff-member-add-btn');
 
   let staffShifts = [];
   let staffDates = [];
-  let staffMembers = []; // { name, alertOn }
+  let staffManagers = []; // 现场管理人员（勾中的名字）
   let staffPassword = '';         // 解锁后记在内存里，刷新页面要重新输
   let staffPendingPassword = '';
   let staffEditing = null; // { id?, workDate, personName, startMin, endMin }
@@ -6315,70 +6504,63 @@
     return false;
   }
 
-  // 出勤社员名单：名字是手输的，所以不在班表里的管理者也能加进来。
-  // 铃铛点亮 = 这个人收上班提醒，按聊天登录名匹配，一直有效到手动关掉。
-  function renderStaffMembers() {
-    staffMembersList.innerHTML = '';
-    if (staffMembers.length === 0) {
-      const empty = document.createElement('span');
-      empty.className = 'staff-members-empty';
-      empty.textContent = '还没有添加社员，在下面输入名字添加';
-      staffMembersList.appendChild(empty);
-      return;
-    }
-    staffMembers.forEach((member) => {
-      const chip = document.createElement('span');
-      chip.className = 'staff-member-chip' + (member.alertOn ? ' alert-on' : '');
-
-      const nameEl = document.createElement('span');
-      nameEl.textContent = member.name;
-      chip.appendChild(nameEl);
-
-      const bell = document.createElement('button');
-      bell.type = 'button';
-      bell.className = 'staff-bell' + (member.alertOn ? ' on' : '');
-      bell.innerHTML = member.alertOn ? '<i class="ti ti-bell-filled"></i>' : '<i class="ti ti-bell"></i>';
-      bell.title = member.alertOn
-        ? `${member.name} 会收到上班提醒，点一下关掉`
-        : `点亮后，${member.name} 会收到上班提醒`;
-      bell.addEventListener('click', () => {
-        if (!requireStaffUnlock()) return;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'staff_member_toggle', name: member.name, password: staffPassword }));
-        }
-      });
-      chip.appendChild(bell);
-
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'staff-bell';
-      del.innerHTML = '✕';
-      del.title = `把 ${member.name} 从名单里删掉`;
-      del.addEventListener('click', () => {
-        if (!requireStaffUnlock()) return;
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'staff_member_delete', name: member.name, password: staffPassword }));
-        }
-      });
-      chip.appendChild(del);
-
-      staffMembersList.appendChild(chip);
-    });
+  // 现场管理人员：多选下拉。候选名单 = 固定人名顺序里的人 + 班表里出现过的人 + 已经勾中的人
+  // （管理者不在班表里，所以可以用旁边的输入框手动加进来，加了就直接算勾中）。
+  // 没勾中的人不会显示在面板上，只在下拉里能看到。
+  function staffManagerCandidates() {
+    const fromShifts = staffShifts.map((sh) => sh.personName);
+    return Array.from(new Set(STAFF_NAME_ORDER.concat(fromShifts, staffManagers))).sort(compareStaffName);
   }
 
-  function addStaffMemberFromInput() {
+  function renderStaffManagers() {
+    const selected = new Set(staffManagers);
+    const options = staffManagerCandidates();
+    staffManagerPanel.innerHTML = '';
+    if (options.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'multi-select-empty';
+      empty.textContent = '暂无可选的人，用右边的输入框添加';
+      staffManagerPanel.appendChild(empty);
+    } else {
+      options.forEach((name) => {
+        const label = document.createElement('label');
+        label.className = 'multi-select-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = selected.has(name);
+        checkbox.addEventListener('change', (e) => {
+          if (!requireStaffUnlock()) { e.preventDefault(); checkbox.checked = !checkbox.checked; return; }
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          ws.send(JSON.stringify({
+            type: checkbox.checked ? 'staff_manager_add' : 'staff_manager_remove',
+            name,
+            password: staffPassword,
+          }));
+        });
+        label.appendChild(checkbox);
+        const span = document.createElement('span');
+        span.textContent = name;
+        label.appendChild(span);
+        staffManagerPanel.appendChild(label);
+      });
+    }
+    updateMultiSelectTrigger(staffManagerTrigger, selected, '请选择现场管理人员…');
+  }
+
+  function addStaffManagerFromInput() {
     const name = staffMemberInput.value.trim();
     if (!name) { showStaffMsg('请输入名字', 'error'); return; }
     if (!requireStaffUnlock()) return;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'staff_member_add', name, password: staffPassword }));
+      ws.send(JSON.stringify({ type: 'staff_manager_add', name, password: staffPassword }));
       staffMemberInput.value = '';
     }
   }
-  staffMemberAddBtn.addEventListener('click', addStaffMemberFromInput);
+  staffMemberAddBtn.addEventListener('click', addStaffManagerFromInput);
   staffMemberInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addStaffMemberFromInput(); }
+    if (e.key === 'Enter') { e.preventDefault(); addStaffManagerFromInput(); }
   });
+  setupMultiSelectDropdown(staffManagerTrigger, staffManagerPanel);
 
   function staffColorFor(name) {
     let hash = 0;
@@ -6621,7 +6803,7 @@
     staffOverlay.classList.add('active');
     showStaffMsg('');
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'shift_query' }));
-    renderStaffMembers();
+    renderStaffManagers();
     renderStaffDays();
   }
   function closeStaffOverlay() {

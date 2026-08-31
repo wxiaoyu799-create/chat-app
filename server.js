@@ -881,12 +881,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
       ws.send(JSON.stringify(timeclockPayload(getJSTParts(new Date()).dateStr)));
       ws.send(JSON.stringify(shiftPayload()));
-      ws.send(JSON.stringify({
-        type: 'problem_item_owner_update',
-        weekKey: currentWeekKey(),
-        owner: problemItemWeekOwners[currentWeekKey()] || '',
-        managers: staffManagers,
-      }));
+
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
@@ -1504,25 +1499,14 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'shift_error', message: '名字不能为空' }));
         return;
       }
-      if (data.type === 'staff_manager_add') await addStaffManager(name);
-      else await removeStaffManager(name);
-      broadcast(shiftPayload());
-      broadcast({ type: 'problem_item_owner_update', weekKey: currentWeekKey(), owner: problemItemWeekOwners[currentWeekKey()] || '', managers: staffManagers });
-      return;
-    }
-
-    // 问题件"本周负责人"：从现场管理人员里选，按周记录
-    if (data.type === 'problem_item_owner_set') {
-      const client = clients.get(ws);
-      if (!client) return;
-      const owner = String(data.owner || '').trim().slice(0, 20);
-      if (owner && !staffManagers.includes(owner)) {
-        ws.send(JSON.stringify({ type: 'problem_item_error', message: '只能从现场管理人员里选负责人' }));
-        return;
+      if (data.type === 'staff_manager_add') {
+        await addStaffManager(name);
+      } else {
+        await removeStaffManager(name);
       }
-      const weekKey = currentWeekKey();
-      await setWeekOwner(weekKey, owner, client.username);
-      broadcast({ type: 'problem_item_owner_update', weekKey, owner, managers: staffManagers });
+      // 现场管理人员一变，问题件面板上的"本周负责人"跟着变——它就是这份名单的镜像，
+      // shiftPayload 里已经带了 managers，前端收到就会一起刷新，不用另外再广播一次
+      broadcast(shiftPayload());
       return;
     }
 
@@ -2062,74 +2046,6 @@ async function removeStaffManager(name) {
   return true;
 }
 
-// ==================== 问题件"本周负责人" ====================
-// 按周存（周一算一周的开头），负责人从现场管理人员里选
-let problemItemWeekOwners = {}; // { '2026-W36': '陈经理' }
-
-function getWeekKey(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  // ISO周：周四所在的那一年那一周
-  const day = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
-}
-
-function currentWeekKey() {
-  return getWeekKey(getJSTParts(new Date()).dateStr);
-}
-
-async function ensureWeekOwnerTable() {
-  if (!dbPool) return;
-  await dbPool.query(`
-    CREATE TABLE IF NOT EXISTS problem_item_week_owner (
-      week_key TEXT PRIMARY KEY,
-      owner TEXT NOT NULL,
-      updated_by TEXT,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    );
-  `);
-}
-
-async function loadWeekOwnersFromDB() {
-  if (!dbPool) {
-    problemItemWeekOwners = {};
-    return;
-  }
-  try {
-    await ensureWeekOwnerTable();
-    const { rows } = await dbPool.query('SELECT week_key, owner FROM problem_item_week_owner;');
-    problemItemWeekOwners = {};
-    rows.forEach((r) => { problemItemWeekOwners[r.week_key] = r.owner; });
-  } catch (err) {
-    console.error('[加载问题件本周负责人失败]', err.message);
-    problemItemWeekOwners = {};
-  }
-}
-
-async function setWeekOwner(weekKey, owner, byUsername) {
-  if (owner) problemItemWeekOwners[weekKey] = owner;
-  else delete problemItemWeekOwners[weekKey];
-  if (dbPool) {
-    try {
-      if (owner) {
-        await dbPool.query(
-          `INSERT INTO problem_item_week_owner (week_key, owner, updated_by, updated_at)
-           VALUES ($1,$2,$3, now())
-           ON CONFLICT (week_key) DO UPDATE SET owner = EXCLUDED.owner, updated_by = EXCLUDED.updated_by, updated_at = now();`,
-          [weekKey, owner, byUsername]
-        );
-      } else {
-        await dbPool.query('DELETE FROM problem_item_week_owner WHERE week_key=$1;', [weekKey]);
-      }
-    } catch (err) {
-      console.error('[保存问题件本周负责人失败]', err.message);
-    }
-  }
-}
-
 // 从今天（日本时间）开始的连续三天
 function getShiftWindowDates() {
   const { dateStr } = getJSTParts(new Date());
@@ -2372,7 +2288,6 @@ async function startServer() {
   await loadWorkItemsFromDB();
   await loadShiftsFromDB();
   await loadStaffManagersFromDB();
-  await loadWeekOwnersFromDB();
 
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`聊天服务器已启动`);

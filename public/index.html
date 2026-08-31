@@ -2151,7 +2151,7 @@
     margin-bottom: 14px;
   }
   #problem-item-owner-bar .owner-label { font-size: 13px; font-weight: 600; color: var(--text); }
-  #problem-item-owner-select { font-size: 13px; width: auto; min-width: 140px; padding: 5px 8px; }
+  #problem-item-owner-names { font-size: 13px; font-weight: 600; color: var(--accent); }
   #problem-item-owner-hint { font-size: 11px; color: var(--muted); }
 
   #timeclock-msg { font-size: 12px; margin-top: 10px; min-height: 16px; color: var(--muted); }
@@ -2951,8 +2951,8 @@
     <div id="problem-item-content-area">
       <div id="problem-item-owner-bar">
         <span class="owner-label">本周问题件负责人</span>
-        <select id="problem-item-owner-select"></select>
-        <span id="problem-item-owner-hint">候选人来自人员管理里的现场管理人员</span>
+        <span id="problem-item-owner-names">（未指定）</span>
+        <span id="problem-item-owner-hint">跟人员管理里的现场管理人员同步，在那边改</span>
       </div>
       <div id="problem-item-content-header">
         <span id="problem-item-content-title">代购</span>
@@ -3199,7 +3199,7 @@
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
   const problemItemList = document.getElementById('problem-item-list');
-  const problemItemOwnerSelect = document.getElementById('problem-item-owner-select');
+  const problemItemOwnerNames = document.getElementById('problem-item-owner-names');
   const problemItemOwnerHint = document.getElementById('problem-item-owner-hint');
   const problemItemOptionsEditPanel = document.getElementById('problem-item-options-edit-panel');
   const issueTypeOptionsTags = document.getElementById('issue-type-options-tags');
@@ -3348,11 +3348,6 @@
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] };
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
-      } else if (data.type === 'problem_item_owner_update') {
-        problemItemWeekKey = data.weekKey || '';
-        problemItemWeekOwner = data.owner || '';
-        if (Array.isArray(data.managers)) staffManagers = data.managers;
-        renderProblemItemOwner();
       } else if (data.type === 'problem_item_error') {
         problemItemSubmitHint.textContent = data.message || '提交失败';
         problemItemSubmitHint.style.color = '#e5534b';
@@ -3433,6 +3428,8 @@
         staffDates = Array.isArray(data.dates) ? data.dates : [];
         staffShifts = Array.isArray(data.shifts) ? data.shifts : [];
         staffManagers = Array.isArray(data.managers) ? data.managers : [];
+        // 问题件面板上的"本周负责人"就是这份名单的镜像，一起刷新
+        renderProblemItemOwner();
         if (staffOverlay.classList.contains('active')) {
           renderStaffManagers();
           renderStaffDays();
@@ -5242,33 +5239,13 @@
     return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  // ---- 本周问题件负责人：候选人就是人员管理里勾中的"现场管理人员" ----
-  let problemItemWeekOwner = '';
-  let problemItemWeekKey = '';
-
+  // ---- 本周问题件负责人：直接同步人员管理里的"现场管理人员"名单，这边只读显示，不单独选人 ----
   function renderProblemItemOwner() {
-    const options = staffManagers.slice();
-    problemItemOwnerSelect.innerHTML = '';
-    const blank = document.createElement('option');
-    blank.value = '';
-    blank.textContent = '（未指定）';
-    problemItemOwnerSelect.appendChild(blank);
-    options.forEach((name) => {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      problemItemOwnerSelect.appendChild(opt);
-    });
-    problemItemOwnerSelect.value = options.includes(problemItemWeekOwner) ? problemItemWeekOwner : '';
-    problemItemOwnerHint.textContent = options.length === 0
-      ? '还没有现场管理人员，先去人员管理里勾选'
-      : `本周（${problemItemWeekKey || '—'}）· 候选人来自人员管理的现场管理人员`;
+    problemItemOwnerNames.textContent = staffManagers.length ? staffManagers.join('、') : '（未指定）';
+    problemItemOwnerHint.textContent = staffManagers.length
+      ? '跟人员管理里的现场管理人员同步，要改去那边改'
+      : '还没有现场管理人员，去人员管理里勾选';
   }
-
-  problemItemOwnerSelect.addEventListener('change', () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'problem_item_owner_set', owner: problemItemOwnerSelect.value }));
-  });
 
   function renderProblemItemList() {
     const reports = problemItemData.reports[currentProblemItemCategory] || [];

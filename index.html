@@ -6870,7 +6870,7 @@
 
   // 班表里的人名固定按这个顺序排（跟你们纸质/Excel班表上的行顺序一致），
   // 显示和导出都用它。名单之外的人排在后面。以后有人员变动，改这一行就行。
-  const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家辉'];
+  const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家珲'];
   function staffNameRank(name) {
     const idx = STAFF_NAME_ORDER.indexOf(name);
     return idx === -1 ? STAFF_NAME_ORDER.length : idx;
@@ -6903,10 +6903,12 @@
   }
 
   // entries: [{ idx, fullDate } 或 { idx, dayNum }]，按表格里从左到右的顺序
-  function resolveHeaderDates(entries) {
+  function resolveHeaderDates(entries, forcedAnchor) {
     const dayNums = entries.filter((e) => e.dayNum !== undefined);
     let cursor = null;
-    if (dayNums.length > 0) {
+    if (forcedAnchor) {
+      cursor = { year: forcedAnchor.year, month: forcedAnchor.month };
+    } else if (dayNums.length > 0) {
       const anchor = anchorMonthForDay(dayNums[0].dayNum);
       if (anchor) cursor = { year: anchor.getFullYear(), month: anchor.getMonth() };
     }
@@ -7004,10 +7006,12 @@
     let headerRowIdx = -1;
     let headerCols = [];
     let headerScore = -1;
+    let headerMonthAnchor = null;
     for (let i = 0; i < Math.min(cleanRows.length, 8); i++) {
       const firstCell = String(cleanRows[i][0] ?? '').trim();
-      const looksLikeHeaderStart = !firstCell || /姓名|名字|日期|星期|人员|员工/.test(firstCell);
-      if (!looksLikeHeaderStart) continue;
+      // 第一格常见三种：空、"姓名/日期"这类标题、或者"9月"/"2026年9月"这种月份标签
+      const monthLabel = /^(?:(\d{4})\s*年)?\s*(\d{1,2})\s*月/.exec(firstCell);
+      const headerish = !firstCell || /姓名|名字|日期|星期|人员|员工/.test(firstCell) || !!monthLabel;
 
       const entries = [];
       const dayNums = [];
@@ -7026,19 +7030,28 @@
           dayNums.push(dayNum);
         }
       });
-      if (entries.length === 0) continue;
-      const cols = resolveHeaderDates(entries);
-      if (cols.length === 0) continue;
+      if (entries.length < 2) continue;
 
-      // 日号基本是递增的（跨月那次回落不算），递增的行优先——用来跟"统计人数"那种行区分开
+      // 关键判据：日号是递增的（跨月那一次回落不算）。数据行里的时间数字是 9、18、9、18
+      // 这样来回跳的，不会递增，所以这一条就能把表头行和数据行分开，
+      // 第一格写什么都不影响判断（有些表第一格写的是"9月"）。
       const drops = dayNums.filter((n, k) => k > 0 && n <= dayNums[k - 1]).length;
       const increasing = dayNums.length >= 2 && drops <= 1;
-      const score = cols.length + (increasing ? 100 : 0);
-      if (score > headerScore) {
-        headerScore = score;
-        headerCols = cols;
-        headerRowIdx = i;
-      }
+      const score = entries.length + (increasing ? 1000 : 0) + (headerish ? 200 : 0);
+      if (score <= headerScore) continue;
+
+      // 表头第一格写了"9月"就直接拿它当月份锚点，比"就近取月"更准
+      // （比如9月中旬导10月的表，就近取月会算错）
+      const anchor = monthLabel
+        ? { year: monthLabel[1] ? Number(monthLabel[1]) : year, month: Number(monthLabel[2]) - 1 }
+        : null;
+      const cols = resolveHeaderDates(entries, anchor);
+      if (cols.length === 0) continue;
+
+      headerScore = score;
+      headerCols = cols;
+      headerRowIdx = i;
+      headerMonthAnchor = anchor;
     }
     if (headerRowIdx === -1 || headerCols.length === 0) return [];
 

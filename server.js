@@ -2238,7 +2238,7 @@ function formatDurationText(ms) {
 
 // 导出时的人名顺序，跟班表上的行顺序一致（前端 index.html 里也有一份同样的常量，
 // 人员有变动两边一起改）。不在名单里的人排在后面。
-const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家辉'];
+const STAFF_NAME_ORDER = ['张展菖', '朱莉', '蔡凤麟', '乔倩芸', '曾文超', '陈厚桦', '王苏雅', '江昕航', '齐家驹', '曾征', '刘家珲'];
 function staffNameRank(name) {
   const idx = STAFF_NAME_ORDER.indexOf(name);
   return idx === -1 ? STAFF_NAME_ORDER.length : idx;

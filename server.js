@@ -1709,27 +1709,37 @@ function formatShiftStartText(startMin) {
 }
 
 function fireShiftAlert(entry) {
-  // 私信推送：只发给"现场管理人员"名单里当前在线的人，群里不留痕迹。
-  // 这条消息不进聊天历史、不写数据库，别人翻记录看不到，本人刷新后也不会再出现——
-  // 它是一条到点提醒，不是聊天内容。
+  sendPrivateToManagers(
+    `${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
+    '班表提醒'
+  );
+}
+
+// 每天早上8:55 的汇总提醒：今天几点开工、都有谁，让管理人员上班前先有个数。
+// 跟上面那条"晚来的人提前10分钟提醒"是两码事，互不影响。
+const MORNING_SUMMARY_MIN = 8 * 60 + 55;   // 8:55
+const MORNING_SUMMARY_DEADLINE = 9 * 60;   // 9:00（过了这个点就不补发了）
+const MORNING_START_MIN = 9 * 60;          // "9点上班"这一批的界线
+const morningSummaryFired = {};            // 日期 -> true，一天只发一次
+
+// 私信给所有在线的现场管理人员，顺便触发他们那边的提示音和电脑右下角通知
+function sendPrivateToManagers(text, logLabel) {
   const targets = [];
   clients.forEach((client, sock) => {
     if (staffManagers.includes(client.username) && sock.readyState === WebSocket.OPEN) {
       targets.push({ sock, username: client.username });
     }
   });
-
   if (targets.length === 0) {
-    console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班——没有在线的现场管理人员，本次没发出去`);
+    console.log(`[${logLabel}] ${text} —— 没有在线的现场管理人员，本次没发出去`);
     return;
   }
-
   targets.forEach(({ sock, username }) => {
     sock.send(JSON.stringify({
       type: 'message',
       id: nextMessageId++,
       username: '📋 班表提醒',
-      text: `@${username} ${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
+      text: `@${username} ${text}`,
       images: [],
       files: [],
       mentions: [username],
@@ -1741,8 +1751,39 @@ function fireShiftAlert(entry) {
       time: Date.now(),
     }));
   });
-  console.log(`[班表提醒] ${entry.personName} ${formatShiftStartText(entry.startMin)}上班，已私信 ${targets.map((t) => t.username).join('、')}`);
+  console.log(`[${logLabel}] ${text} —— 已私信 ${targets.map((t) => t.username).join('、')}`);
 }
+
+function checkMorningSummary() {
+  const { dateStr, hour, minute } = getJSTParts(new Date());
+  const nowMin = hour * 60 + minute;
+  if (nowMin < MORNING_SUMMARY_MIN || nowMin >= MORNING_SUMMARY_DEADLINE) return;
+  if (morningSummaryFired[dateStr]) return;
+
+  // 9点（含9点之前）开工的这一批人
+  const early = shiftEntries
+    .filter((e) => e.workDate === dateStr && e.startMin <= MORNING_START_MIN)
+    .sort((a, b) => (staffNameRank(a.personName) - staffNameRank(b.personName))
+      || a.personName.localeCompare(b.personName, 'zh'));
+
+  morningSummaryFired[dateStr] = true;
+  if (early.length === 0) {
+    console.log(`[早班汇总] ${dateStr} 今天没有9点上班的人，不发提醒`);
+    return;
+  }
+
+  const onNine = early.filter((e) => e.startMin === MORNING_START_MIN);
+  const earlier = early.filter((e) => e.startMin < MORNING_START_MIN);
+  const names = (onNine.length ? onNine : early).map((e) => e.personName).join('、');
+  let text = `${names} 9点开始上班，共${early.length}人。`;
+  // 有比9点还早的（比如8点半到），单独补一句，免得漏掉
+  if (onNine.length && earlier.length) {
+    text += `另有 ${earlier.map((e) => `${e.personName}（${formatShiftStartText(e.startMin)}）`).join('、')} 更早上班。`;
+  }
+  sendPrivateToManagers(text, '早班汇总');
+}
+
+setInterval(checkMorningSummary, 30 * 1000);
 
 function checkShiftAlerts() {
   const { dateStr, hour, minute } = getJSTParts(new Date());
@@ -1990,6 +2031,8 @@ async function loadShiftsFromDB() {
 // 现场管理人员名单：人员管理面板最上面那个多选下拉里勾出来的人。
 // 被勾中 = 现场管理人员 = 收上班提醒（按聊天登录名匹配），同时也是问题件"本周负责人"的候选人。
 // 名字是手输/勾选的，所以管理者这种不在班表里的人也能进来；没勾的人不会显示在面板上。
+// 第一次启动（名单表还是空的）时用这几位当默认提醒对象，之后在面板里改，改完以这里为准
+const DEFAULT_STAFF_MANAGERS = ['李乔', '孙韶蔚', '余丽', '王晓雨', '钟海燕'];
 let staffManagers = [];
 
 async function ensureStaffMembersTable() {
@@ -2006,16 +2049,26 @@ async function ensureStaffMembersTable() {
 
 async function loadStaffManagersFromDB() {
   if (!dbPool) {
-    staffManagers = [];
+    staffManagers = DEFAULT_STAFF_MANAGERS.slice();
     return;
   }
   try {
     await ensureStaffMembersTable();
     const { rows } = await dbPool.query('SELECT name FROM staff_members ORDER BY id ASC;');
-    staffManagers = rows.map((r) => r.name);
+    if (rows.length === 0) {
+      // 表还是空的：把默认几位写进去，省得上线后还要手动一个个勾
+      for (const name of DEFAULT_STAFF_MANAGERS) {
+        await dbPool.query('INSERT INTO staff_members (name, alert_on) VALUES ($1, true) ON CONFLICT (name) DO NOTHING;', [name]);
+      }
+      const reloaded = await dbPool.query('SELECT name FROM staff_members ORDER BY id ASC;');
+      staffManagers = reloaded.rows.map((r) => r.name);
+      console.log(`已写入 ${staffManagers.length} 位默认现场管理人员`);
+    } else {
+      staffManagers = rows.map((r) => r.name);
+    }
   } catch (err) {
     console.error('[加载现场管理人员名单失败]', err.message);
-    staffManagers = [];
+    staffManagers = DEFAULT_STAFF_MANAGERS.slice();
   }
 }
 

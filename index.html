@@ -93,6 +93,15 @@
   button:hover { background: var(--accent-dark); }
   #login button { width: 100%; margin-top: 12px; }
 
+  #login-error {
+    display: none;
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #e5534b;
+  }
+  #login-error.active { display: block; }
+
   #app {
     display: none;
     height: 100%;
@@ -2462,6 +2471,7 @@
     <p>输入昵称加入聊天</p>
     <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
     <button id="join-btn">加入 CC</button>
+    <div id="login-error"></div>
   </div>
 </div>
 
@@ -3088,6 +3098,10 @@
   const faviconEl = document.getElementById('favicon');
   const usernameInput = document.getElementById('username-input');
   const joinBtn = document.getElementById('join-btn');
+  const loginErrorEl = document.getElementById('login-error');
+  // 名字被占用时服务器会拒绝登录，这时候要拦住自动重连，
+  // 否则会拿同一个名字反复重连、反复被拒，陷入死循环
+  let joinRejected = false;
   const messagesEl = document.getElementById('messages');
   const textInput = document.getElementById('text-input');
   const sendBtn = document.getElementById('send-btn');
@@ -3274,6 +3288,10 @@
     };
 
     ws.onclose = () => {
+      if (joinRejected) {
+        connStatus.textContent = '未登录';
+        return; // 名字被占用被拒绝了，不要再自动重连
+      }
       connStatus.textContent = '连接已断开，正在重连...';
       setTimeout(connect, 2000);
     };
@@ -3282,7 +3300,19 @@
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'history') {
+      if (data.type === 'join_error') {
+        // 名字已经有人在用：退回登录页，让他换一个
+        joinRejected = true;
+        try { ws.close(); } catch (e) { /* 忽略 */ }
+        appEl.classList.remove('active');
+        loginEl.style.display = '';
+        loginErrorEl.textContent = data.message || '这个名字已经有人在用了，换一个吧';
+        loginErrorEl.classList.add('active');
+        joinBtn.disabled = false;
+        usernameInput.focus();
+        usernameInput.select();
+      } else if (data.type === 'history') {
+        joinBtn.disabled = false;
         messagesEl.innerHTML = '';
         data.messages.forEach((m) => renderMessage(m, { live: false }));
         scrollToBottom();
@@ -7220,7 +7250,18 @@
   function joinChat() {
     const val = usernameInput.value.trim();
     if (!val) { usernameInput.focus(); return; }
+    // 名字不能含字母和数字（服务器那边也会再挡一次）
+    if (/[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]/.test(val)) {
+      loginErrorEl.textContent = '名字里不能有字母和数字，请填中文姓名';
+      loginErrorEl.classList.add('active');
+      usernameInput.focus();
+      usernameInput.select();
+      return;
+    }
     username = val;
+    joinRejected = false;
+    loginErrorEl.classList.remove('active');
+    joinBtn.disabled = true;
     loginEl.style.display = 'none';
     appEl.classList.add('active');
     setAnnouncementText('');

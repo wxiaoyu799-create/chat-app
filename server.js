@@ -860,6 +860,12 @@ function extractMentions(text) {
 }
 
 wss.on('connection', (ws) => {
+  // 心跳：网线拔了、电脑休眠这类"假死"连接，TCP层可能几分钟都不报错，
+  // 服务器会一直以为这人还在线，导致他重连时被自己的旧连接挡在门外（名字被占）。
+  // 每30秒ping一次，上一轮没回pong的直接断掉，名字立刻释放。
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', async (raw) => {
     let data;
     try {
@@ -870,6 +876,32 @@ wss.on('connection', (ws) => {
 
     if (data.type === 'join') {
       const username = String(data.username || '匿名用户').slice(0, 20).trim() || '匿名用户';
+
+      // 名字里不能有字母和数字（半角全角都算），只能用中文姓名，
+      // 避免出现"abc""123""test"这种临时名字，也方便跟班表、管理人员名单对上
+      if (/[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]/.test(username)) {
+        ws.send(JSON.stringify({
+          type: 'join_error',
+          message: '名字里不能有字母和数字，请填中文姓名',
+        }));
+        return;
+      }
+
+      // 名字唯一：同一个名字已经有人在线就不让进。
+      // 大小写不敏感、忽略首尾空格，避免"张三"和"张三 "被当成两个人。
+      // 只拦真正还活着的连接——掉线的连接由下面的心跳检测清掉，不会把人锁在门外。
+      const taken = Array.from(clients.entries()).some(([sock, c]) =>
+        sock !== ws &&
+        sock.readyState === WebSocket.OPEN &&
+        c.username.trim().toLowerCase() === username.toLowerCase());
+      if (taken) {
+        ws.send(JSON.stringify({
+          type: 'join_error',
+          message: `“${username}”已经在线了，换个名字试试（如果是你自己在别的窗口/设备开着，先把那边关掉）`,
+        }));
+        return;
+      }
+
       clients.set(ws, { username });
 
       // 发送历史消息 + 当前在线列表给新用户
@@ -1803,6 +1835,17 @@ function checkShiftAlerts() {
 }
 
 setInterval(checkShiftAlerts, 30 * 1000);
+
+setInterval(() => {
+  wss.clients.forEach((sock) => {
+    if (sock.isAlive === false) {
+      sock.terminate(); // 会触发 close，clients 里的记录和在线列表由那边统一清理
+      return;
+    }
+    sock.isAlive = false;
+    try { sock.ping(); } catch (e) { /* 已经关掉的连接，忽略 */ }
+  });
+}, 30 * 1000);
 
 // 每30秒检查一次，足够精确命中每分钟的提醒时间点，又不会太频繁
 setInterval(checkReminders, 30 * 1000);

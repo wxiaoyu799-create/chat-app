@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
 <title>CC</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
 <link rel="manifest" href="/manifest.json" />
@@ -2453,13 +2453,79 @@
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
+  /* 汉堡按钮和抽屉遮罩：只在手机宽度下出现 */
+  #mobile-menu-btn {
+    display: none;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 22px;
+    padding: 0 4px 0 0;
+    line-height: 1;
+    align-self: center;
+  }
+  #drawer-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.45);
+    z-index: 8999;
+  }
+  #drawer-backdrop.active { display: block; }
+
   @media (max-width: 900px) {
     #quick-sidebar { display: none; }
     #app { grid-template-columns: 200px 1fr; }
   }
+
   @media (max-width: 640px) {
-    #app { grid-template-columns: 1fr; }
-    #sidebar { display: none; }
+    #app {
+      grid-template-columns: 1fr;
+      border-width: 0;
+    }
+    #mobile-menu-btn { display: inline-flex; }
+
+    /* 侧边栏在手机上改成抽屉：默认滑出屏幕，点汉堡按钮滑进来。
+       以前这里是 display:none，等于公告栏/问题件/时间管理/人员管理在手机上全都点不到 */
+    #sidebar {
+      display: block;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 82vw;
+      max-width: 320px;
+      z-index: 9000;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      box-shadow: 4px 0 24px rgba(0,0,0,0.18);
+      transform: translateX(-102%);
+      transition: transform 0.22s ease;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+    #sidebar.drawer-open { transform: none; }
+
+    /* iPhone 刘海和底部横条：给顶部/底部留出安全区，不然内容会被盖住 */
+    header { padding-top: calc(14px + env(safe-area-inset-top)); }
+    #input-row { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+    .tool-overlay-header-bar { padding-top: calc(10px + env(safe-area-inset-top)); }
+    #timeclock-body, #staff-body, #problem-item-content-area, #inspection-content-area, #tool-overlay-frame {
+      padding-bottom: calc(24px + env(safe-area-inset-bottom));
+    }
+
+    /* iOS 上输入框字号小于16px会自动放大整个页面，聚焦后版式就乱了 */
+    input, textarea, select { font-size: 16px; }
+
+    header h2 { font-size: 18px; }
+    .my-username { font-size: 16px; }
+    #messages { padding: 10px 12px; }
+    .staff-grid-row { grid-template-columns: 84px 1fr 76px 26px; }
+    #staff-body, #timeclock-body { padding-left: 12px; padding-right: 12px; }
+    .staff-members-pick-row .multi-select-dropdown { min-width: 160px; }
+    #staff-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
   }
 </style>
 </head>
@@ -2476,6 +2542,7 @@
 </div>
 
 <div id="app">
+  <div id="drawer-backdrop"></div>
   <div id="sidebar">
     <button id="online-list-toggle" class="sidebar-toggle collapsed" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users"></i></span> 检品达人 (<span id="online-count">0</span>)</span>
@@ -2587,6 +2654,7 @@
   <div id="chat-col">
     <header>
       <div class="header-left">
+        <button id="mobile-menu-btn" type="button" title="菜单"><i class="ti ti-menu-2"></i></button>
         <div class="username-block">
           <span class="my-username" id="my-username"></span>
         </div>
@@ -7241,6 +7309,39 @@
     const file = staffImportInput.files && staffImportInput.files[0];
     if (file) importStaffFile(file);
     staffImportInput.value = '';
+  });
+
+  // ===== 手机端抽屉菜单 =====
+  // 手机屏幕放不下三栏，侧边栏改成从左边滑出的抽屉。点里面任何一个功能入口就自动收起，
+  // 免得点开全屏面板后抽屉还盖在上面。
+  const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+  const drawerBackdrop = document.getElementById('drawer-backdrop');
+  const sidebarEl = document.getElementById('sidebar');
+
+  function openDrawer() {
+    sidebarEl.classList.add('drawer-open');
+    drawerBackdrop.classList.add('active');
+  }
+  function closeDrawer() {
+    sidebarEl.classList.remove('drawer-open');
+    drawerBackdrop.classList.remove('active');
+  }
+
+  mobileMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (sidebarEl.classList.contains('drawer-open')) closeDrawer();
+    else openDrawer();
+  });
+  drawerBackdrop.addEventListener('click', closeDrawer);
+  // 点侧边栏里的按钮/链接后自动收起抽屉（公告栏的编辑框那些除外，不然编辑到一半就关了）
+  sidebarEl.addEventListener('click', (e) => {
+    const hit = e.target.closest('button, a');
+    if (!hit) return;
+    if (hit.closest('#announcement-edit-row, #sidebar-announce')) return;
+    closeDrawer();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && sidebarEl.classList.contains('drawer-open')) closeDrawer();
   });
 
   function scrollToBottom() {

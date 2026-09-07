@@ -1930,6 +1930,25 @@
   .problem-item-card-actions .transfer-btn:hover { border-color: #d98a1f; color: #d98a1f; }
   .problem-item-card-actions .shelve-btn:hover { border-color: #7c3aed; color: #7c3aed; }
   .problem-item-card-actions .quote-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .problem-item-card-actions .add-photo-btn:hover { border-color: #3370ff; color: #3370ff; }
+  .problem-item-card-actions .add-photo-btn.urgent {
+    border-color: #e5534b;
+    color: #e5534b;
+    font-weight: 600;
+  }
+  .problem-item-card-actions .add-photo-btn.urgent:hover { background: #fdecea; border-color: #e5534b; color: #e5534b; }
+  .problem-item-card.needs-photo { border-color: #f0b4ae; }
+  .problem-item-photo-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #fdecea;
+    color: #e5534b;
+    font-weight: 600;
+  }
 
   /* 选项编辑弹层 */
   #problem-item-options-edit-panel {
@@ -2115,6 +2134,89 @@
     line-height: 1;
   }
   .timeclock-name-chip button:hover { color: #e5534b; background: transparent; }
+  /* ===== 摄像头拍照弹层（电脑和手机通用，直接调摄像头，不走文件选择框）===== */
+  #camera-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.85);
+    z-index: 10002;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #camera-overlay.active { display: flex; }
+  #camera-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 720px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .camera-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  #camera-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    padding: 2px 6px;
+  }
+  #camera-close-btn:hover { color: var(--text); background: transparent; }
+  #camera-stage {
+    position: relative;
+    background: #000;
+    flex: 1;
+    min-height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #camera-video, #camera-shot {
+    max-width: 100%;
+    max-height: 60vh;
+    display: none;
+  }
+  #camera-video.active, #camera-shot.active { display: block; }
+  #camera-hint {
+    position: absolute;
+    color: #fff;
+    font-size: 13px;
+    text-align: center;
+    padding: 0 20px;
+    line-height: 1.7;
+  }
+  .camera-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+  #camera-snap-btn, #camera-use-btn {
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  #camera-snap-btn:hover, #camera-use-btn:hover { background: var(--accent-dark); }
+  .camera-actions button[hidden] { display: none; }
+
   .msg-private-tag {
     font-size: 10px;
     color: #7c3aed;
@@ -3019,6 +3121,27 @@
   </div>
 </div>
 
+<div id="camera-overlay">
+  <div id="camera-card">
+    <div class="camera-head">
+      <span id="camera-title">拍照</span>
+      <button id="camera-close-btn" type="button" title="关闭"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="camera-stage">
+      <video id="camera-video" playsinline autoplay muted></video>
+      <img id="camera-shot" alt="" />
+      <div id="camera-hint">正在打开摄像头…</div>
+    </div>
+    <div class="camera-actions">
+      <button id="camera-switch-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-refresh"></i> 切换摄像头</button>
+      <button id="camera-file-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-folder"></i> 改用选文件</button>
+      <button id="camera-snap-btn" type="button"><i class="ti ti-camera"></i> 拍摄</button>
+      <button id="camera-retake-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-arrow-back-up"></i> 重拍</button>
+      <button id="camera-use-btn" type="button"><i class="ti ti-check"></i> 用这张</button>
+    </div>
+  </div>
+</div>
+
 <div id="announce-overlay">
   <div id="announce-card">
     <div class="announce-icon"><i class="ti ti-speakerphone"></i></div>
@@ -3473,6 +3596,13 @@
         if (!problemItemData.reports[cat]) problemItemData.reports[cat] = [];
         problemItemData.reports[cat].push(data.report);
         renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+      } else if (data.type === 'problem_item_report_updated') {
+        // 补传照片之后，服务器把整条记录发回来，替换掉本地那份再重画
+        const cat = data.category;
+        const list = problemItemData.reports[cat] || [];
+        const idx = list.findIndex((r) => String(r.id) === String(data.report.id));
+        if (idx !== -1) list[idx] = data.report;
         if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
       } else if (data.type === 'problem_item_report_removed') {
         const cat = data.category;
@@ -5192,6 +5322,146 @@
   }
   setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
 
+  // ===== 摄像头拍照弹层 =====
+  // 电脑上点"拍照"以前会弹本地文件框（因为 <input capture> 只有手机认），现在统一走 getUserMedia：
+  // 电脑用内置/外接摄像头，手机默认用后置，都是实时预览 + 拍下来确认 + 直接上传，不经过文件选择。
+  // 注意：浏览器只在 HTTPS 或 localhost 下允许调摄像头，线上是 HTTPS 所以没问题。
+  const cameraOverlay = document.getElementById('camera-overlay');
+  const cameraTitle = document.getElementById('camera-title');
+  const cameraVideo = document.getElementById('camera-video');
+  const cameraShot = document.getElementById('camera-shot');
+  const cameraHint = document.getElementById('camera-hint');
+  const cameraCloseBtn = document.getElementById('camera-close-btn');
+  const cameraSnapBtn = document.getElementById('camera-snap-btn');
+  const cameraRetakeBtn = document.getElementById('camera-retake-btn');
+  const cameraUseBtn = document.getElementById('camera-use-btn');
+  const cameraSwitchBtn = document.getElementById('camera-switch-btn');
+  const cameraFileBtn = document.getElementById('camera-file-btn');
+
+  let cameraStream = null;
+  let cameraFacing = 'environment';
+  let cameraShotBlob = null;
+  let cameraOnDone = null;      // 拍完后把 File 交给谁
+  let cameraOnFallback = null;  // 点"改用选文件"时走谁
+
+  function setCameraStage(mode) {
+    // mode: 'live' 实时预览 / 'shot' 已拍下待确认 / 'error' 出错
+    cameraVideo.classList.toggle('active', mode === 'live');
+    cameraShot.classList.toggle('active', mode === 'shot');
+    cameraHint.style.display = mode === 'error' ? 'block' : 'none';
+    cameraSnapBtn.hidden = mode !== 'live';
+    cameraSwitchBtn.hidden = mode !== 'live';
+    cameraRetakeBtn.hidden = mode !== 'shot';
+    cameraUseBtn.hidden = mode !== 'shot';
+  }
+
+  function stopCameraStream() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop());
+      cameraStream = null;
+    }
+    cameraVideo.srcObject = null;
+  }
+
+  async function startCameraStream() {
+    stopCameraStream();
+    cameraHint.textContent = '正在打开摄像头…';
+    cameraHint.style.display = 'block';
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      cameraHint.textContent = '这个浏览器不支持直接调用摄像头，点下面的"改用选文件"上传照片';
+      setCameraStage('error');
+      return;
+    }
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: cameraFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      cameraVideo.srcObject = cameraStream;
+      await cameraVideo.play().catch(() => {});
+      setCameraStage('live');
+    } catch (err) {
+      // 没摄像头、没授权、被其他程序占用都会走到这里
+      const reason = err && err.name === 'NotAllowedError'
+        ? '摄像头权限被拒绝了，点浏览器地址栏左边的图标重新允许'
+        : err && err.name === 'NotFoundError'
+          ? '这台设备上没找到摄像头'
+          : '打开摄像头失败：' + (err && err.message ? err.message : '未知原因');
+      cameraHint.textContent = reason + '\n也可以点下面的"改用选文件"上传已有照片';
+      setCameraStage('error');
+    }
+  }
+
+  function openCameraModal(title, onDone, onFallback) {
+    cameraTitle.textContent = title || '拍照';
+    cameraOnDone = onDone;
+    cameraOnFallback = onFallback || null;
+    cameraFileBtn.hidden = !onFallback;
+    cameraShotBlob = null;
+    cameraShot.src = '';
+    cameraOverlay.classList.add('active');
+    startCameraStream();
+  }
+
+  function closeCameraModal() {
+    stopCameraStream();
+    cameraOverlay.classList.remove('active');
+    if (cameraShot.src) URL.revokeObjectURL(cameraShot.src);
+    cameraShot.src = '';
+    cameraShotBlob = null;
+    cameraOnDone = null;
+    cameraOnFallback = null;
+  }
+
+  cameraSnapBtn.addEventListener('click', () => {
+    if (!cameraStream) return;
+    const w = cameraVideo.videoWidth;
+    const h = cameraVideo.videoHeight;
+    if (!w || !h) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').drawImage(cameraVideo, 0, 0, w, h);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      cameraShotBlob = blob;
+      if (cameraShot.src) URL.revokeObjectURL(cameraShot.src);
+      cameraShot.src = URL.createObjectURL(blob);
+      setCameraStage('shot');
+      stopCameraStream(); // 拍完先把摄像头灯关掉，重拍时再开
+    }, 'image/jpeg', 0.92);
+  });
+
+  cameraRetakeBtn.addEventListener('click', () => {
+    cameraShotBlob = null;
+    startCameraStream();
+  });
+
+  cameraUseBtn.addEventListener('click', () => {
+    if (!cameraShotBlob || !cameraOnDone) return;
+    const file = new File([cameraShotBlob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    const done = cameraOnDone;
+    closeCameraModal();
+    done([file]);
+  });
+
+  cameraSwitchBtn.addEventListener('click', () => {
+    cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+    startCameraStream();
+  });
+
+  cameraFileBtn.addEventListener('click', () => {
+    const fallback = cameraOnFallback;
+    closeCameraModal();
+    if (fallback) fallback();
+  });
+
+  cameraCloseBtn.addEventListener('click', closeCameraModal);
+  cameraOverlay.addEventListener('click', (e) => { if (e.target === cameraOverlay) closeCameraModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && cameraOverlay.classList.contains('active')) closeCameraModal();
+  });
+
   // ---- 图片区：贵重品不用传图，其余分类都可以；脏污/破损/多货必须传 ----
   const PHOTO_REQUIRED_TYPES = ['脏污', '破损', '多货'];
   function photoRequiredNow() {
@@ -5210,7 +5480,7 @@
     const label = box.querySelector('.problem-item-field-label');
     if (label) {
       label.innerHTML = photoRequiredNow()
-        ? '问题件图片<span style="color:#e5534b">（必传，最多3张）</span>'
+        ? '问题件图片<span style="color:#d97706">（这类问题需要照片，现在没有的话可以先提交，之后在列表里补传）</span>'
         : '问题件图片（选填，最多3张）';
     }
   }
@@ -5315,12 +5585,8 @@
 
   // 拍照：手机上 capture 属性会直接唤起后置摄像头；电脑上没有摄像头概念，浏览器会退化成普通文件选择框，
   // 所以两个按钮在电脑上效果一样，不影响使用
-  problemItemCameraBtn.addEventListener('click', () => problemItemCameraInput.click());
-  problemItemCameraInput.addEventListener('change', () => {
-    if (problemItemCameraInput.files && problemItemCameraInput.files.length) {
-      addProblemItemImages(problemItemCameraInput.files);
-    }
-    problemItemCameraInput.value = '';
+  problemItemCameraBtn.addEventListener('click', () => {
+    openCameraModal('拍照 · 问题件', (files) => addProblemItemImages(files), () => problemItemImageInput.click());
   });
   problemItemImageBtn.addEventListener('click', () => problemItemImageInput.click());
   problemItemImageInput.addEventListener('change', () => {
@@ -5426,6 +5692,17 @@
         shelvedTag.textContent = '暂存中';
         tagsRow.appendChild(shelvedTag);
       }
+      // 脏污/破损/多货这类问题没有照片时，标红提醒去补——提交时不拦，但列表里一眼能看出来
+      const needsPhoto = currentProblemItemCategory !== '贵重品'
+        && (report.issueTypes || []).some((t) => PHOTO_REQUIRED_TYPES.some((k) => String(t).includes(k)))
+        && (report.images || []).length === 0;
+      if (needsPhoto) {
+        card.classList.add('needs-photo');
+        const warnTag = document.createElement('span');
+        warnTag.className = 'problem-item-photo-tag';
+        warnTag.innerHTML = '<i class="ti ti-camera-exclamation"></i> 待补照片';
+        tagsRow.appendChild(warnTag);
+      }
       card.appendChild(tagsRow);
 
       const meta = document.createElement('div');
@@ -5519,6 +5796,20 @@
       });
       actions.appendChild(shelveBtn);
 
+      // 补传照片：电脑上先把单子提了，之后拿手机（或电脑摄像头）把照片补上来。
+      // 只追加不覆盖，最多3张，满了就不再显示这个按钮。
+      const already = (report.images || []).length;
+      if (already < 3) {
+        const addPhotoBtn = document.createElement('button');
+        addPhotoBtn.className = needsPhoto ? 'add-photo-btn urgent' : 'add-photo-btn';
+        addPhotoBtn.innerHTML = already === 0
+          ? '<i class="ti ti-camera-plus"></i> 补传照片'
+          : `<i class="ti ti-camera-plus"></i> 加照片(${already}/3)`;
+        addPhotoBtn.title = '给这条已提交的问题件补照片';
+        addPhotoBtn.addEventListener('click', () => startAddPhotoToReport(report));
+        actions.appendChild(addPhotoBtn);
+      }
+
       // 引用到聊天框：把这条问题件的关键信息塞进输入框上方的引用条，
       // 效果跟聊天里"↩ 回复"某条消息一样，方便直接在聊天室里回复处理建议
       const quoteBtn = document.createElement('button');
@@ -5532,6 +5823,72 @@
       problemItemList.appendChild(card);
     });
   }
+
+  // ---- 给已提交的问题件补传照片 ----
+  // 典型用法：检品台用电脑提交（登录名对得上人），照片用手机拍了补上来；
+  // 手机那边不需要用本人账号登录——记录里的提交人早就定好了，补照片只是往这条记录上追加。
+  const addPhotoFileInput = document.createElement('input');
+  addPhotoFileInput.type = 'file';
+  addPhotoFileInput.accept = 'image/*';
+  addPhotoFileInput.multiple = true;
+  addPhotoFileInput.style.display = 'none';
+  document.body.appendChild(addPhotoFileInput);
+  let addPhotoTarget = null;
+
+  async function uploadAndAttachPhotos(report, files) {
+    const room = 3 - (report.images || []).length;
+    if (room <= 0) return;
+    const list = Array.from(files).slice(0, room);
+    problemItemSubmitHint.textContent = '⏳ 照片上传中…';
+    problemItemSubmitHint.style.color = 'var(--muted)';
+    const urls = [];
+    for (const file of list) {
+      try {
+        const compressed = await compressImageFile(file);
+        const formData = new FormData();
+        formData.append('image', compressed, compressed.name);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+        urls.push(data.url);
+      } catch (err) {
+        problemItemSubmitHint.textContent = '照片上传失败：' + err.message;
+        problemItemSubmitHint.style.color = '#e5534b';
+        return;
+      }
+    }
+    if (urls.length === 0) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      problemItemSubmitHint.textContent = '连接已断开，请稍后重试';
+      problemItemSubmitHint.style.color = '#e5534b';
+      return;
+    }
+    ws.send(JSON.stringify({
+      type: 'problem_item_add_images',
+      category: currentProblemItemCategory,
+      reportId: report.id,
+      images: urls,
+    }));
+    problemItemSubmitHint.textContent = `✓ 已补传 ${urls.length} 张照片`;
+    problemItemSubmitHint.style.color = '#2e9e5b';
+    setTimeout(() => { problemItemSubmitHint.textContent = ''; }, 2500);
+  }
+
+  function startAddPhotoToReport(report) {
+    addPhotoTarget = report;
+    openCameraModal(
+      `补传照片 · ${report.orderId || ''}`,
+      (files) => uploadAndAttachPhotos(report, files),
+      () => { addPhotoTarget = report; addPhotoFileInput.click(); }
+    );
+  }
+
+  addPhotoFileInput.addEventListener('change', () => {
+    if (addPhotoTarget && addPhotoFileInput.files && addPhotoFileInput.files.length) {
+      uploadAndAttachPhotos(addPhotoTarget, addPhotoFileInput.files);
+    }
+    addPhotoFileInput.value = '';
+  });
 
   // 把一条问题件引用到聊天输入框：关掉全屏面板回到聊天室，
   // 然后复用聊天里那套"引用回复"的机制（输入框上方出现引用条，发出去的消息会带着这段引用）。
@@ -5589,11 +5946,6 @@
       problemItemSubmitHint.textContent = `${idLabel}只能填数字`;
       problemItemSubmitHint.style.color = '#e5534b';
       problemItemIdInput.focus();
-      return;
-    }
-    if (photoRequiredNow() && problemItemPendingImages.filter((img) => img.url).length === 0) {
-      problemItemSubmitHint.textContent = `选了${PHOTO_REQUIRED_TYPES.join('/')}这类问题时必须上传照片`;
-      problemItemSubmitHint.style.color = '#e5534b';
       return;
     }
     if (problemItemPendingImages.some((img) => img.uploading)) {

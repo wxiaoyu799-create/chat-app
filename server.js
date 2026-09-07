@@ -758,6 +758,23 @@ async function addProblemItemReport(category, issueTypes, inspectorNames, orderN
   return report;
 }
 
+// 给已经提交的问题件补传照片：电脑上先把单子提了，之后拿手机拍照补上来。
+// 只追加、不覆盖，最多留3张。
+async function appendProblemItemImages(category, reportId, newImages) {
+  const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(reportId));
+  if (!report) return null;
+  const merged = Array.from(new Set((report.images || []).concat(newImages))).slice(0, 3);
+  report.images = merged;
+  if (dbPool) {
+    try {
+      await dbPool.query('UPDATE problem_item_reports SET images = $1 WHERE id = $2;', [JSON.stringify(merged), reportId]);
+    } catch (err) {
+      console.error('[补传问题件照片写入数据库失败]', err.message);
+    }
+  }
+  return report;
+}
+
 async function updateProblemItemReportStatus(category, reportId, status, byUsername) {
   const idx = problemItemReports[category].findIndex((r) => String(r.id) === String(reportId));
   if (idx === -1) return false;
@@ -1189,20 +1206,35 @@ wss.on('connection', (ws) => {
         ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
         : [];
 
-      // 这几类问题必须有照片佐证，不然后面扯皮说不清
-      const PHOTO_REQUIRED_TYPES = ['脏污', '破损', '多货'];
-      const needPhoto = issueTypes.some((t) => PHOTO_REQUIRED_TYPES.some((k) => String(t).includes(k)));
-      if (needPhoto && images.length === 0) {
-        ws.send(JSON.stringify({
-          type: 'problem_item_error',
-          message: `选了${PHOTO_REQUIRED_TYPES.join('/')}这类问题时必须上传照片`,
-        }));
-        return;
-      }
+      // 脏污/破损/多货这几类是需要照片佐证的，但不强制在提交时就传——
+      // 检品台的电脑不一定有摄像头，硬卡着会逼人改用手机提交，反而对不上提交人。
+      // 改成：先让单子进来，列表里标红"待补照片"，之后用手机点"补传照片"补上。
 
       // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
       const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images);
       broadcast({ type: 'problem_item_report_added', category, report });
+      return;
+    }
+
+    // 补传照片（针对已经在列表里的记录）
+    if (data.type === 'problem_item_add_images') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
+      const images = Array.isArray(data.images)
+        ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+        : [];
+      if (images.length === 0) {
+        ws.send(JSON.stringify({ type: 'problem_item_error', message: '没有可补传的照片' }));
+        return;
+      }
+      const report = await appendProblemItemImages(category, data.reportId, images);
+      if (!report) {
+        ws.send(JSON.stringify({ type: 'problem_item_error', message: '没找到这条问题件，可能已经被处理掉了' }));
+        return;
+      }
+      broadcast({ type: 'problem_item_report_updated', category, report });
       return;
     }
 

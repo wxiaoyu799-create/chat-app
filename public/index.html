@@ -1795,6 +1795,7 @@
   .problem-item-field-tip { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
   #problem-item-image-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #problem-item-camera-btn,
   #problem-item-image-btn {
     background: var(--panel-alt);
     border: 1px solid var(--border);
@@ -1803,6 +1804,7 @@
     padding: 7px 12px;
     border-radius: 8px;
   }
+  #problem-item-camera-btn:hover,
   #problem-item-image-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
   #problem-item-image-status { font-size: 12px; color: var(--muted); }
   #problem-item-image-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -1911,9 +1913,10 @@
   }
   .problem-item-card-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .problem-item-card-note { font-size: 13px; color: var(--text); margin-bottom: 10px; white-space: pre-wrap; word-break: break-word; }
-  .problem-item-card-actions { display: flex; gap: 8px; }
+  .problem-item-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .problem-item-card-actions button {
-    flex: 1;
+    flex: 1 1 calc(33.333% - 6px);
+    min-width: 92px;
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text);
@@ -2526,6 +2529,18 @@
     #staff-body, #timeclock-body { padding-left: 12px; padding-right: 12px; }
     .staff-members-pick-row .multi-select-dropdown { min-width: 160px; }
     #staff-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
+
+    /* 问题件：五个操作按钮在手机上排成两列（默认三列会挤成五行，太占地方） */
+    #problem-item-content-area { padding: 14px 12px; }
+    .problem-item-card-actions button {
+      flex: 1 1 calc(50% - 4px);
+      min-width: 0;
+      font-size: 11px;
+      padding: 8px 4px;
+    }
+    #problem-item-form { max-width: none; }
+    #problem-item-image-row { gap: 6px; }
+    #problem-item-camera-btn, #problem-item-image-btn { flex: 1 1 auto; font-size: 11px; padding: 8px 6px; }
   }
 </style>
 </head>
@@ -3093,7 +3108,9 @@
         <div class="problem-item-field">
           <label class="problem-item-field-label">问题件图片（选填，最多3张）</label>
           <div id="problem-item-image-row">
-            <button type="button" id="problem-item-image-btn"><i class="ti ti-photo-plus"></i> 添加图片</button>
+            <button type="button" id="problem-item-camera-btn"><i class="ti ti-camera"></i> 拍照</button>
+            <input type="file" id="problem-item-camera-input" accept="image/*" capture="environment" style="display:none" />
+            <button type="button" id="problem-item-image-btn"><i class="ti ti-photo-plus"></i> 从相册/文件选择</button>
             <input type="file" id="problem-item-image-input" accept="image/*" multiple style="display:none" />
             <span id="problem-item-image-status"></span>
           </div>
@@ -3274,6 +3291,8 @@
   const problemItemIdLabel = document.getElementById('problem-item-id-label');
   const problemItemIdInput = document.getElementById('problem-item-id-input');
   const problemItemIdTip = document.getElementById('problem-item-id-tip');
+  const problemItemCameraBtn = document.getElementById('problem-item-camera-btn');
+  const problemItemCameraInput = document.getElementById('problem-item-camera-input');
   const problemItemImageBtn = document.getElementById('problem-item-image-btn');
   const problemItemImageInput = document.getElementById('problem-item-image-input');
   const problemItemImageStatus = document.getElementById('problem-item-image-status');
@@ -5173,6 +5192,29 @@
   }
   setupMultiSelectDropdown(issueTypeTrigger, issueTypePanel);
 
+  // ---- 图片区：贵重品不用传图，其余分类都可以；脏污/破损/多货必须传 ----
+  const PHOTO_REQUIRED_TYPES = ['脏污', '破损', '多货'];
+  function photoRequiredNow() {
+    if (currentProblemItemCategory === '贵重品') return false;
+    return Array.from(selectedIssueTypes).some((t) => PHOTO_REQUIRED_TYPES.some((k) => t.includes(k)));
+  }
+  function updateProblemItemPhotoSection() {
+    const box = problemItemImageBtn.closest('.problem-item-field');
+    if (!box) return;
+    // 贵重品只是"待检"登记，不需要拍照，整块藏起来
+    if (currentProblemItemCategory === '贵重品') {
+      box.style.display = 'none';
+      return;
+    }
+    box.style.display = '';
+    const label = box.querySelector('.problem-item-field-label');
+    if (label) {
+      label.innerHTML = photoRequiredNow()
+        ? '问题件图片<span style="color:#e5534b">（必传，最多3张）</span>'
+        : '问题件图片（选填，最多3张）';
+    }
+  }
+
   // ---- 订单ID / 快递单号 ----
   // 选了"找不到订单"这类问题类型时，手上根本没有订单号，能填的只有快递单号，
   // 所以这里跟着问题类型自动切换标签；两种都必须是纯数字，空的不让提交。
@@ -5271,6 +5313,15 @@
     }
   }
 
+  // 拍照：手机上 capture 属性会直接唤起后置摄像头；电脑上没有摄像头概念，浏览器会退化成普通文件选择框，
+  // 所以两个按钮在电脑上效果一样，不影响使用
+  problemItemCameraBtn.addEventListener('click', () => problemItemCameraInput.click());
+  problemItemCameraInput.addEventListener('change', () => {
+    if (problemItemCameraInput.files && problemItemCameraInput.files.length) {
+      addProblemItemImages(problemItemCameraInput.files);
+    }
+    problemItemCameraInput.value = '';
+  });
   problemItemImageBtn.addEventListener('click', () => problemItemImageInput.click());
   problemItemImageInput.addEventListener('change', () => {
     if (problemItemImageInput.files && problemItemImageInput.files.length) {
@@ -5306,12 +5357,14 @@
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
     renderProblemItemOwner();
+    updateProblemItemPhotoSection();
     problemItemInspectorDisplay.textContent = username || '（未知用户）';
     const issueTypesForThisCategory = getIssueTypesForCategory(currentProblemItemCategory);
     renderMultiSelectPanel(issueTypePanel, issueTypesForThisCategory, selectedIssueTypes,
       () => {
         updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
         updateProblemItemIdField();
+        updateProblemItemPhotoSection();
       });
     updateMultiSelectTrigger(issueTypeTrigger, selectedIssueTypes, '请选择问题类型…');
     updateProblemItemIdField();
@@ -5434,15 +5487,26 @@
       });
       actions.appendChild(resolveBtn);
 
-      const transferBtn = document.createElement('button');
-      transferBtn.className = 'transfer-btn';
-      transferBtn.innerHTML = '<i class="ti ti-arrow-right"></i> 转处理';
-      transferBtn.addEventListener('click', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'problem_item_transfer', category: currentProblemItemCategory, reportId: report.id }));
-        }
+      // 原来的"转处理"拆成两个去向，点哪个就记哪个，导出时能分开统计
+      [
+        { target: 'merchant', label: '转日志商家', icon: 'ti-truck-delivery' },
+        { target: 'task', label: '转任务', icon: 'ti-subtask' },
+      ].forEach(({ target, label, icon }) => {
+        const btn = document.createElement('button');
+        btn.className = 'transfer-btn';
+        btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
+        btn.addEventListener('click', () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'problem_item_transfer',
+              category: currentProblemItemCategory,
+              reportId: report.id,
+              target,
+            }));
+          }
+        });
+        actions.appendChild(btn);
       });
-      actions.appendChild(transferBtn);
 
       const shelveBtn = document.createElement('button');
       shelveBtn.className = 'shelve-btn';
@@ -5525,6 +5589,11 @@
       problemItemSubmitHint.textContent = `${idLabel}只能填数字`;
       problemItemSubmitHint.style.color = '#e5534b';
       problemItemIdInput.focus();
+      return;
+    }
+    if (photoRequiredNow() && problemItemPendingImages.filter((img) => img.url).length === 0) {
+      problemItemSubmitHint.textContent = `选了${PHOTO_REQUIRED_TYPES.join('/')}这类问题时必须上传照片`;
+      problemItemSubmitHint.style.color = '#e5534b';
       return;
     }
     if (problemItemPendingImages.some((img) => img.uploading)) {

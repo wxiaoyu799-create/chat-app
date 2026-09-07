@@ -154,7 +154,7 @@ app.get('/api/problem-item-export', async (req, res) => {
 
   // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
   // 不然老记录会被漏掉
-  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up')";
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task')";
   const params = [];
   if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
     params.push(category);
@@ -177,7 +177,10 @@ app.get('/api/problem-item-export', async (req, res) => {
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
-      const statusLabel = row.status === 'resolved' ? '已解决' : '转处理';
+      const statusLabel = row.status === 'resolved' ? '已解决'
+        : row.status === 'transferred_merchant' ? '转日志商家'
+        : row.status === 'transferred_task' ? '转任务'
+        : '转处理'; // 老数据（transferred / follow_up）
       const submittedTime = new Date(row.submitted_at).toLocaleString('zh-CN');
       const resolvedTime = row.resolved_at ? new Date(row.resolved_at).toLocaleString('zh-CN') : '';
       lines.push([
@@ -1186,6 +1189,17 @@ wss.on('connection', (ws) => {
         ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
         : [];
 
+      // 这几类问题必须有照片佐证，不然后面扯皮说不清
+      const PHOTO_REQUIRED_TYPES = ['脏污', '破损', '多货'];
+      const needPhoto = issueTypes.some((t) => PHOTO_REQUIRED_TYPES.some((k) => String(t).includes(k)));
+      if (needPhoto && images.length === 0) {
+        ws.send(JSON.stringify({
+          type: 'problem_item_error',
+          message: `选了${PHOTO_REQUIRED_TYPES.join('/')}这类问题时必须上传照片`,
+        }));
+        return;
+      }
+
       // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
       const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images);
       broadcast({ type: 'problem_item_report_added', category, report });
@@ -1199,7 +1213,12 @@ wss.on('connection', (ws) => {
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
       let status;
       if (data.type === 'problem_item_resolve') status = 'resolved';
-      else if (data.type === 'problem_item_transfer') status = 'transferred';
+      // "转处理"拆成了两种去向：转给日志商家、转成任务。老的 'transferred' 保留，只用来读历史数据
+      else if (data.type === 'problem_item_transfer') {
+        status = data.target === 'task' ? 'transferred_task'
+          : data.target === 'merchant' ? 'transferred_merchant'
+          : 'transferred';
+      }
       else status = 'shelved';
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {

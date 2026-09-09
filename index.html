@@ -1660,6 +1660,24 @@
   .problem-item-panel-cat-btn:hover { background: var(--hover-dark); color: var(--text); }
   .problem-item-panel-cat-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
   .problem-item-cat-divider { height: 1px; background: var(--border); margin: 8px 6px; }
+  /* 侧栏里把"提交分类"和"转出去向"分开：一条淡淡的线配一个小标题，
+     颜色沿用侧栏本来的 border / muted，不引入新色，保持整体调子一致 */
+  .problem-item-queue-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 2px 8px;
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .problem-item-queue-divider::before,
+  .problem-item-queue-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
 
   #problem-item-content-area {
     flex: 1;
@@ -2135,6 +2153,37 @@
     line-height: 1;
   }
   .timeclock-name-chip button:hover { color: #e5534b; background: transparent; }
+  #timeclock-edit-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.72);
+    z-index: 10001;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #timeclock-edit-overlay.active { display: flex; }
+  #timeclock-edit-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    width: 100%;
+    max-width: 340px;
+  }
+  #timeclock-edit-who { font-size: 13px; color: var(--text); }
+  .timeclock-row-edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .timeclock-row-edit-btn:hover { color: var(--accent); background: transparent; }
+
   /* ===== 摄像头拍照弹层（电脑和手机通用，直接调摄像头，不走文件选择框）===== */
   #camera-overlay {
     display: none;
@@ -2723,6 +2772,7 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
+      <div class="problem-item-queue-divider"><span>转出去向</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="日志商家" type="button">
         <span class="module-icon-badge"><i class="ti ti-truck-delivery"></i></span>
         <span class="tool-entry-label">日志商家</span>
@@ -3124,6 +3174,34 @@
       <button id="staff-edit-delete-btn" type="button">删除</button>
       <button id="staff-edit-cancel-btn" type="button">取消</button>
       <button id="staff-edit-save-btn" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="timeclock-edit-overlay">
+  <div id="timeclock-edit-card">
+    <div class="staff-edit-title">修改打卡时间</div>
+    <div class="staff-edit-field">
+      <label>提交人 / 日期</label>
+      <div id="timeclock-edit-who"></div>
+    </div>
+    <div class="staff-edit-field">
+      <label>签出时间（开始）</label>
+      <input type="time" id="timeclock-edit-start" step="60" />
+    </div>
+    <div class="staff-edit-field">
+      <label>签入时间（结束）</label>
+      <input type="time" id="timeclock-edit-end" step="60" />
+      <div class="problem-item-field-tip" id="timeclock-edit-end-tip"></div>
+    </div>
+    <div class="staff-edit-field">
+      <label>编辑密码</label>
+      <input type="password" id="timeclock-edit-password" autocomplete="off" placeholder="和公告栏一样" />
+    </div>
+    <div class="staff-edit-error" id="timeclock-edit-error"></div>
+    <div class="staff-edit-actions">
+      <button id="timeclock-edit-cancel-btn" type="button">取消</button>
+      <button id="timeclock-edit-save-btn" type="button">保存</button>
     </div>
   </div>
 </div>
@@ -5533,7 +5611,7 @@
   function updateProblemItemIdField() {
     const kind = currentIdKind();
     problemItemIdLabel.textContent = idKindLabel(kind);
-    problemItemIdInput.placeholder = '只能填数字';
+    problemItemIdInput.placeholder = kind === 'rs' ? '字母和数字，比如 RS12345678' : '只能填数字';
     problemItemIdTip.textContent = kind === 'tracking'
       ? '当前选的问题类型里有"找不到…"，填快递单号'
       : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
@@ -5980,8 +6058,9 @@
       problemItemIdInput.focus();
       return;
     }
-    if (!/^\d+$/.test(idValue)) {
-      problemItemSubmitHint.textContent = `${idLabel}只能填数字`;
+    const idPattern = idKind === 'rs' ? /^[A-Za-z0-9]+$/ : /^\d+$/;
+    if (!idPattern.test(idValue)) {
+      problemItemSubmitHint.textContent = idKind === 'rs' ? 'RS单号只能填字母和数字' : `${idLabel}只能填数字`;
       problemItemSubmitHint.style.color = '#e5534b';
       problemItemIdInput.focus();
       return;
@@ -6784,8 +6863,15 @@
       statusTd.appendChild(tag);
       tr.appendChild(statusTd);
 
-      // 打错卡/重复打卡时可以删掉这条，删除要输编辑密码（复用公告栏那个删除确认弹窗）
+      // 行尾两个操作：改时间、删记录，都要编辑密码
       const actionTd = document.createElement('td');
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'timeclock-row-edit-btn';
+      editBtn.title = '修改这条的签出/签入时间';
+      editBtn.innerHTML = '<i class="ti ti-pencil"></i>';
+      editBtn.addEventListener('click', () => openTimeclockEdit(r));
+      actionTd.appendChild(editBtn);
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
       delBtn.className = 'timeclock-row-del-btn';
@@ -6849,6 +6935,78 @@
     if (!timeclockWorkPassword.value) { showTimeclockMsg('请输入编辑密码', true); return; }
     if (!ws || ws.readyState !== WebSocket.OPEN) { showTimeclockMsg('连接已断开，请稍后重试', true); return; }
     ws.send(JSON.stringify({ type: 'work_items_update', items, password: timeclockWorkPassword.value }));
+  });
+
+  // ---- 改打卡时间（打卡忘了点、点早了点晚了都用这个补救）----
+  // 只改时分，日期沿用这条记录本来的归档日期；时间按日本时间算，跟打卡显示保持一致。
+  const timeclockEditOverlay = document.getElementById('timeclock-edit-overlay');
+  const timeclockEditWho = document.getElementById('timeclock-edit-who');
+  const timeclockEditStart = document.getElementById('timeclock-edit-start');
+  const timeclockEditEnd = document.getElementById('timeclock-edit-end');
+  const timeclockEditEndTip = document.getElementById('timeclock-edit-end-tip');
+  const timeclockEditPassword = document.getElementById('timeclock-edit-password');
+  const timeclockEditError = document.getElementById('timeclock-edit-error');
+  const timeclockEditSaveBtn = document.getElementById('timeclock-edit-save-btn');
+  const timeclockEditCancelBtn = document.getElementById('timeclock-edit-cancel-btn');
+  let timeclockEditing = null;
+
+  // 日本时间的 "YYYY-MM-DD" + "HH:MM" 转成时间戳（日本固定UTC+9，没有夏令时，直接减9小时即可）
+  function jstToTimestamp(dateStr, hhmm) {
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return Date.UTC(y, mo - 1, d, h - 9, min, 0, 0);
+  }
+
+  function openTimeclockEdit(record) {
+    timeclockEditing = record;
+    timeclockEditWho.textContent = `${record.username} · ${record.workDate}`;
+    timeclockEditStart.value = formatJstClock(record.startAt).slice(0, 5);
+    timeclockEditEnd.value = record.endAt ? formatJstClock(record.endAt).slice(0, 5) : '';
+    timeclockEditEndTip.textContent = record.endAt ? '' : '这条还在计时中，填了签入时间就等于把它结掉';
+    timeclockEditPassword.value = '';
+    timeclockEditError.textContent = '';
+    timeclockEditOverlay.classList.add('active');
+    timeclockEditStart.focus();
+  }
+  function closeTimeclockEdit() {
+    timeclockEditOverlay.classList.remove('active');
+    timeclockEditing = null;
+  }
+  function saveTimeclockEdit() {
+    if (!timeclockEditing) return;
+    const rec = timeclockEditing;
+    const startAt = jstToTimestamp(rec.workDate, timeclockEditStart.value);
+    if (startAt === null) { timeclockEditError.textContent = '签出时间格式不对'; return; }
+    let endAt = null;
+    if (timeclockEditEnd.value) {
+      endAt = jstToTimestamp(rec.workDate, timeclockEditEnd.value);
+      if (endAt === null) { timeclockEditError.textContent = '签入时间格式不对'; return; }
+      // 跨零点的班次：签入比签出早就算成第二天
+      if (endAt <= startAt) endAt += 24 * 60 * 60 * 1000;
+    }
+    if (!timeclockEditPassword.value) { timeclockEditError.textContent = '请输入编辑密码'; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { timeclockEditError.textContent = '连接已断开，请稍后重试'; return; }
+    ws.send(JSON.stringify({
+      type: 'timeclock_update_times',
+      id: rec.id,
+      startAt,
+      endAt,
+      password: timeclockEditPassword.value,
+    }));
+    closeTimeclockEdit();
+  }
+  timeclockEditSaveBtn.addEventListener('click', saveTimeclockEdit);
+  timeclockEditCancelBtn.addEventListener('click', closeTimeclockEdit);
+  timeclockEditOverlay.addEventListener('click', (e) => { if (e.target === timeclockEditOverlay) closeTimeclockEdit(); });
+  [timeclockEditStart, timeclockEditEnd, timeclockEditPassword].forEach((el) => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveTimeclockEdit(); } });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && timeclockEditOverlay.classList.contains('active')) closeTimeclockEdit();
   });
 
   function queryTimeclockDate(date) {

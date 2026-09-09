@@ -1194,10 +1194,15 @@ wss.on('connection', (ws) => {
       // order=订单ID（代拍）/ rs=RS单号（代购、煤炉）/ tracking=快递单号（选了"找不到…"时）
       const idKind = ['tracking', 'rs', 'order'].includes(data.idKind) ? data.idKind : 'order';
       const orderId = String(data.orderId || '').trim().slice(0, 40);
-      if (!/^\d+$/.test(orderId)) {
+      // RS单号里可能带字母（比如 RS12345678），所以放宽成"字母+数字"；
+      // 订单ID和快递单号仍然只能是纯数字
+      const idOk = idKind === 'rs' ? /^[A-Za-z0-9]+$/.test(orderId) : /^\d+$/.test(orderId);
+      if (!idOk) {
         ws.send(JSON.stringify({
           type: 'problem_item_error',
-          message: idKind === 'tracking' ? '请填写快递单号（只能填数字）' : '请填写订单ID（只能填数字）',
+          message: idKind === 'tracking' ? '请填写快递单号（只能填数字）'
+            : idKind === 'rs' ? '请填写RS单号（只能填字母和数字）'
+            : '请填写订单ID（只能填数字）',
         }));
         return;
       }
@@ -1402,6 +1407,46 @@ wss.on('connection', (ws) => {
         return;
       }
       ws.send(JSON.stringify({ type: 'timeclock_password_ok' }));
+      return;
+    }
+
+    // 改某一条打卡记录的时间点（打卡忘了、点早了点晚了时用），密码同公告栏
+    if (data.type === 'timeclock_update_times') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '密码错误，无法修改时间' }));
+        return;
+      }
+      const record = timeRecords.find((r) => String(r.id) === String(data.id));
+      if (!record) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '没找到这条记录，可能已经被删掉了' }));
+        return;
+      }
+      const startAt = Number(data.startAt);
+      const endAt = data.endAt === null || data.endAt === undefined ? null : Number(data.endAt);
+      if (!Number.isFinite(startAt) || (endAt !== null && !Number.isFinite(endAt))) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '时间格式不对' }));
+        return;
+      }
+      if (endAt !== null && endAt <= startAt) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '签入时间要晚于签出时间' }));
+        return;
+      }
+      record.startAt = startAt;
+      record.endAt = endAt;
+      record.durationMs = endAt === null ? null : Math.max(0, endAt - startAt);
+      if (dbPool) {
+        try {
+          await dbPool.query(
+            'UPDATE time_records SET start_at=$1, end_at=$2, duration_ms=$3 WHERE id=$4;',
+            [record.startAt, record.endAt, record.durationMs, record.id]
+          );
+        } catch (err) {
+          console.error('[修改打卡时间写入数据库失败]', err.message);
+        }
+      }
+      broadcast(timeclockPayload(record.workDate));
       return;
     }
 

@@ -1388,6 +1388,16 @@
   }
   .tool-entry-btn:hover { border-color: var(--accent); background: var(--hover-dark); }
   .tool-entry-btn:hover .module-icon-badge { color: var(--text); }
+  /* 提醒事项并进"实用工具"里：外形跟其他工具入口完全一致，
+     只在右边多一个小箭头表示可以展开，箭头用侧栏统一的 muted 灰 */
+  .reminder-entry-btn .sidebar-toggle-arrow {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .reminder-entry-btn.collapsed .sidebar-toggle-arrow { transform: rotate(-90deg); }
+  #reminder-panel-body { padding-left: 4px; }
   .tool-entry-btn .tool-entry-icon { font-size: 16px; flex-shrink: 0; }
   .tool-entry-btn .tool-entry-label { flex: 1; }
 
@@ -2763,15 +2773,8 @@
     </div>
 
     <div class="sidebar-divider"></div>
-    <div class="sidebar-divider"></div>
 
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-divider"></div>
-
-    <div class="sidebar-divider"></div>
-
-    <button id="timeclock-open-btn" class="sidebar-toggle" type="button">
+<button id="timeclock-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-clock"></i></span> 时间管理</span>
     </button>
 
@@ -2950,8 +2953,9 @@
       <span class="tool-entry-label">代拍剪贴板</span>
     </button>
 
-    <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-alarm"></i></span> 提醒事项</span>
+    <button id="reminder-panel-toggle" class="tool-entry-btn reminder-entry-btn collapsed" type="button">
+      <span class="module-icon-badge"><i class="ti ti-alarm"></i></span>
+      <span class="tool-entry-label">提醒事项</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="reminder-panel-body" class="collapsed">

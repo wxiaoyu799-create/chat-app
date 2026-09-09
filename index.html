@@ -1659,6 +1659,7 @@
   }
   .problem-item-panel-cat-btn:hover { background: var(--hover-dark); color: var(--text); }
   .problem-item-panel-cat-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+  .problem-item-cat-divider { height: 1px; background: var(--border); margin: 8px 6px; }
 
   #problem-item-content-area {
     flex: 1;
@@ -2722,11 +2723,17 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
-      <button class="tool-entry-btn problem-item-cat-btn" data-category="贵重品" type="button">
-        <span class="module-icon-badge"><i class="ti ti-diamond"></i></span>
-        <span class="tool-entry-label">贵重品</span>
-        <span class="problem-item-badge" id="problem-badge-贵重品"></span>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="日志商家" type="button">
+        <span class="module-icon-badge"><i class="ti ti-truck-delivery"></i></span>
+        <span class="tool-entry-label">日志商家</span>
+        <span class="problem-item-badge" id="problem-badge-日志商家"></span>
       </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="任务" type="button">
+        <span class="module-icon-badge"><i class="ti ti-subtask"></i></span>
+        <span class="tool-entry-label">任务</span>
+        <span class="problem-item-badge" id="problem-badge-任务"></span>
+      </button>
+
     </div>
 
     <div class="sidebar-divider"></div>
@@ -3162,7 +3169,9 @@
       <button class="problem-item-panel-cat-btn" data-category="代购">代购</button>
       <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
-      <button class="problem-item-panel-cat-btn" data-category="贵重品">贵重品</button>
+      <div class="problem-item-cat-divider"></div>
+      <button class="problem-item-panel-cat-btn" data-category="日志商家">日志商家</button>
+      <button class="problem-item-panel-cat-btn" data-category="任务">任务</button>
     </div>
     <div id="problem-item-content-area">
       <div id="problem-item-owner-bar">
@@ -3188,7 +3197,6 @@
               <option value="代购">代购</option>
               <option value="代拍">代拍</option>
               <option value="煤炉">煤炉</option>
-              <option value="贵重品">贵重品</option>
             </select>
           </div>
           <div class="problem-item-export-field">
@@ -3510,7 +3518,16 @@
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'join_error') {
+      if (data.type === 'kicked') {
+        // 同名在别处登录了，这个窗口被挤下线：停掉自动重连，退回登录页说明原因
+        joinRejected = true;
+        try { ws.close(); } catch (e) { /* 忽略 */ }
+        appEl.classList.remove('active');
+        loginEl.style.display = '';
+        loginErrorEl.textContent = data.message || '你的账号在别处登录了，这个窗口已经下线';
+        loginErrorEl.classList.add('active');
+        joinBtn.disabled = false;
+      } else if (data.type === 'join_error') {
         // 名字已经有人在用：退回登录页，让他换一个
         joinRejected = true;
         try { ws.close(); } catch (e) { /* 忽略 */ }
@@ -3584,8 +3601,8 @@
         inspectionErrorMsg.textContent = data.message || '密码错误';
         inspectionEditPassword.focus();
       } else if (data.type === 'problem_item_data') {
-        problemItemData.options = data.options || { issueTypes: [], issueTypesGuizhongpin: [], inspectorNames: [] };
-        problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] };
+        problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
+        problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
       } else if (data.type === 'problem_item_error') {
@@ -3596,7 +3613,7 @@
         if (!problemItemData.reports[cat]) problemItemData.reports[cat] = [];
         problemItemData.reports[cat].push(data.report);
         renderProblemItemBadges();
-        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+        if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
       } else if (data.type === 'problem_item_report_updated') {
         // 补传照片之后，服务器把整条记录发回来，替换掉本地那份再重画
         const cat = data.category;
@@ -3610,22 +3627,23 @@
           problemItemData.reports[cat] = problemItemData.reports[cat].filter((r) => String(r.id) !== String(data.reportId));
         }
         renderProblemItemBadges();
-        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+        // 队列视图是跨分类汇总的，所以不管当前看的是哪个分类都要重画
+        if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
       } else if (data.type === 'problem_item_report_status_changed') {
-        // 暂存(shelved)不是终结状态，记录还在数组里，只是原地更新status字段——
-        // 红点会因为不再是pending而自动减少，但列表里这条记录还继续显示，加个"暂存中"标记
+        // 转日志商家/转任务：记录没消失，只是状态变了——从原分类的待处理列表里退场，
+        // 同时出现在对应的去向队列里。所以两边的红点和列表都要刷新
         const cat = data.category;
         const list = problemItemData.reports[cat];
         if (list) {
           const target = list.find((r) => String(r.id) === String(data.reportId));
           if (target) target.status = data.status;
+          else if (data.report) list.push(data.report);
         }
         renderProblemItemBadges();
-        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+        if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
       } else if (data.type === 'problem_item_options_updated') {
         let key = 'inspectorNames';
         if (data.optionType === 'issue_type') key = 'issueTypes';
-        else if (data.optionType === 'issue_type_贵重品') key = 'issueTypesGuizhongpin';
         problemItemData.options[key] = data.values || [];
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
         if (pendingOptionsSaveCount > 0) {
@@ -5227,20 +5245,20 @@
   });
 
   // ===== 问题件列表（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
-  const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉', '贵重品'];
-  // 跟服务端的逻辑保持一致：代购/代拍/煤炉共用issueTypes这组问题类型选项，
-  // 贵重品单独用issueTypesGuizhongpin这组，两组互相独立
-  function getIssueTypesForCategory(category) {
-    return category === '贵重品'
-      ? (problemItemData.options.issueTypesGuizhongpin || [])
-      : (problemItemData.options.issueTypes || []);
+  const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
+  // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
+  const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
+  function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
+  // 代购/代拍/煤炉共用同一组问题类型选项
+  function getIssueTypesForCategory() {
+    return problemItemData.options.issueTypes || [];
   }
-  function getIssueTypeOptionKey(category) {
-    return category === '贵重品' ? 'issue_type_贵重品' : 'issue_type';
+  function getIssueTypeOptionKey() {
+    return 'issue_type';
   }
   let problemItemData = {
-    options: { issueTypes: [], issueTypesGuizhongpin: [], inspectorNames: [] },
-    reports: { 代购: [], 代拍: [], 煤炉: [], 贵重品: [] },
+    options: { issueTypes: [], inspectorNames: [] },
+    reports: { 代购: [], 代拍: [], 煤炉: [] },
   };
   let currentProblemItemCategory = '代购';
   let selectedIssueTypes = new Set();
@@ -5253,16 +5271,31 @@
     problemItemToggle.classList.toggle('collapsed', collapsed);
   });
 
-  function renderProblemItemBadges() {
+  // 某个去向队列里的记录（跨分类汇总）
+  function getQueueReports(queueName) {
+    const status = PROBLEM_ITEM_QUEUES[queueName];
+    const out = [];
     PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
+      (problemItemData.reports[cat] || []).forEach((r) => {
+        if (r.status === status) out.push({ ...r, _fromCategory: cat });
+      });
+    });
+    return out;
+  }
+
+  function renderProblemItemBadges() {
+    PROBLEM_ITEM_CATEGORIES_CLIENT.concat(Object.keys(PROBLEM_ITEM_QUEUES)).forEach((cat) => {
       const badge = document.getElementById(`problem-badge-${cat}`);
       if (!badge) return;
-      // 暂存(shelved)的记录还在数组里、还会显示在列表里，但不计入红点——只有真正pending的才算
-      const count = (problemItemData.reports[cat] || []).filter((r) => r.status === 'pending').length;
+      // 三个分类算"待处理"的条数；两个队列算队列里还没解决的条数
+      const count = isQueueCategory(cat)
+        ? getQueueReports(cat).length
+        : (problemItemData.reports[cat] || []).filter((r) => r.status === 'pending').length;
       if (count > 0) {
         badge.textContent = count;
         badge.classList.add('show');
       } else {
+        badge.textContent = '';
         badge.classList.remove('show');
       }
     });
@@ -5462,20 +5495,14 @@
     if (e.key === 'Escape' && cameraOverlay.classList.contains('active')) closeCameraModal();
   });
 
-  // ---- 图片区：贵重品不用传图，其余分类都可以；脏污/破损/多货必须传 ----
+  // ---- 图片区：脏污/破损/多货这几类需要照片（不强制在提交时传，可以之后补） ----
   const PHOTO_REQUIRED_TYPES = ['脏污', '破损', '多货'];
   function photoRequiredNow() {
-    if (currentProblemItemCategory === '贵重品') return false;
     return Array.from(selectedIssueTypes).some((t) => PHOTO_REQUIRED_TYPES.some((k) => t.includes(k)));
   }
   function updateProblemItemPhotoSection() {
     const box = problemItemImageBtn.closest('.problem-item-field');
     if (!box) return;
-    // 贵重品只是"待检"登记，不需要拍照，整块藏起来
-    if (currentProblemItemCategory === '贵重品') {
-      box.style.display = 'none';
-      return;
-    }
     box.style.display = '';
     const label = box.querySelector('.problem-item-field-label');
     if (label) {
@@ -5491,14 +5518,23 @@
   const PROBLEM_ITEM_MAX_IMAGES = 3;
   let problemItemPendingImages = []; // { id, url, uploading, previewUrl }
 
+  // 单号有三种：
+  //   tracking 快递单号——选了"找不到…"这类问题时（手上没有单号，只有快递单）
+  //   rs       RS单号——代购、煤炉用
+  //   order    订单ID——代拍用
+  const RS_CATEGORIES = ['代购', '煤炉'];
   function currentIdKind() {
-    return Array.from(selectedIssueTypes).some((t) => t.includes('找不到')) ? 'tracking' : 'order';
+    if (Array.from(selectedIssueTypes).some((t) => t.includes('找不到'))) return 'tracking';
+    return RS_CATEGORIES.includes(currentProblemItemCategory) ? 'rs' : 'order';
+  }
+  function idKindLabel(kind) {
+    return kind === 'tracking' ? '快递单号' : kind === 'rs' ? 'RS单号' : '订单ID';
   }
   function updateProblemItemIdField() {
-    const isTracking = currentIdKind() === 'tracking';
-    problemItemIdLabel.textContent = isTracking ? '快递单号' : '订单ID';
-    problemItemIdInput.placeholder = isTracking ? '只能填数字' : '只能填数字';
-    problemItemIdTip.textContent = isTracking
+    const kind = currentIdKind();
+    problemItemIdLabel.textContent = idKindLabel(kind);
+    problemItemIdInput.placeholder = '只能填数字';
+    problemItemIdTip.textContent = kind === 'tracking'
       ? '当前选的问题类型里有"找不到…"，填快递单号'
       : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
   }
@@ -5623,7 +5659,16 @@
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
     renderProblemItemOwner();
-    updateProblemItemPhotoSection();
+    // 队列视图只是看板，不能在这里提交新问题件，把表单和分隔线藏起来
+    const isQueue = isQueueCategory(currentProblemItemCategory);
+    const formEl = document.getElementById('problem-item-form');
+    const dividerEl = document.querySelector('.problem-item-divider');
+    if (formEl) formEl.style.display = isQueue ? 'none' : '';
+    if (dividerEl) dividerEl.style.display = isQueue ? 'none' : '';
+    if (!isQueue) {
+      updateProblemItemPhotoSection();
+      updateProblemItemIdField();
+    }
     problemItemInspectorDisplay.textContent = username || '（未知用户）';
     const issueTypesForThisCategory = getIssueTypesForCategory(currentProblemItemCategory);
     renderMultiSelectPanel(issueTypePanel, issueTypesForThisCategory, selectedIssueTypes,
@@ -5665,12 +5710,16 @@
   }
 
   function renderProblemItemList() {
-    const reports = problemItemData.reports[currentProblemItemCategory] || [];
+    // 日志商家/任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
+    const isQueue = isQueueCategory(currentProblemItemCategory);
+    const reports = isQueue
+      ? getQueueReports(currentProblemItemCategory)
+      : (problemItemData.reports[currentProblemItemCategory] || []).filter((r) => r.status === 'pending');
     problemItemList.innerHTML = '';
     if (reports.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'problem-item-empty';
-      empty.textContent = '暂无待处理的问题件';
+      empty.textContent = isQueue ? '这个队列里暂时没有记录' : '暂无待处理的问题件';
       problemItemList.appendChild(empty);
       return;
     }
@@ -5686,15 +5735,8 @@
         tag.textContent = t;
         tagsRow.appendChild(tag);
       });
-      if (report.status === 'shelved') {
-        const shelvedTag = document.createElement('span');
-        shelvedTag.className = 'problem-item-shelved-tag';
-        shelvedTag.textContent = '暂存中';
-        tagsRow.appendChild(shelvedTag);
-      }
       // 脏污/破损/多货这类问题没有照片时，标红提醒去补——提交时不拦，但列表里一眼能看出来
-      const needsPhoto = currentProblemItemCategory !== '贵重品'
-        && (report.issueTypes || []).some((t) => PHOTO_REQUIRED_TYPES.some((k) => String(t).includes(k)))
+      const needsPhoto = (report.issueTypes || []).some((t) => PHOTO_REQUIRED_TYPES.some((k) => String(t).includes(k)))
         && (report.images || []).length === 0;
       if (needsPhoto) {
         card.classList.add('needs-photo');
@@ -5708,13 +5750,14 @@
       const meta = document.createElement('div');
       meta.className = 'problem-item-card-meta';
       const inspectorStr = (report.inspectorNames && report.inspectorNames.length > 0) ? report.inspectorNames.join('、') : '未填写';
-      meta.textContent = `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
+      meta.textContent = (isQueue && report._fromCategory ? `来自${report._fromCategory} · ` : '')
+        + `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
       card.appendChild(meta);
 
       if (report.orderId) {
         const idRow = document.createElement('div');
         idRow.className = 'problem-item-card-id';
-        idRow.textContent = `${report.idKind === 'tracking' ? '快递单号' : '订单ID'}：${report.orderId}`;
+        idRow.textContent = `${idKindLabel(report.idKind)}：${report.orderId}`;
         card.appendChild(idRow);
       }
 
@@ -5759,16 +5802,21 @@
       resolveBtn.innerHTML = '<i class="ti ti-check"></i> 已解决';
       resolveBtn.addEventListener('click', () => {
         if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'problem_item_resolve', category: currentProblemItemCategory, reportId: report.id }));
+          // 队列里的记录来自别的分类，要用它原本的分类提交，不然服务器找不到
+          ws.send(JSON.stringify({
+            type: 'problem_item_resolve',
+            category: report._fromCategory || currentProblemItemCategory,
+            reportId: report.id,
+          }));
         }
       });
       actions.appendChild(resolveBtn);
 
       // 原来的"转处理"拆成两个去向，点哪个就记哪个，导出时能分开统计
-      [
+      (isQueue ? [] : [
         { target: 'merchant', label: '转日志商家', icon: 'ti-truck-delivery' },
         { target: 'task', label: '转任务', icon: 'ti-subtask' },
-      ].forEach(({ target, label, icon }) => {
+      ]).forEach(({ target, label, icon }) => {
         const btn = document.createElement('button');
         btn.className = 'transfer-btn';
         btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
@@ -5785,21 +5833,11 @@
         actions.appendChild(btn);
       });
 
-      const shelveBtn = document.createElement('button');
-      shelveBtn.className = 'shelve-btn';
-      shelveBtn.innerHTML = '<i class="ti ti-clock-pause"></i> 待跟进暂存';
-      shelveBtn.title = '记录会继续保留，只是先不计入侧栏红点，方便以后回来继续处理';
-      shelveBtn.addEventListener('click', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'problem_item_shelve', category: currentProblemItemCategory, reportId: report.id }));
-        }
-      });
-      actions.appendChild(shelveBtn);
 
       // 补传照片：电脑上先把单子提了，之后拿手机（或电脑摄像头）把照片补上来。
       // 只追加不覆盖，最多3张，满了就不再显示这个按钮。
       const already = (report.images || []).length;
-      if (already < 3) {
+      if (!isQueue && already < 3) {
         const addPhotoBtn = document.createElement('button');
         addPhotoBtn.className = needsPhoto ? 'add-photo-btn urgent' : 'add-photo-btn';
         addPhotoBtn.innerHTML = already === 0
@@ -5903,14 +5941,14 @@
       ? `${tagList.slice(0, 2).join('、')}等${tagList.length}项`
       : tagList.join('、');
     const tagPart = tagStr ? `[${tagStr}] ` : '';
-    const idText = report.orderId ? `${report.idKind === 'tracking' ? '快递单号' : '订单ID'}：${report.orderId}` : '';
+    const idText = report.orderId ? `${idKindLabel(report.idKind)}：${report.orderId}` : '';
     const noteRaw = String(report.orderNote || '').replace(/\s+/g, ' ').trim();
     const note = [idText, noteRaw].filter(Boolean).join(' ');
     const room = Math.max(8, QUOTE_TOTAL_MAX - tagPart.length);
     const shortNote = note.length > room ? note.slice(0, room) + '…' : note;
     const quoteText = (tagPart + shortNote).trim() || '(这条没填内容)';
     closeProblemItemOverlay();
-    startReply(`问题件·${currentProblemItemCategory}`, quoteText);
+    startReply(`问题件·${report._fromCategory || currentProblemItemCategory}`, quoteText);
 
     // 顺手把提交人 @ 上，处理建议直接提醒到他——省得他不知道有人回了自己报的问题件。
     // 自己报的自己回就不用 @ 自己了；重复点引用也不会叠加出两个 @。
@@ -5935,7 +5973,7 @@
     }
     const idKind = currentIdKind();
     const idValue = problemItemIdInput.value.trim();
-    const idLabel = idKind === 'tracking' ? '快递单号' : '订单ID';
+    const idLabel = idKindLabel(idKind);
     if (!idValue) {
       problemItemSubmitHint.textContent = `请填写${idLabel}`;
       problemItemSubmitHint.style.color = '#e5534b';
@@ -6014,12 +6052,9 @@
     renderIssueTypeEditTags();
     problemItemOptionsPassword.value = '';
     problemItemOptionsError.textContent = '';
-    // 贵重品的问题类型是独立的一组，不跟代购/代拍/煤炉共用，说明文字要跟着分类变，避免误导
     const descEl = document.querySelector('.problem-item-options-edit-desc');
     if (descEl) {
-      descEl.textContent = currentProblemItemCategory === '贵重品'
-        ? '这个列表只属于"贵重品"这一个分类，跟代购/代拍/煤炉的问题类型互相独立，不会同步。'
-        : '这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效（跟"贵重品"的问题类型是分开的，互不影响）。';
+      descEl.textContent = '这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。';
     }
     problemItemOptionsEditPanel.classList.add('active');
   }

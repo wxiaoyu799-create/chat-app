@@ -187,7 +187,9 @@ app.get('/api/problem-item-export', async (req, res) => {
         escapeCsv(row.category),
         escapeCsv(issueTypes),
         escapeCsv(inspectorNames),
-        escapeCsv(row.order_id ? `${row.id_kind === 'tracking' ? '快递单号' : '订单ID'}：${row.order_id}` : ''),
+        escapeCsv(row.order_id
+          ? `${row.id_kind === 'tracking' ? '快递单号' : row.id_kind === 'rs' ? 'RS单号' : '订单ID'}：${row.order_id}`
+          : ''),
         escapeCsv(row.order_note),
         escapeCsv(Array.isArray(row.images) ? row.images.join(' ') : ''),
         escapeCsv(row.submitted_by),
@@ -610,23 +612,21 @@ function getAllInspectionRulesText() {
   return result;
 }
 
-// ===== 问题件提醒：代购/代拍/煤炉/贵重品四个分类，各自独立计数和记录列表。
-// "问题类型"选项分两组：代购/代拍/煤炉共用一组(数据库里的option_type='issue_type')，
-// 贵重品单独一组(option_type='issue_type_贵重品')，两组互相独立，编辑一组不会影响另一组。
-// "检品人员姓名"已经改成自动用当前登录用户名了，不再需要维护选项列表 =====
-const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉', '贵重品'];
+// ===== 问题件列表：代购/代拍/煤炉三个分类，各自独立计数和记录列表。
+// "问题类型"三个分类共用一组选项（数据库里的option_type='issue_type'）。
+// "检品人员姓名"直接用当前登录用户名，不再维护选项列表。
+// 另外还有两个"去向队列"：转日志商家、转任务——它们不是提交入口，
+// 只是把已经转出去的记录按去向汇总起来，方便后续跟进（见 PROBLEM_ITEM_QUEUES）=====
+const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
+// 队列名 -> 对应的记录状态
+const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
-const DEFAULT_ISSUE_TYPES_GUIZHONGPIN = ['贵重品待检'];
-const DEFAULT_INSPECTOR_NAMES = [];
 
-// 每个分类用哪一组问题类型选项——代购/代拍/煤炉三个都指向共用的'issue_type'，
-// 贵重品单独指向'issue_type_贵重品'，这样贵重品的选项增删改都不会影响另外三个，反之亦然
-function getIssueTypeOptionKey(category) {
-  return category === '贵重品' ? 'issue_type_贵重品' : 'issue_type';
+function getIssueTypeOptionKey() {
+  return 'issue_type';
 }
 
-// 选项列表：{ issue_type: [{id, value}], issue_type_贵重品: [{id, value}], inspector_name: [{id, value}] }
-let problemItemOptions = { issue_type: [], issue_type_贵重品: [], inspector_name: [] };
+let problemItemOptions = { issue_type: [], inspector_name: [] };
 // 每个分类当前"待处理"（未点已解决/需跟进）的记录列表，已处理的记录不放在内存里，只留在数据库里当历史
 let problemItemReports = {};
 PROBLEM_ITEM_CATEGORIES.forEach((cat) => { problemItemReports[cat] = []; });
@@ -663,6 +663,8 @@ async function ensureProblemItemTables() {
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS order_id TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS id_kind TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS images JSONB;`);
+  // "待跟进暂存"这个状态取消了，老数据里的 shelved 一次性归回待处理，免得永远不显示
+  await dbPool.query(`UPDATE problem_item_reports SET status = 'pending' WHERE status = 'shelved';`);
 }
 
 function rowToProblemItemOption(row) {
@@ -676,7 +678,7 @@ function rowToProblemItemReport(row) {
     inspectorNames: row.inspector_names,
     orderNote: row.order_note || '',
     orderId: row.order_id || '',
-    idKind: row.id_kind === 'tracking' ? 'tracking' : 'order',
+    idKind: ['tracking', 'rs', 'order'].includes(row.id_kind) ? row.id_kind : 'order',
     images: Array.isArray(row.images) ? row.images : [],
     submittedBy: row.submitted_by,
     submittedAt: new Date(row.submitted_at).getTime(),
@@ -688,7 +690,6 @@ async function loadProblemItemDataFromDB() {
   // 没配数据库的话，用代码里写死的默认问题类型列表撑着，检品人员姓名列表留空等手动添加
   if (!dbPool) {
     problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
-    problemItemOptions.issue_type_贵重品 = DEFAULT_ISSUE_TYPES_GUIZHONGPIN.map((v, i) => ({ id: `mem-issue-gz-${i}`, value: v }));
     problemItemOptions.inspector_name = [];
     return;
   }
@@ -718,14 +719,13 @@ async function loadProblemItemDataFromDB() {
     }
 
     problemItemOptions.issue_type = await loadOptionGroup('issue_type', DEFAULT_ISSUE_TYPES);
-    problemItemOptions.issue_type_贵重品 = await loadOptionGroup('issue_type_贵重品', DEFAULT_ISSUE_TYPES_GUIZHONGPIN);
     problemItemOptions.inspector_name = await loadOptionGroup('inspector_name', []);
 
     // 加载"待处理"和"待跟进暂存"这两种状态的记录到内存里——暂存的记录还要继续在列表里显示，
     // 只是不计入侧栏红点。已解决/转处理这两种是终结状态，留在数据库当历史，不占内存也不用同步给客户端
     for (const cat of PROBLEM_ITEM_CATEGORIES) {
       const reportRows = await dbPool.query(
-        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'shelved') ORDER BY submitted_at ASC;",
+        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'transferred_merchant', 'transferred_task') ORDER BY submitted_at ASC;",
         [cat]
       );
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
@@ -735,7 +735,6 @@ async function loadProblemItemDataFromDB() {
   } catch (err) {
     console.error('[加载问题件提醒数据失败，暂时改用内存默认值]', err.message);
     problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
-    problemItemOptions.issue_type_贵重品 = DEFAULT_ISSUE_TYPES_GUIZHONGPIN.map((v, i) => ({ id: `mem-issue-gz-${i}`, value: v }));
   }
 }
 
@@ -779,12 +778,12 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
   const idx = problemItemReports[category].findIndex((r) => String(r.id) === String(reportId));
   if (idx === -1) return false;
 
-  if (status === 'shelved') {
-    // 待跟进暂存：记录不从列表里移除，原地更新状态就行——红点计数是单独按status==='pending'算的，
-    // 状态一变成shelved自然就不会再被计进红点里了，但记录本身还留着，方便回头继续处理
-    problemItemReports[category][idx].status = 'shelved';
+  if (status === 'transferred_merchant' || status === 'transferred_task') {
+    // 转日志商家 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
+    // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
+    problemItemReports[category][idx].status = status;
   } else {
-    // 已解决、转处理都是终结状态，从"待处理/暂存"内存列表里彻底移除
+    // 已解决：彻底结束，从内存列表里移除，只留在数据库当历史
     problemItemReports[category].splice(idx, 1);
   }
 
@@ -828,7 +827,6 @@ function getProblemItemSnapshot() {
   return {
     options: {
       issueTypes: problemItemOptions.issue_type.map((o) => o.value),
-      issueTypesGuizhongpin: problemItemOptions.issue_type_贵重品.map((o) => o.value),
       inspectorNames: problemItemOptions.inspector_name.map((o) => o.value),
     },
     reports: problemItemReports,
@@ -907,20 +905,22 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // 名字唯一：同一个名字已经有人在线就不让进。
-      // 大小写不敏感、忽略首尾空格，避免"张三"和"张三 "被当成两个人。
-      // 只拦真正还活着的连接——掉线的连接由下面的心跳检测清掉，不会把人锁在门外。
-      const taken = Array.from(clients.entries()).some(([sock, c]) =>
-        sock !== ws &&
-        sock.readyState === WebSocket.OPEN &&
-        c.username.trim().toLowerCase() === username.toLowerCase());
-      if (taken) {
-        ws.send(JSON.stringify({
-          type: 'join_error',
-          message: `“${username}”已经在线了，换个名字试试（如果是你自己在别的窗口/设备开着，先把那边关掉）`,
-        }));
-        return;
-      }
+      // 名字唯一，但改成"后来者把先来的挤掉"：
+      // 换台电脑/换个浏览器登录时，旧的那边可能是已经离开的会话（或者忘了关的窗口），
+      // 拦住新登录反而更麻烦。所以这里把同名的旧连接踢下线，让新的进来。
+      // 大小写不敏感、忽略首尾空格，"张三"和"张三 "算同一个人。
+      Array.from(clients.entries()).forEach(([sock, c]) => {
+        if (sock === ws) return;
+        if (c.username.trim().toLowerCase() !== username.toLowerCase()) return;
+        try {
+          sock.send(JSON.stringify({
+            type: 'kicked',
+            message: `你的账号“${username}”在别处登录了，这个窗口已经下线`,
+          }));
+        } catch (e) { /* 已经断了就算了 */ }
+        clients.delete(sock);
+        setTimeout(() => { try { sock.close(); } catch (e) { /* 忽略 */ } }, 300);
+      });
 
       clients.set(ws, { username });
 
@@ -1191,7 +1191,8 @@ wss.on('connection', (ws) => {
 
       // 订单ID / 快递单号：必填，而且只能是数字。选了"找不到…"这类问题类型时前端会切成快递单号，
       // 这里只按前端传过来的 idKind 记录是哪一种，校验规则两者一样
-      const idKind = data.idKind === 'tracking' ? 'tracking' : 'order';
+      // order=订单ID（代拍）/ rs=RS单号（代购、煤炉）/ tracking=快递单号（选了"找不到…"时）
+      const idKind = ['tracking', 'rs', 'order'].includes(data.idKind) ? data.idKind : 'order';
       const orderId = String(data.orderId || '').trim().slice(0, 40);
       if (!/^\d+$/.test(orderId)) {
         ws.send(JSON.stringify({
@@ -1238,7 +1239,7 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (data.type === 'problem_item_resolve' || data.type === 'problem_item_transfer' || data.type === 'problem_item_shelve') {
+    if (data.type === 'problem_item_resolve' || data.type === 'problem_item_transfer') {
       const client = clients.get(ws);
       if (!client) return;
       const category = String(data.category || '');
@@ -1251,13 +1252,14 @@ wss.on('connection', (ws) => {
           : data.target === 'merchant' ? 'transferred_merchant'
           : 'transferred';
       }
-      else status = 'shelved';
+      else return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {
-        if (status === 'shelved') {
-          // 暂存不是终结状态，记录还在列表里，只是状态变了——广播"状态变更"而不是"移除"，
-          // 这样所有客户端能把这条记录更新成"暂存中"的样子，而不是让它从画面上消失
-          broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status: 'shelved' });
+        if (status === 'transferred_merchant' || status === 'transferred_task') {
+          // 转出去的记录没有消失，只是从原分类挪到了"日志商家/任务"队列里，
+          // 所以广播状态变更（带上完整记录），让各端把它从原列表移走、加进对应队列
+          const moved = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+          broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status, report: moved });
         } else {
           broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
         }
@@ -1269,7 +1271,6 @@ wss.on('connection', (ws) => {
       const client = clients.get(ws);
       if (!client) return;
       const optionType = String(data.optionType || '');
-      if (!['issue_type', 'issue_type_贵重品', 'inspector_name'].includes(optionType)) return;
       const providedPassword = String(data.password || '');
       if (providedPassword !== PIN_EDIT_PASSWORD) {
         ws.send(JSON.stringify({ type: 'problem_item_options_error', message: '密码错误，无法修改选项列表' }));
@@ -2019,7 +2020,7 @@ async function deleteTimeclockName(name) {
 }
 
 // ==================== 工作内容（签出时必须勾选，选项可在面板里改，密码同公告栏）====================
-const DEFAULT_WORK_ITEMS = ['代购检品', '代拍检品', '煤炉检品', '贵重品检品', '问题件处理', '入库', '出库', '其他'];
+const DEFAULT_WORK_ITEMS = ['代购检品', '代拍检品', '煤炉检品', '问题件处理', '入库', '出库', '其他'];
 let workItems = [];
 
 async function ensureWorkItemsTable() {

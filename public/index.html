@@ -1190,7 +1190,9 @@
 
   /* 常用文本栏 */
   #quick-sidebar { padding: 16px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
-  #quick-sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  #quick-sidebar h3, #sidebar h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  /* 常用文本搬到左栏后不再是flex子项，给个上限避免内容多了把整栏撑得太长 */
+  #sidebar #quick-categories { flex: none; max-height: 40vh; }
   .quick-category-list .quick-text-btn {
     flex: 1;
     text-align: left;
@@ -2632,6 +2634,14 @@
     #quick-sidebar { display: none; }
     #app { grid-template-columns: 200px 1fr; }
   }
+  /* 窄屏时右栏会被JS搬进左侧抽屉里（见 syncSidebarsForViewport），
+     这时它不再是独立一栏，去掉自己的内边距和滚动，跟着抽屉一起滚 */
+  #sidebar #quick-sidebar {
+    display: block;
+    padding: 0;
+    overflow: visible;
+    min-height: 0;
+  }
 
   @media (max-width: 640px) {
     #app {
@@ -2718,40 +2728,6 @@
     <ul id="online-list" class="collapsed"></ul>
 
     <div class="sidebar-divider"></div>
-
-    <div id="sidebar-announce">
-      <div class="pin-bar-head">
-        <span class="module-icon-badge"><i class="ti ti-speakerphone"></i></span>
-        <span class="pin-bar-label">公告栏</span>
-      </div>
-      <span class="pin-text" id="announcement-text"></span>
-      <button id="announcement-expand-btn" type="button">展开全文</button>
-      <div class="pin-bar-actions">
-        <div class="pin-gear-wrap">
-          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
-          <div id="announcement-gear-menu" class="pin-gear-menu">
-            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑"><i class="ti ti-pencil"></i></button>
-            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录"><i class="ti ti-clipboard-list"></i></button>
-          </div>
-        </div>
-      </div>
-      <div id="announcement-history-panel">
-        <div class="pin-history-title">公告栏修改记录</div>
-        <div id="announcement-history-list"></div>
-      </div>
-    </div>
-    <div id="announcement-edit-row">
-      <textarea id="announcement-input" placeholder="设置公告栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-      <input id="announcement-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-      <div class="pin-edit-actions-row">
-        <button id="announcement-save-btn">保存</button>
-        <button class="pin-edit-btn" id="announcement-cancel-btn">取消</button>
-      </div>
-      <span id="announcement-error-msg"></span>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
     <button id="problem-item-toggle" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-alert-triangle"></i></span> 问题件列表</span>
       <span class="sidebar-toggle-arrow">▶</span>
@@ -2772,7 +2748,7 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
-      <div class="problem-item-queue-divider"><span>转出去向</span></div>
+      <div class="problem-item-queue-divider"><span>待处理</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="日志商家" type="button">
         <span class="module-icon-badge"><i class="ti ti-truck-delivery"></i></span>
         <span class="tool-entry-label">日志商家</span>
@@ -2787,33 +2763,11 @@
     </div>
 
     <div class="sidebar-divider"></div>
+    <div class="sidebar-divider"></div>
 
-    <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-book-2"></i></span> 参考文档</span>
-      <span class="sidebar-toggle-arrow">▶</span>
-    </button>
-    <div id="doc-links-body" class="collapsed">
-      <button id="inspection-rules-btn" class="tool-entry-btn" type="button">
-        <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
-        <span class="tool-entry-label">检品规则</span>
-      </button>
-      <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
-        <span class="module-icon-badge"><i class="ti ti-chart-bar"></i></span>
-        <span class="tool-entry-label">复数追加记录</span>
-      </a>
-      <a href="https://www.jpgoodbuy.com/yii/web/index.php?r=admin%2Flogin%2Flogin&amp;from=https%3A%2F%2Fwww.jpgoodbuy.com%2Fyii%2Fweb%2Findex.php%3Fr%3Dadmin%2Fpurchase%2Fpurchase-list" target="_blank" rel="noopener noreferrer" id="purchase-admin-link" class="tool-entry-btn">
-        <span class="module-icon-badge"><i class="ti ti-shopping-cart"></i></span>
-        <span class="tool-entry-label">代购后台</span>
-      </a>
-      <a href="https://www.qbt.jp/yii/web/index.php?r=shopAdmin/order/auction-order-list" target="_blank" rel="noopener noreferrer" id="auction-admin-link" class="tool-entry-btn">
-        <span class="module-icon-badge"><i class="ti ti-gavel"></i></span>
-        <span class="tool-entry-label">代拍后台</span>
-      </a>
-      <a href="https://exmail.qq.com/cgi-bin/loginpage?t=dm_loginpage&amp;dmtype=bizmail&amp;s=session_timeout" target="_blank" rel="noopener noreferrer" id="purchase-email-link" class="tool-entry-btn">
-        <span class="module-icon-badge"><i class="ti ti-mail"></i></span>
-        <span class="tool-entry-label">代购邮箱</span>
-      </a>
-    </div>
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-divider"></div>
 
     <div class="sidebar-divider"></div>
 
@@ -2824,6 +2778,37 @@
     <button id="staff-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
+
+    <div class="sidebar-divider"></div>
+    <div class="quick-header-row">
+      <h3><span class="module-icon-badge"><i class="ti ti-message-circle"></i></span> 常用文本</h3>
+      <div class="pin-gear-wrap">
+        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
+        <div id="quick-gear-menu" class="pin-gear-menu">
+          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语"><i class="ti ti-plus"></i></button>
+          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类"><i class="ti ti-folder"></i></button>
+        </div>
+      </div>
+    </div>
+    <div id="quick-category-manage-row">
+      <div id="quick-category-manage-list"></div>
+      <div class="quick-category-add-row">
+        <input id="quick-category-add-input" type="text" placeholder="新分类名称..." maxlength="10" />
+        <button id="quick-category-add-btn">+ 添加分类</button>
+      </div>
+    </div>
+    <div id="quick-categories"></div>
+    <div id="quick-add-row">
+      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
+      <div class="quick-add-category-row">
+        <label for="quick-add-category-select">分类：</label>
+        <select id="quick-add-category-select"></select>
+      </div>
+      <div class="quick-add-actions">
+        <button id="quick-save-btn">保存</button>
+        <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
+      </div>
+    </div>
   </div>
   <div id="chat-col">
     <header>
@@ -2878,37 +2863,92 @@
     </div>
   </div>
   <div id="quick-sidebar">
-    <div class="quick-header-row">
-      <h3><span class="module-icon-badge"><i class="ti ti-message-circle"></i></span> 常用文本</h3>
-      <div class="pin-gear-wrap">
-        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
-        <div id="quick-gear-menu" class="pin-gear-menu">
-          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语"><i class="ti ti-plus"></i></button>
-          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类"><i class="ti ti-folder"></i></button>
+    <div id="sidebar-announce">
+      <div class="pin-bar-head">
+        <span class="module-icon-badge"><i class="ti ti-speakerphone"></i></span>
+        <span class="pin-bar-label">公告栏</span>
+      </div>
+      <span class="pin-text" id="announcement-text"></span>
+      <button id="announcement-expand-btn" type="button">展开全文</button>
+      <div class="pin-bar-actions">
+        <div class="pin-gear-wrap">
+          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
+          <div id="announcement-gear-menu" class="pin-gear-menu">
+            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑"><i class="ti ti-pencil"></i></button>
+            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录"><i class="ti ti-clipboard-list"></i></button>
+          </div>
         </div>
       </div>
-    </div>
-    <div id="quick-category-manage-row">
-      <div id="quick-category-manage-list"></div>
-      <div class="quick-category-add-row">
-        <input id="quick-category-add-input" type="text" placeholder="新分类名称..." maxlength="10" />
-        <button id="quick-category-add-btn">+ 添加分类</button>
+      <div id="announcement-history-panel">
+        <div class="pin-history-title">公告栏修改记录</div>
+        <div id="announcement-history-list"></div>
       </div>
     </div>
-    <div id="quick-categories"></div>
-    <div id="quick-add-row">
-      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
-      <div class="quick-add-category-row">
-        <label for="quick-add-category-select">分类：</label>
-        <select id="quick-add-category-select"></select>
+    <div id="announcement-edit-row">
+      <textarea id="announcement-input" placeholder="设置公告栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
+      <input id="announcement-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
+      <div class="pin-edit-actions-row">
+        <button id="announcement-save-btn">保存</button>
+        <button class="pin-edit-btn" id="announcement-cancel-btn">取消</button>
       </div>
-      <div class="quick-add-actions">
-        <button id="quick-save-btn">保存</button>
-        <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
-      </div>
+      <span id="announcement-error-msg"></span>
     </div>
 
     <div class="sidebar-divider"></div>
+    <button id="doc-links-toggle" class="sidebar-toggle collapsed" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-book-2"></i></span> 参考文档</span>
+      <span class="sidebar-toggle-arrow">▶</span>
+    </button>
+    <div id="doc-links-body" class="collapsed">
+      <button id="inspection-rules-btn" class="tool-entry-btn" type="button">
+        <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
+        <span class="tool-entry-label">检品规则</span>
+      </button>
+      <a href="https://mingdong.feishu.cn/sheets/LwOZshnQhhlByRtrOaJckU1Unad?from=from_copylink&amp;sheet=G3kx8V" target="_blank" rel="noopener noreferrer" id="duplicate-append-link" class="tool-entry-btn">
+        <span class="module-icon-badge"><i class="ti ti-chart-bar"></i></span>
+        <span class="tool-entry-label">复数追加记录</span>
+      </a>
+      <a href="https://www.jpgoodbuy.com/yii/web/index.php?r=admin%2Flogin%2Flogin&amp;from=https%3A%2F%2Fwww.jpgoodbuy.com%2Fyii%2Fweb%2Findex.php%3Fr%3Dadmin%2Fpurchase%2Fpurchase-list" target="_blank" rel="noopener noreferrer" id="purchase-admin-link" class="tool-entry-btn">
+        <span class="module-icon-badge"><i class="ti ti-shopping-cart"></i></span>
+        <span class="tool-entry-label">代购后台</span>
+      </a>
+      <a href="https://www.qbt.jp/yii/web/index.php?r=shopAdmin/order/auction-order-list" target="_blank" rel="noopener noreferrer" id="auction-admin-link" class="tool-entry-btn">
+        <span class="module-icon-badge"><i class="ti ti-gavel"></i></span>
+        <span class="tool-entry-label">代拍后台</span>
+      </a>
+      <a href="https://exmail.qq.com/cgi-bin/loginpage?t=dm_loginpage&amp;dmtype=bizmail&amp;s=session_timeout" target="_blank" rel="noopener noreferrer" id="purchase-email-link" class="tool-entry-btn">
+        <span class="module-icon-badge"><i class="ti ti-mail"></i></span>
+        <span class="tool-entry-label">代购邮箱</span>
+      </a>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+<h3>实用工具</h3>
+    <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-search"></i></span>
+      <span class="tool-entry-label">骏河屋检品判定台</span>
+    </button>
+    <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-robot"></i></span>
+      <span class="tool-entry-label">AI检品工具</span>
+    </button>
+    <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-calculator"></i></span>
+      <span class="tool-entry-label">计算器（带明细）</span>
+    </button>
+    <button id="tool-sagawa-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-truck"></i></span>
+      <span class="tool-entry-label">佐川运费查询</span>
+    </button>
+    <button id="tool-camera-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-camera"></i></span>
+      <span class="tool-entry-label">拍照搜图</span>
+    </button>
+    <button id="tool-daipai-clipboard-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
+      <span class="tool-entry-label">代拍剪贴板</span>
+    </button>
 
     <button id="reminder-panel-toggle" class="sidebar-toggle collapsed" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-alarm"></i></span> 提醒事项</span>
@@ -2943,34 +2983,6 @@
         <span id="reminder-error-msg"></span>
       </div>
     </div>
-
-    <div class="sidebar-divider"></div>
-
-    <h3>实用工具</h3>
-    <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-search"></i></span>
-      <span class="tool-entry-label">骏河屋检品判定台</span>
-    </button>
-    <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-robot"></i></span>
-      <span class="tool-entry-label">AI检品工具</span>
-    </button>
-    <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-calculator"></i></span>
-      <span class="tool-entry-label">计算器（带明细）</span>
-    </button>
-    <button id="tool-sagawa-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-truck"></i></span>
-      <span class="tool-entry-label">佐川运费查询</span>
-    </button>
-    <button id="tool-camera-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-camera"></i></span>
-      <span class="tool-entry-label">拍照搜图</span>
-    </button>
-    <button id="tool-daipai-clipboard-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
-      <span class="tool-entry-label">代拍剪贴板</span>
-    </button>
   </div>
 </div>
 
@@ -7932,7 +7944,26 @@
   const drawerBackdrop = document.getElementById('drawer-backdrop');
   const sidebarEl = document.getElementById('sidebar');
 
+  // 窄屏时右侧栏（公告栏/参考文档/实用工具）没地方放，整块搬进左侧抽屉里，
+  // 这样手机上照样点得到；宽屏再搬回去当第三栏。搬的是DOM节点本身，
+  // 上面绑的事件监听全都跟着走，不用重新绑定。
+  const quickSidebarEl = document.getElementById('quick-sidebar');
+  const mqNarrow = window.matchMedia('(max-width: 900px)');
+  function syncSidebarsForViewport() {
+    if (mqNarrow.matches) {
+      if (quickSidebarEl.parentElement !== sidebarEl) sidebarEl.appendChild(quickSidebarEl);
+    } else if (quickSidebarEl.parentElement !== appEl) {
+      appEl.appendChild(quickSidebarEl); // #app 的最后一个子元素正好是第三栏
+    }
+  }
+  syncSidebarsForViewport();
+  mqNarrow.addEventListener('change', syncSidebarsForViewport);
+  window.addEventListener('resize', syncSidebarsForViewport);
+
   function openDrawer() {
+    // 打开抽屉时再同步一次：个别浏览器/环境不派发 resize 或 mq change 事件，
+    // 光靠监听可能漏掉，这里补一刀最稳
+    syncSidebarsForViewport();
     sidebarEl.classList.add('drawer-open');
     drawerBackdrop.classList.add('active');
   }

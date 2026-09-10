@@ -1245,6 +1245,13 @@
     line-height: 1.4;
   }
   .quick-category-list .quick-text-btn:hover { border-color: var(--accent); background: transparent; color: var(--accent); }
+  /* 刚点过的那条：留个浅色标记，弹层不关的情况下一眼知道填进去的是哪句 */
+  .quick-category-list .quick-text-btn.just-used {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(63, 111, 214, 0.09);
+    font-weight: 600;
+  }
   .quick-category-list .quick-del-btn {
     flex-shrink: 0;
     background: transparent;
@@ -1995,6 +2002,49 @@
     cursor: pointer;
     font-family: inherit;
   }
+  /* 跟进图章：队列（日志商家/任务）里给每条问题件盖的状态章。
+     没盖的时候是浅底虚线框，盖上之后颜色变深、并把盖章人的名字跟在后面 */
+  .problem-item-stamps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 10px;
+  }
+  .problem-item-stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px dashed var(--stamp-color, var(--border));
+    background: var(--stamp-soft, var(--bg));
+    color: var(--stamp-color, var(--muted));
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    opacity: 0.72;
+    transition: background 0.12s, color 0.12s, opacity 0.12s;
+  }
+  .problem-item-stamp:hover { opacity: 1; }
+  .problem-item-stamp.stamped {
+    border-style: solid;
+    background: var(--stamp-color);
+    color: #fff;
+    opacity: 1;
+  }
+  .problem-item-stamp .stamp-by {
+    font-weight: 500;
+    padding-left: 6px;
+    border-left: 1px solid rgba(255, 255, 255, 0.45);
+  }
+  .problem-item-stamp.s-log { --stamp-color: #4a7fb5; --stamp-soft: rgba(181, 212, 244, 0.22); }
+  .problem-item-stamp.s-merchant { --stamp-color: #c4693f; --stamp-soft: rgba(245, 196, 179, 0.28); }
+  .problem-item-stamp.s-task { --stamp-color: #6f66c9; --stamp-soft: rgba(206, 203, 246, 0.28); }
+  /* 队列里是"三个结果 + 引用"共四个按钮，排成 2×2 比 3+1 好看，
+     也不会让"引用"孤零零占满一整行 */
+  .problem-item-card-actions.queue-actions button { flex: 1 1 calc(50% - 4px); }
+  .problem-item-card-actions .result-btn:hover { border-color: #2e9e5b; color: #2e9e5b; }
   .problem-item-card-actions .resolve-btn:hover { border-color: #2e9e5b; color: #2e9e5b; }
   .problem-item-card-actions .transfer-btn:hover { border-color: #d98a1f; color: #d98a1f; }
   .problem-item-card-actions .shelve-btn:hover { border-color: #7c3aed; color: #7c3aed; }
@@ -3771,7 +3821,8 @@
         const list = problemItemData.reports[cat] || [];
         const idx = list.findIndex((r) => String(r.id) === String(data.report.id));
         if (idx !== -1) list[idx] = data.report;
-        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === cat) renderProblemItemList();
+        // 队列视图是跨分类汇总的，所以只要面板开着就重画，不能只在分类相同时刷新
+        if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
       } else if (data.type === 'problem_item_report_removed') {
         const cat = data.category;
         if (problemItemData.reports[cat]) {
@@ -5400,6 +5451,18 @@
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
   const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
+  // 队列里的三种处理结果：点了就从队列里消失，结果会写进导出的表格
+  const PROBLEM_ITEM_RESULTS = [
+    { key: 'stocked', label: '已入库', icon: 'ti-package-import' },
+    { key: 'reshipped', label: '已补（换）发入库', icon: 'ti-refresh' },
+    { key: 'cancelled', label: '已取消', icon: 'ti-ban' },
+  ];
+  // 跟进图章：可以同时盖多个，点一下点亮（记下盖章人），再点一下取消
+  const PROBLEM_ITEM_STAMPS = [
+    { name: '日志顾客确认中', cls: 's-log' },
+    { name: '商家中', cls: 's-merchant' },
+    { name: '已建任务跟进中', cls: 's-task' },
+  ];
   // 代购/代拍/煤炉共用同一组问题类型选项
   function getIssueTypesForCategory() {
     return problemItemData.options.issueTypes || [];
@@ -5945,23 +6008,73 @@
         card.appendChild(imgRow);
       }
 
+      // 跟进图章：只在队列（日志商家/任务）里出现。谁盖的名字跟在图章里，
+      // 大家看的是同一份数据，点亮/取消都会实时同步到所有人
+      if (isQueue) {
+        const stampRow = document.createElement('div');
+        stampRow.className = 'problem-item-stamps';
+        const stamped = (report.followStamps && typeof report.followStamps === 'object') ? report.followStamps : {};
+        PROBLEM_ITEM_STAMPS.forEach(({ name, cls }) => {
+          const mark = stamped[name];
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'problem-item-stamp ' + cls + (mark ? ' stamped' : '');
+          btn.innerHTML = `<span>${name}</span>` + (mark && mark.by ? `<span class="stamp-by">${mark.by}</span>` : '');
+          btn.title = mark ? `${mark.by || ''} 盖的，点一下取消` : '点一下盖章';
+          btn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'problem_item_stamp',
+                category: report._fromCategory || currentProblemItemCategory,
+                reportId: report.id,
+                stamp: name,
+              }));
+            }
+          });
+          stampRow.appendChild(btn);
+        });
+        card.appendChild(stampRow);
+      }
+
       const actions = document.createElement('div');
       actions.className = 'problem-item-card-actions';
 
-      const resolveBtn = document.createElement('button');
-      resolveBtn.className = 'resolve-btn';
-      resolveBtn.innerHTML = '<i class="ti ti-check"></i> 已解决';
-      resolveBtn.addEventListener('click', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          // 队列里的记录来自别的分类，要用它原本的分类提交，不然服务器找不到
-          ws.send(JSON.stringify({
-            type: 'problem_item_resolve',
-            category: report._fromCategory || currentProblemItemCategory,
-            reportId: report.id,
-          }));
-        }
-      });
-      actions.appendChild(resolveBtn);
+      if (isQueue) {
+        actions.classList.add('queue-actions');
+        // 队列里不再是笼统的"已解决"，而是三种明确的处理结果，
+        // 点完这条就从队列里退场，结果本身进导出表
+        PROBLEM_ITEM_RESULTS.forEach(({ key, label, icon }) => {
+          const btn = document.createElement('button');
+          btn.className = 'result-btn';
+          btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
+          btn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              // 队列里的记录来自别的分类，要用它原本的分类提交，不然服务器找不到
+              ws.send(JSON.stringify({
+                type: 'problem_item_result',
+                category: report._fromCategory || currentProblemItemCategory,
+                reportId: report.id,
+                result: key,
+              }));
+            }
+          });
+          actions.appendChild(btn);
+        });
+      } else {
+        const resolveBtn = document.createElement('button');
+        resolveBtn.className = 'resolve-btn';
+        resolveBtn.innerHTML = '<i class="ti ti-check"></i> 已解决';
+        resolveBtn.addEventListener('click', () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'problem_item_resolve',
+              category: currentProblemItemCategory,
+              reportId: report.id,
+            }));
+          }
+        });
+        actions.appendChild(resolveBtn);
+      }
 
       // 原来的"转处理"拆成两个去向，点哪个就记哪个，导出时能分开统计
       (isQueue ? [] : [
@@ -6457,18 +6570,9 @@
   function insertPhraseToInput(phrase) {
     textInput.value = phrase;
     textInput.focus();
-    // 常用语里经常带着占位用的示例数字（比如订单ID、运单号），
-    // 自动选中第一段连续数字，方便直接打字替换掉，不用自己再手动选中一遍；
-    // 没有数字的话，光标照旧放在最后面
-    const numberMatch = phrase.match(/\d{3,}/);
-    if (numberMatch) {
-      const start = numberMatch.index;
-      const end = start + numberMatch[0].length;
-      textInput.setSelectionRange(start, end);
-    } else {
-      const len = textInput.value.length;
-      textInput.setSelectionRange(len, len);
-    }
+    // 整段默认选中：想直接发就接着打字覆盖，想拿去别处用就直接 Ctrl+C 复制，
+    // 两种用法都不用自己再手动划一遍
+    textInput.setSelectionRange(0, textInput.value.length);
     autoResizeTextInput();
   }
 
@@ -6511,8 +6615,11 @@
         btn.textContent = phrase;
         btn.title = phrase;
         btn.addEventListener('click', () => {
+          // 弹层留着不关：可以接着挑下一条，也方便填进去之后直接 Ctrl+C
           insertPhraseToInput(phrase);
-          closeQuicktextPopover();
+          quickCategoriesEl.querySelectorAll('.quick-text-btn.just-used')
+            .forEach((el) => el.classList.remove('just-used'));
+          btn.classList.add('just-used');
         });
 
         const delBtn = document.createElement('button');
@@ -8142,6 +8249,12 @@
     quicktextPopover.classList.toggle('active');
   });
   document.addEventListener('click', (e) => {
+    // 用 composedPath 判断"点的是不是弹层里面"，不能只看 e.target：
+    // 展开分类、删除某一条这些操作会把列表整个重画，被点的那个元素在事件冒泡到这里之前
+    // 就已经从 DOM 里摘掉了，contains 会返回 false，于是弹层被误当成"点了外面"直接关掉
+    const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+    if (path.includes(quicktextWrap)) return;
+    if (!e.target.isConnected) return;
     if (!quicktextWrap.contains(e.target)) closeQuicktextPopover();
   });
   document.addEventListener('keydown', (e) => {

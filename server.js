@@ -154,7 +154,7 @@ app.get('/api/problem-item-export', async (req, res) => {
 
   // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
   // 不然老记录会被漏掉
-  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task')";
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled')";
   const params = [];
   if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
     params.push(category);
@@ -173,14 +173,22 @@ app.get('/api/problem-item-export', async (req, res) => {
   try {
     const result = await dbPool.query(query, params);
     const escapeCsv = (val) => `"${String(val == null ? '' : val).replace(/"/g, '""')}"`;
-    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,备注,图片,提交人,提交时间,状态,处理人,处理时间'];
+    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,备注,图片,提交人,提交时间,状态,跟进状态,处理人,处理时间'];
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
       const statusLabel = row.status === 'resolved' ? '已解决'
         : row.status === 'transferred_merchant' ? '转日志商家'
         : row.status === 'transferred_task' ? '转任务'
+        : row.status === 'resolved_stocked' ? '已入库'
+        : row.status === 'resolved_reshipped' ? '已补（换）发入库'
+        : row.status === 'resolved_cancelled' ? '已取消'
         : '转处理'; // 老数据（transferred / follow_up）
+      // 跟进图章：盖了哪几个、分别是谁盖的，一列里写清楚
+      const stampObj = (row.follow_stamps && typeof row.follow_stamps === 'object' && !Array.isArray(row.follow_stamps)) ? row.follow_stamps : {};
+      const stampLabel = Object.keys(stampObj)
+        .map((k) => `${k}(${(stampObj[k] && stampObj[k].by) || ''})`)
+        .join('、');
       const submittedTime = new Date(row.submitted_at).toLocaleString('zh-CN');
       const resolvedTime = row.resolved_at ? new Date(row.resolved_at).toLocaleString('zh-CN') : '';
       lines.push([
@@ -195,6 +203,7 @@ app.get('/api/problem-item-export', async (req, res) => {
         escapeCsv(row.submitted_by),
         escapeCsv(submittedTime),
         escapeCsv(statusLabel),
+        escapeCsv(stampLabel),
         escapeCsv(row.resolved_by),
         escapeCsv(resolvedTime),
       ].join(','));
@@ -621,6 +630,16 @@ const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
 const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
+// 队列（日志商家/任务）里的三种结束方式：点完这条记录就从队列里退场，
+// 具体是哪种结果存在 status 里，导出的时候分开统计
+const PROBLEM_ITEM_RESULTS = {
+  stocked: { status: 'resolved_stocked', label: '已入库' },
+  reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库' },
+  cancelled: { status: 'resolved_cancelled', label: '已取消' },
+};
+// 队列里的跟进图章：可以同时盖多个（比如先找顾客确认、同时已经建了任务），
+// 每个图章记住是谁盖的、什么时候盖的；再点一下就取消
+const PROBLEM_ITEM_STAMPS = ['日志顾客确认中', '商家中', '已建任务跟进中'];
 
 function getIssueTypeOptionKey() {
   return 'issue_type';
@@ -663,6 +682,7 @@ async function ensureProblemItemTables() {
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS order_id TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS id_kind TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS images JSONB;`);
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS follow_stamps JSONB;`);
   // "待跟进暂存"这个状态取消了，老数据里的 shelved 一次性归回待处理，免得永远不显示
   await dbPool.query(`UPDATE problem_item_reports SET status = 'pending' WHERE status = 'shelved';`);
 }
@@ -683,6 +703,7 @@ function rowToProblemItemReport(row) {
     submittedBy: row.submitted_by,
     submittedAt: new Date(row.submitted_at).getTime(),
     status: row.status,
+    followStamps: (row.follow_stamps && typeof row.follow_stamps === 'object' && !Array.isArray(row.follow_stamps)) ? row.follow_stamps : {},
   };
 }
 
@@ -752,7 +773,7 @@ async function addProblemItemReport(category, issueTypes, inspectorNames, orderN
       console.error('[问题件列表记录写入数据库失败]', err.message);
     }
   }
-  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending' };
+  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {} };
   problemItemReports[category].push(report);
   return report;
 }
@@ -769,6 +790,25 @@ async function appendProblemItemImages(category, reportId, newImages) {
       await dbPool.query('UPDATE problem_item_reports SET images = $1 WHERE id = $2;', [JSON.stringify(merged), reportId]);
     } catch (err) {
       console.error('[补传问题件照片写入数据库失败]', err.message);
+    }
+  }
+  return report;
+}
+
+// 跟进图章：同一个图章再点一次就取消，不同图章互不影响。
+// 存成 { 图章名: { by, at } }，谁盖的直接跟在图章旁边显示
+async function toggleProblemItemFollowStamp(category, reportId, stamp, byUsername) {
+  const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(reportId));
+  if (!report) return null;
+  const stamps = (report.followStamps && typeof report.followStamps === 'object') ? { ...report.followStamps } : {};
+  if (stamps[stamp]) delete stamps[stamp];
+  else stamps[stamp] = { by: byUsername, at: Date.now() };
+  report.followStamps = stamps;
+  if (dbPool) {
+    try {
+      await dbPool.query('UPDATE problem_item_reports SET follow_stamps = $1 WHERE id = $2;', [JSON.stringify(stamps), reportId]);
+    } catch (err) {
+      console.error('[问题件跟进图章写入数据库失败]', err.message);
     }
   }
   return report;
@@ -1241,6 +1281,33 @@ wss.on('connection', (ws) => {
         return;
       }
       broadcast({ type: 'problem_item_report_updated', category, report });
+      return;
+    }
+
+    // 队列（日志商家/任务）里的处理结果：已入库 / 已补（换）发入库 / 已取消。
+    // 点完记录就从队列里消失，结果本身写进数据库，导出时能看到是哪一种
+    if (data.type === 'problem_item_result') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
+      const result = PROBLEM_ITEM_RESULTS[String(data.result || '')];
+      if (!result) return;
+      const ok = await updateProblemItemReportStatus(category, data.reportId, result.status, client.username);
+      if (ok) broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+      return;
+    }
+
+    // 跟进图章：点亮/取消
+    if (data.type === 'problem_item_stamp') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
+      const stamp = String(data.stamp || '');
+      if (!PROBLEM_ITEM_STAMPS.includes(stamp)) return;
+      const report = await toggleProblemItemFollowStamp(category, data.reportId, stamp, client.username);
+      if (report) broadcast({ type: 'problem_item_report_updated', category, report });
       return;
     }
 

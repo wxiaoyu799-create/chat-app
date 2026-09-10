@@ -695,7 +695,8 @@
     max-height: 120px;
     overflow-y: auto;
   }
-  #input-row button#send-btn { flex-shrink: 0; }
+  /* 输入行图标变多了，发送按钮收窄一点，避免把输入框挤没 */
+  #input-row button#send-btn { flex-shrink: 0; padding: 10px 14px; font-size: 13px; }
   #input-row button#image-pick-btn { flex-shrink: 0; align-self: flex-end; }
 
   /* 引用回复 */
@@ -1187,6 +1188,43 @@
   #online-list li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
   .mention-all-icon { font-size: 12px; flex-shrink: 0; }
+
+  /* 常用语弹出面板：挂在输入框旁边，点按钮弹出，点一条就填进输入框 */
+  #quicktext-wrap { position: relative; flex-shrink: 0; align-self: flex-end; }
+  #quicktext-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #F5C4B3;
+    border: none;
+    border-radius: 9px;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 0;
+  }
+  #quicktext-btn:hover { filter: brightness(0.95); }
+  #quicktext-popover {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: 320px;
+    max-width: calc(100vw - 32px);
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 12px;
+    z-index: 30;
+  }
+  #quicktext-popover.active { display: block; }
+  #quicktext-popover h3 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  #quicktext-popover #quick-categories { flex: none; max-height: none; margin-bottom: 8px; }
 
   /* 常用文本栏 */
   #quick-sidebar { padding: 16px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
@@ -2702,6 +2740,22 @@
     .staff-members-pick-row .multi-select-dropdown { min-width: 160px; }
     #staff-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
 
+    /* 输入行图标多了，手机上按钮收小一圈，把宽度让给输入框 */
+    #input-row { gap: 6px; }
+    #image-pick-btn, #file-pick-btn, #quick-insert-btn, #quicktext-btn { width: 30px; height: 30px; font-size: 15px; }
+    #input-row button#send-btn { padding: 8px 10px; font-size: 12px; }
+
+    /* 常用语面板改成贴着屏幕左右边，避免按钮靠右时弹层跑出屏幕 */
+    #quicktext-popover {
+      position: fixed;
+      left: 8px;
+      right: 8px;
+      width: auto;
+      max-width: none;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      max-height: 50vh;
+    }
+
     /* 问题件：五个操作按钮在手机上排成两列（默认三列会挤成五行，太占地方） */
     #problem-item-content-area { padding: 14px 12px; }
     .problem-item-card-actions button {
@@ -2781,37 +2835,6 @@
     <button id="staff-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
-
-    <div class="sidebar-divider"></div>
-    <div class="quick-header-row">
-      <h3><span class="module-icon-badge"><i class="ti ti-message-circle"></i></span> 常用文本</h3>
-      <div class="pin-gear-wrap">
-        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
-        <div id="quick-gear-menu" class="pin-gear-menu">
-          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语"><i class="ti ti-plus"></i></button>
-          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类"><i class="ti ti-folder"></i></button>
-        </div>
-      </div>
-    </div>
-    <div id="quick-category-manage-row">
-      <div id="quick-category-manage-list"></div>
-      <div class="quick-category-add-row">
-        <input id="quick-category-add-input" type="text" placeholder="新分类名称..." maxlength="10" />
-        <button id="quick-category-add-btn">+ 添加分类</button>
-      </div>
-    </div>
-    <div id="quick-categories"></div>
-    <div id="quick-add-row">
-      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
-      <div class="quick-add-category-row">
-        <label for="quick-add-category-select">分类：</label>
-        <select id="quick-add-category-select"></select>
-      </div>
-      <div class="quick-add-actions">
-        <button id="quick-save-btn">保存</button>
-        <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
-      </div>
-    </div>
   </div>
   <div id="chat-col">
     <header>
@@ -2858,8 +2881,42 @@
       <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）"><i class="ti ti-paperclip"></i></button>
       <input id="file-file-input" type="file" multiple style="display:none" />
       <div id="quick-insert-wrap">
-        <button id="quick-insert-btn" type="button" title="常用文本"><i class="ti ti-template"></i></button>
+        <button id="quick-insert-btn" type="button" title="固定模板"><i class="ti ti-template"></i></button>
         <div id="quick-insert-menu"></div>
+      </div>
+      <div id="quicktext-wrap">
+        <button id="quicktext-btn" type="button" title="常用语（点一条就填进输入框）"><i class="ti ti-message-2-star"></i></button>
+        <div id="quicktext-popover">
+    <div class="quick-header-row">
+      <h3><span class="module-icon-badge"><i class="ti ti-message-circle"></i></span> 常用文本</h3>
+      <div class="pin-gear-wrap">
+        <button id="quick-category-manage-btn" class="pin-edit-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
+        <div id="quick-gear-menu" class="pin-gear-menu">
+          <button class="pin-edit-btn" id="quick-add-btn" title="添加常用语"><i class="ti ti-plus"></i></button>
+          <button class="pin-edit-btn" id="quick-category-manage-toggle" type="button" title="管理分类"><i class="ti ti-folder"></i></button>
+        </div>
+      </div>
+    </div>
+    <div id="quick-category-manage-row">
+      <div id="quick-category-manage-list"></div>
+      <div class="quick-category-add-row">
+        <input id="quick-category-add-input" type="text" placeholder="新分类名称..." maxlength="10" />
+        <button id="quick-category-add-btn">+ 添加分类</button>
+      </div>
+    </div>
+    <div id="quick-categories"></div>
+    <div id="quick-add-row">
+      <textarea id="quick-add-input" placeholder="输入常用语内容...（会按关键词自动猜一个分类，也可以在下面手动选）" rows="1"></textarea>
+      <div class="quick-add-category-row">
+        <label for="quick-add-category-select">分类：</label>
+        <select id="quick-add-category-select"></select>
+      </div>
+      <div class="quick-add-actions">
+        <button id="quick-save-btn">保存</button>
+        <button class="quick-cancel-btn" id="quick-cancel-btn">取消</button>
+      </div>
+    </div>
+        </div>
       </div>
       <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
       <button id="send-btn">发送</button>
@@ -6453,7 +6510,10 @@
         btn.className = 'quick-text-btn';
         btn.textContent = phrase;
         btn.title = phrase;
-        btn.addEventListener('click', () => insertPhraseToInput(phrase));
+        btn.addEventListener('click', () => {
+          insertPhraseToInput(phrase);
+          closeQuicktextPopover();
+        });
 
         const delBtn = document.createElement('button');
         delBtn.className = 'quick-del-btn';
@@ -8067,6 +8127,26 @@
     resetImagePreview();
     resetFilePreview();
   }
+
+  // ===== 常用语弹出面板（原来占着左侧栏一大块，现在收进输入框旁边）=====
+  // 面板里就是原来那套东西：分类、增删常用语、管理分类，逻辑没变；
+  // 点某一条直接填进输入框并收起面板，不用再翻侧栏。
+  const quicktextWrap = document.getElementById('quicktext-wrap');
+  const quicktextBtn = document.getElementById('quicktext-btn');
+  const quicktextPopover = document.getElementById('quicktext-popover');
+
+  function closeQuicktextPopover() { quicktextPopover.classList.remove('active'); }
+
+  quicktextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    quicktextPopover.classList.toggle('active');
+  });
+  document.addEventListener('click', (e) => {
+    if (!quicktextWrap.contains(e.target)) closeQuicktextPopover();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeQuicktextPopover();
+  });
 
   // ===== 输入框旁边的"常用文本"下拉 =====
   // 这几条是固定模板，点一下带进输入框，光标自动停在 "ID：" 后面，直接打单号就行。

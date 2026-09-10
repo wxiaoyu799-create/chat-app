@@ -1953,6 +1953,94 @@
   .problem-item-divider { border-top: 1px solid var(--border); margin: 22px 0; max-width: 480px; }
 
   #problem-item-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+
+  /* ---- 已完结问题件：CC里直接看的表格，不用导出 ---- */
+  #problem-item-finished-panel { display: none; }
+  #problem-item-finished-panel.active { display: block; }
+  #problem-item-finished-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  #problem-item-finished-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1 1 260px;
+    max-width: 380px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 9px;
+    padding: 0 10px;
+    color: var(--muted);
+  }
+  #problem-item-finished-search-wrap:focus-within { border-color: var(--accent); }
+  #problem-item-finished-search {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 0;
+  }
+  #problem-item-finished-count { font-size: 12px; color: var(--muted); }
+  #problem-item-finished-table-wrap {
+    /* 列不少，窄屏幕上让表格自己横向滚，别把整页撑出横条 */
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+  }
+  #problem-item-finished-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  #problem-item-finished-table th,
+  #problem-item-finished-table td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  #problem-item-finished-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+    z-index: 1;
+  }
+  #problem-item-finished-table tbody tr:last-child td { border-bottom: none; }
+  #problem-item-finished-table tbody tr:hover { background: rgba(63, 111, 214, 0.05); }
+  /* 备注可能很长，单独给个上限，超了用省略号，鼠标停上去看全文 */
+  #problem-item-finished-table td.col-note {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #problem-item-finished-table td.col-result { font-weight: 600; }
+  .finished-stamp-chip {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-right: 4px;
+  }
+  .finished-stamp-chip.s-log { background: rgba(74, 127, 181, 0.14); color: #4a7fb5; }
+  .finished-stamp-chip.s-merchant { background: rgba(196, 105, 63, 0.14); color: #c4693f; }
+  .finished-stamp-chip.s-task { background: rgba(111, 102, 201, 0.14); color: #6f66c9; }
+  #problem-item-finished-empty { display: none; color: var(--muted); font-size: 13px; padding: 22px 4px; }
+  #problem-item-finished-empty.active { display: block; }
+  /* 搜索命中的字段高亮一下，长表格里更好定位 */
+  #problem-item-finished-table mark { background: rgba(245, 196, 179, 0.55); color: inherit; border-radius: 3px; }
   .problem-item-empty {
     color: var(--muted);
     font-size: 13px;
@@ -2002,41 +2090,43 @@
     cursor: pointer;
     font-family: inherit;
   }
-  /* 跟进图章：队列（日志商家/任务）里给每条问题件盖的状态章。
-     没盖的时候是浅底虚线框，盖上之后颜色变深、并把盖章人的名字跟在后面 */
+  /* 跟进图章：队列（日志商家/任务）里给每条问题件盖的状态章，放在卡片最下面，
+     长得像聊天里的点赞——状态是主角（字大），谁盖的缩在下面一行（字小）。
+     没盖是浅底虚线框，盖上之后整块变实色 */
   .problem-item-stamps {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin: 2px 0 10px;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
   }
   .problem-item-stamp {
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 1px;
+    min-width: 108px;
     border: 1px dashed var(--stamp-color, var(--border));
     background: var(--stamp-soft, var(--bg));
     color: var(--stamp-color, var(--muted));
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 999px;
+    padding: 7px 14px;
+    border-radius: 14px;
     cursor: pointer;
     font-family: inherit;
-    opacity: 0.72;
+    line-height: 1.25;
+    opacity: 0.7;
     transition: background 0.12s, color 0.12s, opacity 0.12s;
   }
   .problem-item-stamp:hover { opacity: 1; }
+  .problem-item-stamp .stamp-name { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
+  .problem-item-stamp .stamp-by { font-size: 11px; font-weight: 500; opacity: 0.85; }
   .problem-item-stamp.stamped {
     border-style: solid;
     background: var(--stamp-color);
     color: #fff;
     opacity: 1;
-  }
-  .problem-item-stamp .stamp-by {
-    font-weight: 500;
-    padding-left: 6px;
-    border-left: 1px solid rgba(255, 255, 255, 0.45);
   }
   .problem-item-stamp.s-log { --stamp-color: #4a7fb5; --stamp-soft: rgba(181, 212, 244, 0.22); }
   .problem-item-stamp.s-merchant { --stamp-color: #c4693f; --stamp-soft: rgba(245, 196, 179, 0.28); }
@@ -2873,6 +2963,11 @@
         <span class="tool-entry-label">任务</span>
         <span class="problem-item-badge" id="problem-badge-任务"></span>
       </button>
+      <div class="problem-item-queue-divider"><span>已处理</span></div>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="已完结问题件" type="button">
+        <span class="module-icon-badge"><i class="ti ti-archive"></i></span>
+        <span class="tool-entry-label">已完结问题件</span>
+      </button>
 
     </div>
 
@@ -3373,6 +3468,8 @@
       <div class="problem-item-cat-divider"></div>
       <button class="problem-item-panel-cat-btn" data-category="日志商家">日志商家</button>
       <button class="problem-item-panel-cat-btn" data-category="任务">任务</button>
+      <div class="problem-item-cat-divider"></div>
+      <button class="problem-item-panel-cat-btn" data-category="已完结问题件">已完结问题件</button>
     </div>
     <div id="problem-item-content-area">
       <div id="problem-item-owner-bar">
@@ -3455,6 +3552,37 @@
       <div class="problem-item-divider"></div>
 
       <div id="problem-item-list"></div>
+
+      <!-- 已完结问题件：不用导出也能直接在CC里翻和搜，实时跟着处理结果更新 -->
+      <div id="problem-item-finished-panel">
+        <div id="problem-item-finished-toolbar">
+          <div id="problem-item-finished-search-wrap">
+            <i class="ti ti-search"></i>
+            <input id="problem-item-finished-search" type="search" placeholder="搜单号、问题类型、人名、备注、处理结果…" autocomplete="off" />
+          </div>
+          <span id="problem-item-finished-count"></span>
+        </div>
+        <div id="problem-item-finished-table-wrap">
+          <table id="problem-item-finished-table">
+            <thead>
+              <tr>
+                <th>完结时间</th>
+                <th>分类</th>
+                <th>问题类型</th>
+                <th>单号</th>
+                <th>备注</th>
+                <th>检品人员</th>
+                <th>提交人</th>
+                <th>处理结果</th>
+                <th>跟进状态</th>
+                <th>处理人</th>
+              </tr>
+            </thead>
+            <tbody id="problem-item-finished-tbody"></tbody>
+          </table>
+        </div>
+        <div id="problem-item-finished-empty">暂时还没有已完结的问题件</div>
+      </div>
     </div>
   </div>
 
@@ -3632,6 +3760,11 @@
   const problemItemSubmitBtn = document.getElementById('problem-item-submit-btn');
   const problemItemSubmitHint = document.getElementById('problem-item-submit-hint');
   const problemItemList = document.getElementById('problem-item-list');
+  const problemItemFinishedPanel = document.getElementById('problem-item-finished-panel');
+  const problemItemFinishedTbody = document.getElementById('problem-item-finished-tbody');
+  const problemItemFinishedSearch = document.getElementById('problem-item-finished-search');
+  const problemItemFinishedCount = document.getElementById('problem-item-finished-count');
+  const problemItemFinishedEmpty = document.getElementById('problem-item-finished-empty');
   const problemItemOwnerNames = document.getElementById('problem-item-owner-names');
   const problemItemOwnerHint = document.getElementById('problem-item-owner-hint');
   const problemItemOptionsEditPanel = document.getElementById('problem-item-options-edit-panel');
@@ -3804,6 +3937,7 @@
       } else if (data.type === 'problem_item_data') {
         problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
+        problemItemData.finished = Array.isArray(data.finished) ? data.finished : [];
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
       } else if (data.type === 'problem_item_error') {
@@ -3823,6 +3957,13 @@
         if (idx !== -1) list[idx] = data.report;
         // 队列视图是跨分类汇总的，所以只要面板开着就重画，不能只在分类相同时刷新
         if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
+      } else if (data.type === 'problem_item_finished_added') {
+        // 有人给某条问题件下了最终结果：立刻进"已完结"表格，正开着表格的人不用刷新
+        if (!Array.isArray(problemItemData.finished)) problemItemData.finished = [];
+        problemItemData.finished.push(data.record);
+        if (problemItemOverlay.classList.contains('active') && isFinishedView(currentProblemItemCategory)) {
+          renderFinishedTable();
+        }
       } else if (data.type === 'problem_item_report_removed') {
         const cat = data.category;
         if (problemItemData.reports[cat]) {
@@ -5470,10 +5611,15 @@
   function getIssueTypeOptionKey() {
     return 'issue_type';
   }
+  // 第三种视图：已完结问题件。不是分类也不是队列，是一张能搜的表格
+  const PROBLEM_ITEM_FINISHED_VIEW = '已完结问题件';
+  function isFinishedView(cat) { return cat === PROBLEM_ITEM_FINISHED_VIEW; }
   let problemItemData = {
     options: { issueTypes: [], inspectorNames: [] },
     reports: { 代购: [], 代拍: [], 煤炉: [] },
+    finished: [],
   };
+  let finishedSearchKeyword = '';
   let currentProblemItemCategory = '代购';
   let selectedIssueTypes = new Set();
   let editingIssueTypes = [];
@@ -5873,12 +6019,20 @@
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
     renderProblemItemOwner();
-    // 队列视图只是看板，不能在这里提交新问题件，把表单和分隔线藏起来
+    // 队列视图只是看板，不能在这里提交新问题件，把表单和分隔线藏起来；
+    // 已完结视图更彻底——表单、分隔线、卡片列表全收起来，只留那张表格
     const isQueue = isQueueCategory(currentProblemItemCategory);
+    const isFinished = isFinishedView(currentProblemItemCategory);
     const formEl = document.getElementById('problem-item-form');
     const dividerEl = document.querySelector('.problem-item-divider');
-    if (formEl) formEl.style.display = isQueue ? 'none' : '';
-    if (dividerEl) dividerEl.style.display = isQueue ? 'none' : '';
+    if (formEl) formEl.style.display = (isQueue || isFinished) ? 'none' : '';
+    if (dividerEl) dividerEl.style.display = (isQueue || isFinished) ? 'none' : '';
+    problemItemList.style.display = isFinished ? 'none' : '';
+    problemItemFinishedPanel.classList.toggle('active', isFinished);
+    if (isFinished) {
+      renderFinishedTable();
+      return;
+    }
     if (!isQueue) {
       updateProblemItemPhotoSection();
       updateProblemItemIdField();
@@ -5922,6 +6076,98 @@
       ? '跟人员管理里的现场管理人员同步，要改去那边改'
       : '还没有现场管理人员，去人员管理里勾选';
   }
+
+  // ---- 已完结问题件表格 ----
+  // 处理完的记录不再占着待处理列表，但也不该只能靠导出才看得到，
+  // 所以在这里原样列出来（服务器保留最近500条），支持一个框搜全表
+  const FINISHED_STATUS_LABELS = {
+    resolved: '已解决',
+    resolved_stocked: '已入库',
+    resolved_reshipped: '已补（换）发入库',
+    resolved_cancelled: '已取消',
+  };
+  const FINISHED_STAMP_CLASS = { '日志顾客确认中': 's-log', '商家中': 's-merchant', '已建任务跟进中': 's-task' };
+
+  function formatFinishedTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // 搜索命中的片段套一层 <mark>，长表格里更好定位。文本先转义，再插高亮标签
+  function highlightCell(text, keyword) {
+    const safe = escapeHtml(String(text == null ? '' : text));
+    if (!keyword) return safe;
+    // 正则元字符要先转义，不然搜 "(" 这种字符会把正则搞崩。
+    // 这里用逐字符替换而不是写一条满是反斜杠的正则，省得以后改动时看花眼
+    const BACKSLASH = String.fromCharCode(92);
+    const REGEX_SPECIALS = '.*+?^${}()|[]' + BACKSLASH;
+    const escapedKey = escapeHtml(keyword).split('')
+      .map((ch) => (REGEX_SPECIALS.indexOf(ch) === -1 ? ch : BACKSLASH + ch)).join('');
+    return safe.replace(new RegExp(escapedKey, 'gi'), (m) => `<mark>${m}</mark>`);
+  }
+
+  function renderFinishedTable() {
+    const keyword = finishedSearchKeyword.trim();
+    const lowerKey = keyword.toLowerCase();
+    const all = Array.isArray(problemItemData.finished) ? problemItemData.finished : [];
+    // 新完结的排在最上面
+    const rows = [...all].reverse().filter((r) => {
+      if (!lowerKey) return true;
+      const stamps = (r.followStamps && typeof r.followStamps === 'object') ? r.followStamps : {};
+      const haystack = [
+        r.category,
+        (r.issueTypes || []).join(' '),
+        r.orderId,
+        idKindLabel(r.idKind),
+        r.orderNote,
+        (r.inspectorNames || []).join(' '),
+        r.submittedBy,
+        FINISHED_STATUS_LABELS[r.status] || r.status,
+        Object.keys(stamps).map((k) => `${k} ${(stamps[k] && stamps[k].by) || ''}`).join(' '),
+        r.resolvedBy,
+        formatFinishedTime(r.resolvedAt),
+      ].join(' ').toLowerCase();
+      return haystack.includes(lowerKey);
+    });
+
+    problemItemFinishedTbody.innerHTML = '';
+    rows.forEach((r) => {
+      const stamps = (r.followStamps && typeof r.followStamps === 'object') ? r.followStamps : {};
+      const stampHtml = Object.keys(stamps)
+        .map((k) => `<span class="finished-stamp-chip ${FINISHED_STAMP_CLASS[k] || ''}">${highlightCell(k, keyword)}`
+          + (stamps[k] && stamps[k].by ? ` · ${highlightCell(stamps[k].by, keyword)}` : '') + '</span>')
+        .join('');
+      const note = r.orderNote || '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${highlightCell(formatFinishedTime(r.resolvedAt), keyword)}</td>
+        <td>${highlightCell(r.category, keyword)}</td>
+        <td>${highlightCell((r.issueTypes || []).join('、'), keyword)}</td>
+        <td>${r.orderId ? highlightCell(`${idKindLabel(r.idKind)}：${r.orderId}`, keyword) : ''}</td>
+        <td class="col-note" title="${escapeHtml(note)}">${highlightCell(note, keyword)}</td>
+        <td>${highlightCell((r.inspectorNames || []).join('、'), keyword)}</td>
+        <td>${highlightCell(r.submittedBy, keyword)}</td>
+        <td class="col-result">${highlightCell(FINISHED_STATUS_LABELS[r.status] || r.status, keyword)}</td>
+        <td>${stampHtml}</td>
+        <td>${highlightCell(r.resolvedBy, keyword)}</td>`;
+      problemItemFinishedTbody.appendChild(tr);
+    });
+
+    problemItemFinishedCount.textContent = keyword
+      ? `搜到 ${rows.length} 条 / 共 ${all.length} 条`
+      : `共 ${all.length} 条`;
+    problemItemFinishedEmpty.textContent = all.length === 0
+      ? '暂时还没有已完结的问题件'
+      : '没搜到符合条件的记录';
+    problemItemFinishedEmpty.classList.toggle('active', rows.length === 0);
+  }
+
+  problemItemFinishedSearch.addEventListener('input', () => {
+    finishedSearchKeyword = problemItemFinishedSearch.value;
+    renderFinishedTable();
+  });
 
   function renderProblemItemList() {
     // 日志商家/任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
@@ -6006,34 +6252,6 @@
           imgRow.appendChild(box);
         });
         card.appendChild(imgRow);
-      }
-
-      // 跟进图章：只在队列（日志商家/任务）里出现。谁盖的名字跟在图章里，
-      // 大家看的是同一份数据，点亮/取消都会实时同步到所有人
-      if (isQueue) {
-        const stampRow = document.createElement('div');
-        stampRow.className = 'problem-item-stamps';
-        const stamped = (report.followStamps && typeof report.followStamps === 'object') ? report.followStamps : {};
-        PROBLEM_ITEM_STAMPS.forEach(({ name, cls }) => {
-          const mark = stamped[name];
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'problem-item-stamp ' + cls + (mark ? ' stamped' : '');
-          btn.innerHTML = `<span>${name}</span>` + (mark && mark.by ? `<span class="stamp-by">${mark.by}</span>` : '');
-          btn.title = mark ? `${mark.by || ''} 盖的，点一下取消` : '点一下盖章';
-          btn.addEventListener('click', () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                type: 'problem_item_stamp',
-                category: report._fromCategory || currentProblemItemCategory,
-                reportId: report.id,
-                stamp: name,
-              }));
-            }
-          });
-          stampRow.appendChild(btn);
-        });
-        card.appendChild(stampRow);
       }
 
       const actions = document.createElement('div');
@@ -6122,6 +6340,37 @@
       actions.appendChild(quoteBtn);
 
       card.appendChild(actions);
+
+      // 跟进图章：只在队列（日志商家/任务）里出现，放在整条最后一行。
+      // 状态字大、盖章人的名字小一号在下面，一眼看的是"现在跟到哪一步"。
+      // 大家看的是同一份数据，点亮/取消实时同步给所有人
+      if (isQueue) {
+        const stampRow = document.createElement('div');
+        stampRow.className = 'problem-item-stamps';
+        const stamped = (report.followStamps && typeof report.followStamps === 'object') ? report.followStamps : {};
+        PROBLEM_ITEM_STAMPS.forEach(({ name, cls }) => {
+          const mark = stamped[name];
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'problem-item-stamp ' + cls + (mark ? ' stamped' : '');
+          btn.innerHTML = `<span class="stamp-name">${name}</span>`
+            + `<span class="stamp-by">${mark && mark.by ? mark.by : '未跟进'}</span>`;
+          btn.title = mark ? `${mark.by || ''} 盖的，点一下取消` : '点一下盖章';
+          btn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'problem_item_stamp',
+                category: report._fromCategory || currentProblemItemCategory,
+                reportId: report.id,
+                stamp: name,
+              }));
+            }
+          });
+          stampRow.appendChild(btn);
+        });
+        card.appendChild(stampRow);
+      }
+
       problemItemList.appendChild(card);
     });
   }

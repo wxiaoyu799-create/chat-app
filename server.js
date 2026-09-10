@@ -640,6 +640,27 @@ const PROBLEM_ITEM_RESULTS = {
 // 队列里的跟进图章：可以同时盖多个（比如先找顾客确认、同时已经建了任务），
 // 每个图章记住是谁盖的、什么时候盖的；再点一下就取消
 const PROBLEM_ITEM_STAMPS = ['日志顾客确认中', '商家中', '已建任务跟进中'];
+// 走到头的记录（不管是三个分类里直接"已解决"，还是队列里给了处理结果）都算"已完结"。
+// 这些记录不再占着待处理列表，但要在"已完结问题件"表格里实时看得到，
+// 所以在内存里另留一份最近的，超出上限就把最老的挤掉（完整历史仍然在数据库里）
+const PROBLEM_ITEM_FINISHED_STATUSES = ['resolved', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled'];
+const PROBLEM_ITEM_FINISHED_LIMIT = 500;
+const problemItemFinished = [];
+function problemItemStatusLabel(status) {
+  if (status === 'resolved') return '已解决';
+  if (status === 'resolved_stocked') return '已入库';
+  if (status === 'resolved_reshipped') return '已补（换）发入库';
+  if (status === 'resolved_cancelled') return '已取消';
+  if (status === 'transferred_merchant') return '转日志商家';
+  if (status === 'transferred_task') return '转任务';
+  return '转处理'; // 老数据（transferred / follow_up）
+}
+function pushProblemItemFinished(record) {
+  problemItemFinished.push(record);
+  if (problemItemFinished.length > PROBLEM_ITEM_FINISHED_LIMIT) {
+    problemItemFinished.splice(0, problemItemFinished.length - PROBLEM_ITEM_FINISHED_LIMIT);
+  }
+}
 
 function getIssueTypeOptionKey() {
   return 'issue_type';
@@ -752,6 +773,20 @@ async function loadProblemItemDataFromDB() {
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
     }
 
+    // 已完结的记录：只读最近的一批进内存，给"已完结问题件"表格用（完整历史还在数据库里，导出走导出）
+    const finishedRows = await dbPool.query(
+      `SELECT * FROM problem_item_reports WHERE status = ANY($1::text[]) ORDER BY resolved_at DESC NULLS LAST, id DESC LIMIT $2;`,
+      [PROBLEM_ITEM_FINISHED_STATUSES, PROBLEM_ITEM_FINISHED_LIMIT]
+    );
+    problemItemFinished.length = 0;
+    finishedRows.rows.reverse().forEach((row) => {
+      problemItemFinished.push({
+        ...rowToProblemItemReport(row),
+        resolvedBy: row.resolved_by || '',
+        resolvedAt: row.resolved_at ? new Date(row.resolved_at).getTime() : null,
+      });
+    });
+
     console.log('已从数据库加载问题件提醒选项和待处理记录');
   } catch (err) {
     console.error('[加载问题件提醒数据失败，暂时改用内存默认值]', err.message);
@@ -818,13 +853,16 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
   const idx = problemItemReports[category].findIndex((r) => String(r.id) === String(reportId));
   if (idx === -1) return false;
 
+  let finished = null;
   if (status === 'transferred_merchant' || status === 'transferred_task') {
     // 转日志商家 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
   } else {
-    // 已解决：彻底结束，从内存列表里移除，只留在数据库当历史
-    problemItemReports[category].splice(idx, 1);
+    // 已完结：从待处理/队列里移除，转到"已完结问题件"表格里继续能查能搜
+    const gone = problemItemReports[category].splice(idx, 1)[0];
+    finished = { ...gone, category, status, resolvedBy: byUsername, resolvedAt: Date.now() };
+    pushProblemItemFinished(finished);
   }
 
   if (dbPool) {
@@ -837,7 +875,7 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
       console.error('[问题件提醒状态更新失败]', err.message);
     }
   }
-  return true;
+  return finished || true;
 }
 
 async function updateProblemItemOptions(optionType, values) {
@@ -870,6 +908,7 @@ function getProblemItemSnapshot() {
       inspectorNames: problemItemOptions.inspector_name.map((o) => o.value),
     },
     reports: problemItemReports,
+    finished: problemItemFinished,
   };
 }
 
@@ -1294,7 +1333,10 @@ wss.on('connection', (ws) => {
       const result = PROBLEM_ITEM_RESULTS[String(data.result || '')];
       if (!result) return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, result.status, client.username);
-      if (ok) broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+      if (ok) {
+        broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+        if (ok !== true) broadcast({ type: 'problem_item_finished_added', record: ok });
+      }
       return;
     }
 
@@ -1334,6 +1376,7 @@ wss.on('connection', (ws) => {
           broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status, report: moved });
         } else {
           broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
+          if (ok !== true) broadcast({ type: 'problem_item_finished_added', record: ok });
         }
       }
       return;

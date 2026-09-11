@@ -1800,6 +1800,7 @@
   #problem-item-form { max-width: 480px; }
   .problem-item-field { margin-bottom: 14px; }
   .problem-item-field .problem-item-field-label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .problem-item-required { color: #e5534b; font-weight: 700; margin-left: 2px; }
   .problem-item-field textarea {
     width: 100%;
     border: 1px solid var(--border);
@@ -2090,44 +2091,77 @@
     cursor: pointer;
     font-family: inherit;
   }
-  /* 跟进图章：队列（日志商家/任务）里给每条问题件盖的状态章，放在卡片最下面，
-     长得像聊天里的点赞——状态是主角（字大），谁盖的缩在下面一行（字小）。
-     没盖是浅底虚线框，盖上之后整块变实色 */
+  /* 队列里每条记录 = 左边卡片 + 右边一列竖排的跟进图章 */
+  .problem-item-card-row { display: flex; align-items: flex-start; gap: 14px; }
+  .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
+  #problem-item-list.queue-mode { max-width: 720px; }
+  /* 队列卡片标签行最前面的分类章：来自哪个分类一眼看到，不用再去读小字 */
+  .problem-item-cat-chip {
+    display: inline-block;
+    background: rgba(63, 111, 214, 0.12);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 10px;
+  }
+  /* 跟进图章：竖着排在卡片右边。没盖的很淡，盖上之后整块变实色；
+     盖章人不写在章里，而是像聊天里的 👍 那样，用一枚小徽章挂在章的右下角 */
   .problem-item-stamps {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 12px 0 0;
-    padding-top: 12px;
-    border-top: 1px dashed var(--border);
+    flex-direction: column;
+    gap: 18px;
+    width: 132px;
+    flex-shrink: 0;
+    padding: 2px 0 12px;
   }
   .problem-item-stamp {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
-    min-width: 108px;
+    position: relative;
+    display: block;
+    width: 100%;
+    text-align: center;
     border: 1px dashed var(--stamp-color, var(--border));
     background: var(--stamp-soft, var(--bg));
     color: var(--stamp-color, var(--muted));
-    padding: 7px 14px;
-    border-radius: 14px;
+    padding: 10px 8px;
+    border-radius: 12px;
     cursor: pointer;
     font-family: inherit;
-    line-height: 1.25;
-    opacity: 0.7;
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    opacity: 0.42;
     transition: background 0.12s, color 0.12s, opacity 0.12s;
   }
-  .problem-item-stamp:hover { opacity: 1; }
-  .problem-item-stamp .stamp-name { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
-  .problem-item-stamp .stamp-by { font-size: 11px; font-weight: 500; opacity: 0.85; }
+  .problem-item-stamp:hover { opacity: 0.85; }
   .problem-item-stamp.stamped {
     border-style: solid;
     background: var(--stamp-color);
     color: #fff;
     opacity: 1;
   }
+  .problem-item-stamp .stamp-by {
+    position: absolute;
+    right: 6px;
+    bottom: -11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: calc(100% - 12px);
+    background: var(--panel);
+    border: 1.5px solid var(--stamp-color);
+    color: var(--stamp-color);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px 2px 5px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  }
+  .problem-item-stamp .stamp-by i { font-size: 11px; }
   .problem-item-stamp.s-log { --stamp-color: #4a7fb5; --stamp-soft: rgba(181, 212, 244, 0.22); }
   .problem-item-stamp.s-merchant { --stamp-color: #c4693f; --stamp-soft: rgba(245, 196, 179, 0.28); }
   .problem-item-stamp.s-task { --stamp-color: #6f66c9; --stamp-soft: rgba(206, 203, 246, 0.28); }
@@ -2904,6 +2938,11 @@
       font-size: 11px;
       padding: 8px 4px;
     }
+    /* 手机上没有右边那块空地：图章列改到卡片下面横着放，三枚各占一格 */
+    .problem-item-card-row { flex-direction: column; gap: 10px; }
+    .problem-item-stamps { flex-direction: row; width: 100%; gap: 8px; padding: 0 0 12px; }
+    .problem-item-stamp { flex: 1 1 0; min-width: 0; font-size: 12px; padding: 9px 4px; }
+    #problem-item-list.queue-mode { max-width: none; }
     #problem-item-form { max-width: none; }
     #problem-item-image-row { gap: 6px; }
     #problem-item-camera-btn, #problem-item-image-btn { flex: 1 1 auto; font-size: 11px; padding: 8px 6px; }
@@ -3480,14 +3519,14 @@
       <div id="problem-item-content-header">
         <span id="problem-item-content-title">代购</span>
         <div id="problem-item-header-actions">
-          <button id="problem-item-export-btn" class="pin-edit-btn" type="button" title="导出已解决/转处理的记录"><i class="ti ti-download"></i></button>
+          <button id="problem-item-export-btn" class="pin-edit-btn" type="button" title="导出已处理的记录"><i class="ti ti-download"></i></button>
           <button id="problem-item-options-gear-btn" class="pin-edit-btn" type="button" title="编辑下拉选项列表"><i class="ti ti-settings"></i></button>
         </div>
       </div>
 
       <div id="problem-item-export-panel">
         <div id="problem-item-export-card">
-          <div class="problem-item-export-title">导出已解决 / 转处理的记录</div>
+          <div class="problem-item-export-title">导出已处理的记录</div>
           <div class="problem-item-export-field">
             <label>分类</label>
             <select id="problem-item-export-category">
@@ -3531,8 +3570,8 @@
           <div class="problem-item-field-tip" id="problem-item-id-tip">选了"找不到…"类的问题类型时，这里会自动切成快递单号</div>
         </div>
         <div class="problem-item-field">
-          <label class="problem-item-field-label">备注（选填）</label>
-          <textarea id="problem-item-note-input" rows="2" placeholder="补充说明…（选填）"></textarea>
+          <label class="problem-item-field-label">简单描述 <span class="problem-item-required">*</span></label>
+          <textarea id="problem-item-note-input" rows="2" placeholder="一两句话说清楚问题（必填）"></textarea>
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">问题件图片（选填，最多3张）</label>
@@ -3558,7 +3597,7 @@
         <div id="problem-item-finished-toolbar">
           <div id="problem-item-finished-search-wrap">
             <i class="ti ti-search"></i>
-            <input id="problem-item-finished-search" type="search" placeholder="搜单号、问题类型、人名、备注、处理结果…" autocomplete="off" />
+            <input id="problem-item-finished-search" type="search" placeholder="搜单号、问题类型、人名、描述、处理结果…" autocomplete="off" />
           </div>
           <span id="problem-item-finished-count"></span>
         </div>
@@ -3570,7 +3609,7 @@
                 <th>分类</th>
                 <th>问题类型</th>
                 <th>单号</th>
-                <th>备注</th>
+                <th>简单描述</th>
                 <th>检品人员</th>
                 <th>提交人</th>
                 <th>处理结果</th>
@@ -6081,7 +6120,7 @@
   // 处理完的记录不再占着待处理列表，但也不该只能靠导出才看得到，
   // 所以在这里原样列出来（服务器保留最近500条），支持一个框搜全表
   const FINISHED_STATUS_LABELS = {
-    resolved: '已解决',
+    resolved: '已入库', // 三个分类里直接点的"已入库"（状态值沿用老的 resolved，老记录也一并按这个显示）
     resolved_stocked: '已入库',
     resolved_reshipped: '已补（换）发入库',
     resolved_cancelled: '已取消',
@@ -6183,12 +6222,20 @@
       problemItemList.appendChild(empty);
       return;
     }
+    problemItemList.classList.toggle('queue-mode', isQueue);
     [...reports].reverse().forEach((report) => {
       const card = document.createElement('div');
       card.className = 'problem-item-card';
 
       const tagsRow = document.createElement('div');
       tagsRow.className = 'problem-item-card-tags';
+      // 队列里是跨分类汇总的，分类名放在问题类型前面当第一枚章（"煤炉 脏污"），比藏在小字里醒目
+      if (isQueue && report._fromCategory) {
+        const catChip = document.createElement('span');
+        catChip.className = 'problem-item-cat-chip';
+        catChip.textContent = report._fromCategory;
+        tagsRow.appendChild(catChip);
+      }
       (report.issueTypes || []).forEach((t) => {
         const tag = document.createElement('span');
         tag.className = 'problem-item-tag';
@@ -6210,8 +6257,7 @@
       const meta = document.createElement('div');
       meta.className = 'problem-item-card-meta';
       const inspectorStr = (report.inspectorNames && report.inspectorNames.length > 0) ? report.inspectorNames.join('、') : '未填写';
-      meta.textContent = (isQueue && report._fromCategory ? `来自${report._fromCategory} · ` : '')
-        + `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
+      meta.textContent = `检品人员：${inspectorStr} · 提交人：${report.submittedBy} · ${formatProblemItemTime(report.submittedAt)}`;
       card.appendChild(meta);
 
       if (report.orderId) {
@@ -6281,7 +6327,7 @@
       } else {
         const resolveBtn = document.createElement('button');
         resolveBtn.className = 'resolve-btn';
-        resolveBtn.innerHTML = '<i class="ti ti-check"></i> 已解决';
+        resolveBtn.innerHTML = '<i class="ti ti-package-import"></i> 已入库';
         resolveBtn.addEventListener('click', () => {
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({
@@ -6341,12 +6387,16 @@
 
       card.appendChild(actions);
 
-      // 跟进图章：只在队列（日志商家/任务）里出现，放在整条最后一行。
-      // 状态字大、盖章人的名字小一号在下面，一眼看的是"现在跟到哪一步"。
+      // 跟进图章：只在队列（日志商家/任务）里出现，竖着排在卡片右边一列。
+      // 盖章人不混在状态文字里——像聊天里的 👍 那样，用一枚小徽章挂在章的右下角。
       // 大家看的是同一份数据，点亮/取消实时同步给所有人
       if (isQueue) {
-        const stampRow = document.createElement('div');
-        stampRow.className = 'problem-item-stamps';
+        const row = document.createElement('div');
+        row.className = 'problem-item-card-row';
+        row.appendChild(card);
+
+        const stampCol = document.createElement('div');
+        stampCol.className = 'problem-item-stamps';
         const stamped = (report.followStamps && typeof report.followStamps === 'object') ? report.followStamps : {};
         PROBLEM_ITEM_STAMPS.forEach(({ name, cls }) => {
           const mark = stamped[name];
@@ -6354,7 +6404,7 @@
           btn.type = 'button';
           btn.className = 'problem-item-stamp ' + cls + (mark ? ' stamped' : '');
           btn.innerHTML = `<span class="stamp-name">${name}</span>`
-            + `<span class="stamp-by">${mark && mark.by ? mark.by : '未跟进'}</span>`;
+            + (mark && mark.by ? `<span class="stamp-by"><i class="ti ti-thumb-up"></i>${mark.by}</span>` : '');
           btn.title = mark ? `${mark.by || ''} 盖的，点一下取消` : '点一下盖章';
           btn.addEventListener('click', () => {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -6366,9 +6416,11 @@
               }));
             }
           });
-          stampRow.appendChild(btn);
+          stampCol.appendChild(btn);
         });
-        card.appendChild(stampRow);
+        row.appendChild(stampCol);
+        problemItemList.appendChild(row);
+        return;
       }
 
       problemItemList.appendChild(card);
@@ -6498,6 +6550,13 @@
       problemItemSubmitHint.textContent = idKind === 'rs' ? 'RS单号只能填字母和数字' : `${idLabel}只能填数字`;
       problemItemSubmitHint.style.color = '#e5534b';
       problemItemIdInput.focus();
+      return;
+    }
+    // 简单描述必填：空着的单子后面没人看得懂是什么问题
+    if (!problemItemNoteInput.value.trim()) {
+      problemItemSubmitHint.textContent = '请填写简单描述';
+      problemItemSubmitHint.style.color = '#e5534b';
+      problemItemNoteInput.focus();
       return;
     }
     if (problemItemPendingImages.some((img) => img.uploading)) {

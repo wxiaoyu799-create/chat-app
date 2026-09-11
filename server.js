@@ -177,7 +177,7 @@ app.get('/api/problem-item-export', async (req, res) => {
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
-      const statusLabel = row.status === 'resolved' ? '已解决'
+      const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
         : row.status === 'transferred_merchant' ? '转日志商家'
         : row.status === 'transferred_task' ? '转任务'
         : row.status === 'resolved_stocked' ? '已入库'
@@ -647,7 +647,7 @@ const PROBLEM_ITEM_FINISHED_STATUSES = ['resolved', 'resolved_stocked', 'resolve
 const PROBLEM_ITEM_FINISHED_LIMIT = 500;
 const problemItemFinished = [];
 function problemItemStatusLabel(status) {
-  if (status === 'resolved') return '已解决';
+  if (status === 'resolved') return '已入库';
   if (status === 'resolved_stocked') return '已入库';
   if (status === 'resolved_reshipped') return '已补（换）发入库';
   if (status === 'resolved_cancelled') return '已取消';

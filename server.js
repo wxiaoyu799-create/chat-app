@@ -407,79 +407,113 @@ function scheduleMentionReminder(msg) {
 // 本地没配置环境变量时用这个默认值兜底，方便本地测试，正式使用务必在Render上单独设置
 const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
 
-// 公告栏（侧栏那个）：跟置顶公告完全独立，各自内容互不关联，共用同一个编辑密码，
-// 修改历史的追踪机制跟置顶公告完全一样（同样会走数据库持久化，如果配置了 DATABASE_URL 的话）
-let announcementText = '';
-const ANNOUNCEMENT_MAX_LENGTH = 600;
-const ANNOUNCEMENT_HISTORY_MAX = 50;
-let announcementHistory = [{ id: 'mem-seed', text: announcementText, by: '系统默认', startTime: Date.now(), endTime: null }];
+// ==================== 案例库（原来的公告栏换成了这个，编辑密码不变） ====================
+// 一条案例 = 平台类别（煤炉/代拍/代购，代购要写清楚是哪个网站）+ 问题 + 图片 + 处理结果 + 改善举措。
+// 所有人都能看，新增/修改/删除要编辑密码；配了数据库就落库，没配就纯内存
+const CASE_PLATFORMS = ['煤炉', '代拍', '代购'];
+const CASE_TEXT_MAX = 2000;
+let caseLibrary = []; // [{ id, platform, site, problem, images, result, improvement, by, createdAt, updatedAt }]
 
-async function ensureAnnouncementTable() {
-  if (!dbPool) return;
+async function ensureCaseLibraryTable() {
   await dbPool.query(`
-    CREATE TABLE IF NOT EXISTS announcement_history (
+    CREATE TABLE IF NOT EXISTS case_library (
       id BIGSERIAL PRIMARY KEY,
-      text TEXT NOT NULL,
-      by_user TEXT NOT NULL,
-      start_time TIMESTAMPTZ NOT NULL DEFAULT now(),
-      end_time TIMESTAMPTZ
+      platform TEXT NOT NULL,
+      site TEXT,
+      problem TEXT NOT NULL,
+      images JSONB,
+      result TEXT,
+      improvement TEXT,
+      by_user TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 }
-
-async function loadAnnouncementStateFromDB() {
-  if (!dbPool) return; // 没配置数据库，继续用内存里的默认值（空公告）
+function rowToCase(row) {
+  return {
+    id: row.id,
+    platform: row.platform,
+    site: row.site || '',
+    problem: row.problem || '',
+    images: Array.isArray(row.images) ? row.images : [],
+    result: row.result || '',
+    improvement: row.improvement || '',
+    by: row.by_user || '',
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
+async function loadCaseLibraryFromDB() {
+  if (!dbPool) return;
   try {
-    await ensureAnnouncementTable();
-    const { rows } = await dbPool.query('SELECT * FROM announcement_history ORDER BY start_time ASC;');
-    if (rows.length === 0) {
-      // 数据库是空的（第一次接入），把内存里的默认值（空字符串）写进去当第一条记录
-      const inserted = await dbPool.query(
-        'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING *;',
-        ['', '系统默认']
-      );
-      announcementHistory = inserted.rows.map(rowToHistoryEntry);
-    } else {
-      announcementHistory = rows.map(rowToHistoryEntry);
-    }
-    announcementText = announcementHistory[announcementHistory.length - 1].text;
-    console.log(`已从数据库加载公告栏历史，共 ${announcementHistory.length} 条记录`);
+    await ensureCaseLibraryTable();
+    const { rows } = await dbPool.query('SELECT * FROM case_library ORDER BY created_at ASC;');
+    caseLibrary = rows.map(rowToCase);
+    console.log(`已从数据库加载案例库，共 ${caseLibrary.length} 条`);
   } catch (err) {
-    console.error('[加载公告栏历史失败，暂时改用内存默认值]', err.message);
+    console.error('[加载案例库失败，暂时改用内存]', err.message);
   }
 }
-
-async function recordAnnouncementChange(newText, byUsername) {
+// 把前端发来的一条案例整理干净（截长度、过滤非法图片地址、平台只认三种）
+function sanitizeCaseInput(data) {
+  const platform = CASE_PLATFORMS.includes(data.platform) ? data.platform : '';
+  const site = String(data.site || '').trim().slice(0, 60);
+  const problem = String(data.problem || '').trim().slice(0, CASE_TEXT_MAX);
+  const result = String(data.result || '').trim().slice(0, CASE_TEXT_MAX);
+  const improvement = String(data.improvement || '').trim().slice(0, CASE_TEXT_MAX);
+  const images = Array.isArray(data.images)
+    ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+    : [];
+  return { platform, site, problem, result, improvement, images };
+}
+async function addCase(input, byUsername) {
   const now = Date.now();
-  const last = announcementHistory[announcementHistory.length - 1];
-  if (last && last.endTime === null) last.endTime = now;
-  const newEntry = { id: `mem-${now}`, text: newText, by: byUsername, startTime: now, endTime: null };
-  announcementHistory.push(newEntry);
-  if (announcementHistory.length > ANNOUNCEMENT_HISTORY_MAX) announcementHistory.shift();
-
-  if (!dbPool) return; // 没配数据库，到这里就结束，只有内存记录（id用临时值即可，反正也没法真删数据库）
-  try {
-    await dbPool.query(
-      "UPDATE announcement_history SET end_time = now() WHERE end_time IS NULL;"
-    );
-    const inserted = await dbPool.query(
-      'INSERT INTO announcement_history (text, by_user, start_time, end_time) VALUES ($1, $2, now(), NULL) RETURNING id;',
-      [newText, byUsername]
-    );
-    // 用数据库真实生成的id替换掉临时id，这样后面删除的时候才能对上数据库里的具体那一行
-    newEntry.id = inserted.rows[0].id;
-  } catch (err) {
-    console.error('[公告栏历史写入数据库失败]', err.message);
+  let id = `mem-case-${now}`;
+  if (dbPool) {
+    try {
+      const r = await dbPool.query(
+        'INSERT INTO case_library (platform, site, problem, images, result, improvement, by_user) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id;',
+        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, byUsername]
+      );
+      id = r.rows[0].id;
+    } catch (err) {
+      console.error('[案例库写入数据库失败]', err.message);
+    }
   }
+  const entry = { id, ...input, by: byUsername, createdAt: now, updatedAt: now };
+  caseLibrary.push(entry);
+  return entry;
 }
-
-async function deleteAnnouncementHistoryEntry(targetId) {
-  if (!dbPool) return; // 内存模式不用管，内存那边已经在调用处删掉了
-  try {
-    await dbPool.query('DELETE FROM announcement_history WHERE id = $1;', [targetId]);
-  } catch (err) {
-    console.error('[删除公告栏历史记录失败]', err.message);
+async function updateCase(id, input, byUsername) {
+  const idx = caseLibrary.findIndex((c) => String(c.id) === String(id));
+  if (idx === -1) return null;
+  const now = Date.now();
+  caseLibrary[idx] = { ...caseLibrary[idx], ...input, updatedAt: now, updatedBy: byUsername };
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE case_library SET platform=$1, site=$2, problem=$3, images=$4, result=$5, improvement=$6, updated_at=now() WHERE id=$7;',
+        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, id]
+      );
+    } catch (err) {
+      console.error('[案例库更新数据库失败]', err.message);
+    }
   }
+  return caseLibrary[idx];
+}
+async function deleteCase(id) {
+  const idx = caseLibrary.findIndex((c) => String(c.id) === String(id));
+  if (idx === -1) return false;
+  caseLibrary.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM case_library WHERE id = $1;', [id]);
+    } catch (err) {
+      console.error('[案例库删除数据库记录失败]', err.message);
+    }
+  }
+  return true;
 }
 
 // 检品规则：5个固定分类，每个分类的内容/修改历史机制完全跟公告栏一样（共用同一个编辑密码），
@@ -640,6 +674,9 @@ const PROBLEM_ITEM_RESULTS = {
 // 队列里的跟进图章：可以同时盖多个（比如先找顾客确认、同时已经建了任务），
 // 每个图章记住是谁盖的、什么时候盖的；再点一下就取消
 const PROBLEM_ITEM_STAMPS = ['日志顾客确认中', '商家中', '已建任务跟进中'];
+// 待处理列表里按"谁转出去的"再分一遍的人名视图：这几个人各占一行，
+// 谁点了转日志商家/转任务，那条记录就同时出现在她名下（跟队列视图是同一批数据，只是切法不同）
+const PROBLEM_ITEM_HANDLERS = ['王晓雨', '孙韶蔚', '余丽', '钟海燕'];
 // 走到头的记录（不管是三个分类里直接"已解决"，还是队列里给了处理结果）都算"已完结"。
 // 这些记录不再占着待处理列表，但要在"已完结问题件"表格里实时看得到，
 // 所以在内存里另留一份最近的，超出上限就把最老的挤掉（完整历史仍然在数据库里）
@@ -725,6 +762,7 @@ function rowToProblemItemReport(row) {
     submittedAt: new Date(row.submitted_at).getTime(),
     status: row.status,
     followStamps: (row.follow_stamps && typeof row.follow_stamps === 'object' && !Array.isArray(row.follow_stamps)) ? row.follow_stamps : {},
+    handledBy: row.resolved_by || '', // 转出去/处理掉这条的人（人名视图按这个分）
   };
 }
 
@@ -858,6 +896,7 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
     // 转日志商家 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
+    problemItemReports[category][idx].handledBy = byUsername;
   } else {
     // 已完结：从待处理/队列里移除，转到"已完结问题件"表格里继续能查能搜
     const gone = problemItemReports[category].splice(idx, 1)[0];
@@ -909,6 +948,7 @@ function getProblemItemSnapshot() {
     },
     reports: problemItemReports,
     finished: problemItemFinished,
+    handlers: PROBLEM_ITEM_HANDLERS,
   };
 }
 
@@ -1006,7 +1046,7 @@ wss.on('connection', (ws) => {
       // 发送历史消息 + 当前在线列表给新用户
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
-      ws.send(JSON.stringify({ type: 'announcement', text: announcementText, history: announcementHistory }));
+      ws.send(JSON.stringify({ type: 'case_library', cases: caseLibrary }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -1174,41 +1214,49 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (data.type === 'announcement') {
+    // ---- 案例库：看不用密码，增删改都要编辑密码（跟原来公告栏同一个） ----
+    if (data.type === 'case_add' || data.type === 'case_update') {
       const client = clients.get(ws);
       if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'announcement_error', message: '密码错误，无法修改公告栏' }));
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '密码错误，无法保存案例' }));
         return;
       }
-      announcementText = String(data.text || '').slice(0, ANNOUNCEMENT_MAX_LENGTH);
-      // 同样改成await，理由同上——确保广播出去的历史记录ID已经是数据库最终确定的值
-      await recordAnnouncementChange(announcementText, client.username);
-      broadcast({ type: 'announcement', text: announcementText, by: client.username, history: announcementHistory });
+      const input = sanitizeCaseInput(data);
+      if (!input.platform) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '请选择平台类别' }));
+        return;
+      }
+      if (input.platform === '代购' && !input.site) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '代购的案例请写明是哪个网站' }));
+        return;
+      }
+      if (!input.problem) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '请填写问题' }));
+        return;
+      }
+      if (data.type === 'case_add') {
+        await addCase(input, client.username);
+      } else {
+        const updated = await updateCase(data.id, input, client.username);
+        if (!updated) {
+          ws.send(JSON.stringify({ type: 'case_error', message: '没找到这条案例，可能已经被删了' }));
+          return;
+        }
+      }
+      broadcast({ type: 'case_library', cases: caseLibrary });
       return;
     }
 
-    if (data.type === 'announcement_delete_history') {
+    if (data.type === 'case_delete') {
       const client = clients.get(ws);
       if (!client) return;
-      const providedPassword = String(data.password || '');
-      if (providedPassword !== PIN_EDIT_PASSWORD) {
-        ws.send(JSON.stringify({ type: 'announcement_error', message: '密码错误，无法删除记录' }));
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '密码错误，无法删除案例' }));
         return;
       }
-      const targetId = data.id;
-      const idx = announcementHistory.findIndex((entry) => String(entry.id) === String(targetId));
-      if (idx === -1) return; // 找不到就算了，可能已经被删过了
-      if (announcementHistory[idx].endTime === null) {
-        // 当前正在生效的这一条不能删，删了就跟公告栏当前显示的内容对不上了；
-        // 想删的话得先编辑成新内容，让这条"过期"了再删
-        ws.send(JSON.stringify({ type: 'announcement_error', message: '不能删除当前生效中的这条记录，请先编辑成新内容后再删' }));
-        return;
-      }
-      announcementHistory.splice(idx, 1);
-      await deleteAnnouncementHistoryEntry(targetId); // 内存已经删了，这里等数据库那边也真删完
-      broadcast({ type: 'announcement', text: announcementText, history: announcementHistory });
+      const ok = await deleteCase(data.id);
+      if (ok) broadcast({ type: 'case_library', cases: caseLibrary });
       return;
     }
 
@@ -2582,7 +2630,7 @@ app.get('/api/timeclock/export', (req, res) => {
 async function startServer() {
   await verifyDatabaseConnection();
   await loadChatHistoryFromDB();
-  await loadAnnouncementStateFromDB();
+  await loadCaseLibraryFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
   await loadRemindersFromDB();

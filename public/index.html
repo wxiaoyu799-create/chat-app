@@ -149,24 +149,6 @@
     max-width: 160px;
   }
 
-  #announcement-history-panel {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    margin-top: 6px;
-    width: 320px;
-    max-width: 80vw;
-    max-height: 360px;
-    overflow-y: auto;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
-    padding: 12px 14px;
-    z-index: 20;
-  }
-  #announcement-history-panel.active { display: block; }
   .pin-history-title {
     font-size: 12px;
     font-weight: 700;
@@ -263,61 +245,6 @@
   }
   .pin-gear-menu.active { display: flex; }
 
-  /* 左侧栏的公告栏——独立内容，可编辑，跟顶部置顶公告完全无关 */
-  #sidebar-announce {
-    position: relative;
-    padding: 10px 12px;
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 12px;
-  }
-  #sidebar-announce .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-  #sidebar-announce .pin-bar-head .pin-icon { flex-shrink: 0; }
-  #sidebar-announce .pin-bar-head .pin-bar-label { font-size: 15px; font-weight: 700; color: var(--muted); }
-  #sidebar-announce .pin-text {
-    display: block;
-    color: var(--text);
-    word-break: break-word;
-    white-space: pre-wrap;
-    line-height: 1.5;
-    margin-bottom: 4px;
-  }
-  #sidebar-announce .pin-text.clamped {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  #sidebar-announce .pin-text.empty { color: var(--muted); font-style: italic; }
-  #sidebar-announce .pin-text a { color: var(--accent); text-decoration: underline; }
-  #announcement-expand-btn {
-    display: none;
-    background: transparent;
-    border: none;
-    color: var(--accent);
-    font-size: 11px;
-    padding: 0;
-    margin-bottom: 8px;
-  }
-  #announcement-expand-btn.visible { display: inline-block; }
-  #sidebar-announce .pin-bar-actions { display: flex; gap: 6px; }
-  #sidebar-announce .pin-edit-btn {
-    flex-shrink: 0;
-    width: 24px;
-    height: 24px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--panel-alt);
-    border: none;
-    border-radius: 8px;
-    color: var(--muted);
-    font-size: 11px;
-    padding: 0;
-  }
-  #sidebar-announce .pin-edit-btn:hover { color: var(--text); background: var(--border); }
-
   #reminder-panel-body { margin-top: 8px; }
   #reminder-panel-body.collapsed { display: none; }
   #doc-links-body { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -404,37 +331,6 @@
     color: var(--muted);
   }
   .pending-item .pending-resolve-btn:hover { color: #8b5cf6; border-color: #8b5cf6; background: transparent; }
-
-  #announcement-edit-row {
-    display: none;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 8px;
-    padding: 10px 12px;
-    background: var(--panel-alt);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-  }
-  #announcement-edit-row.active { display: flex; }
-  #announcement-edit-row #announcement-input {
-    width: 100%;
-    font-size: 13px;
-    font-family: inherit;
-    resize: none;
-    line-height: 1.4;
-    max-height: 100px;
-    overflow-y: auto;
-  }
-  #announcement-edit-row #announcement-password-input { width: 100%; font-size: 13px; }
-  #announcement-edit-row .pin-edit-actions-row { display: flex; gap: 6px; }
-  #announcement-edit-row .pin-edit-actions-row button { flex: 1; font-size: 12px; padding: 8px 6px; }
-  #announcement-error-msg {
-    width: 100%;
-    font-size: 12px;
-    color: #e5534b;
-    display: none;
-  }
-  #announcement-error-msg.active { display: block; }
 
   /* @ 提及高亮 */
   .mention { color: var(--accent); font-weight: 600; }
@@ -1683,6 +1579,209 @@
   .problem-item-badge.show { display: block; }
 
   /* ===== 问题件列表全屏面板 ===== */
+  /* ===== 案例库 ===== */
+  #sidebar-case-library { padding: 4px 0 6px; }
+  #sidebar-case-library .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  #sidebar-case-library .pin-bar-label { font-size: 15px; font-weight: 700; color: var(--muted); }
+  .case-count-badge {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .case-count-badge:empty { display: none; }
+  #case-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #case-overlay.active { display: flex; }
+  .case-header-actions { display: flex; gap: 8px; align-items: center; }
+  #case-add-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 7px 12px;
+    font-weight: 600;
+  }
+  #case-add-btn:hover { filter: brightness(1.08); }
+  #case-overlay-close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  #case-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #case-overlay-body { flex: 1; display: flex; min-height: 0; }
+  #case-sidebar {
+    flex-shrink: 0;
+    width: 120px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    overflow-y: auto;
+  }
+  .case-filter-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 10px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: left;
+    margin-bottom: 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .case-filter-btn:hover { background: var(--hover-dark); color: var(--text); }
+  .case-filter-btn.active { background: var(--accent); color: #fff; font-weight: 600; }
+  #case-content-area { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 24px 40px; }
+  #case-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  #case-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 1 1 260px;
+    max-width: 380px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 9px;
+    padding: 0 10px;
+    color: var(--muted);
+  }
+  #case-search-wrap:focus-within { border-color: var(--accent); }
+  #case-search {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 0;
+  }
+  #case-count-text { font-size: 12px; color: var(--muted); }
+  #case-list { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+  #case-empty { display: none; color: var(--muted); font-size: 13px; padding: 22px 4px; }
+  #case-empty.active { display: block; }
+  .case-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .case-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .case-platform-chip {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 10px;
+    background: rgba(63, 111, 214, 0.12);
+    color: var(--accent);
+  }
+  .case-platform-chip.p-煤炉 { background: rgba(245, 196, 179, 0.4); color: #b8562f; }
+  .case-platform-chip.p-代拍 { background: rgba(206, 203, 246, 0.5); color: #5f56b8; }
+  .case-platform-chip.p-代购 { background: rgba(159, 225, 203, 0.45); color: #1f7a5c; }
+  .case-site-chip {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 10px;
+    background: var(--panel-alt);
+    color: var(--text);
+  }
+  .case-card-meta { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .case-section { margin-bottom: 10px; }
+  .case-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+  }
+  .case-section-text { font-size: 13.5px; color: var(--text); white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
+  .case-section-text.empty { color: var(--muted); font-style: italic; }
+  .case-card-imgs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .case-card-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  .case-card-actions button {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .case-card-actions button:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  .case-card-actions button.danger:hover { color: #e5534b; border-color: #e5534b; }
+  #case-list mark { background: rgba(245, 196, 179, 0.55); color: inherit; border-radius: 3px; }
+  /* 编辑弹层 */
+  #case-edit-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(10, 12, 18, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #case-edit-panel.active { display: flex; }
+  #case-edit-card {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  .case-field { margin-bottom: 14px; }
+  .case-field select, .case-field textarea, .case-field input[type="text"], .case-field input[type="password"] {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .case-field textarea { resize: vertical; }
+  .case-field select:focus, .case-field textarea:focus, .case-field input:focus { outline: none; border-color: var(--accent); }
+  #case-site-field { display: none; }
+  #case-site-field.active { display: block; }
+  #case-site-other { display: none; margin-top: 6px; }
+  #case-site-other.active { display: block; }
+  #case-image-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #case-camera-btn, #case-image-btn {
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    padding: 7px 12px;
+    border-radius: 8px;
+  }
+  #case-camera-btn:hover, #case-image-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  #case-image-status { font-size: 12px; color: var(--muted); }
+  #case-image-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  #case-edit-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 8px; }
+  #case-edit-error:empty { display: none; }
+
   #problem-item-overlay {
     display: none;
     position: fixed;
@@ -1955,7 +2054,7 @@
 
   #problem-item-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
 
-  /* ---- 已完结问题件：CC里直接看的表格，不用导出 ---- */
+  /* ---- 完结问题件：CC里直接看的表格，不用导出 ---- */
   #problem-item-finished-panel { display: none; }
   #problem-item-finished-panel.active { display: block; }
   #problem-item-finished-toolbar {
@@ -2096,6 +2195,15 @@
   .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
   #problem-item-list.queue-mode { max-width: 720px; }
   /* 队列卡片标签行最前面的分类章：来自哪个分类一眼看到，不用再去读小字 */
+  .problem-item-queue-chip {
+    display: inline-block;
+    background: rgba(111, 102, 201, 0.14);
+    color: #6f66c9;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 10px;
+  }
   .problem-item-cat-chip {
     display: inline-block;
     background: rgba(63, 111, 214, 0.12);
@@ -2943,6 +3051,10 @@
     .problem-item-stamps { flex-direction: row; width: 100%; gap: 8px; padding: 0 0 12px; }
     .problem-item-stamp { flex: 1 1 0; min-width: 0; font-size: 12px; padding: 9px 4px; }
     #problem-item-list.queue-mode { max-width: none; }
+    #case-sidebar { width: 84px; padding: 8px 4px; }
+    .case-filter-btn { padding: 10px 6px; font-size: 13px; }
+    #case-content-area { padding: 12px 10px 40px; }
+    .case-card-meta { margin-left: 0; width: 100%; }
     #problem-item-form { max-width: none; }
     #problem-item-image-row { gap: 6px; }
     #problem-item-camera-btn, #problem-item-image-btn { flex: 1 1 auto; font-size: 11px; padding: 8px 6px; }
@@ -3002,10 +3114,12 @@
         <span class="tool-entry-label">任务</span>
         <span class="problem-item-badge" id="problem-badge-任务"></span>
       </button>
+      <!-- 按转出人分的人名视图，名单从服务器来，这里动态生成 -->
+      <div id="problem-item-person-entries"></div>
       <div class="problem-item-queue-divider"><span>已处理</span></div>
-      <button class="tool-entry-btn problem-item-cat-btn" data-category="已完结问题件" type="button">
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="完结问题件" type="button">
         <span class="module-icon-badge"><i class="ti ti-archive"></i></span>
-        <span class="tool-entry-label">已完结问题件</span>
+        <span class="tool-entry-label">完结问题件</span>
       </button>
 
     </div>
@@ -3107,35 +3221,17 @@
     </div>
   </div>
   <div id="quick-sidebar">
-    <div id="sidebar-announce">
+    <!-- 案例库：原来公告栏的位置。所有人可看，增删改要编辑密码（跟原来公告栏同一个） -->
+    <div id="sidebar-case-library">
       <div class="pin-bar-head">
-        <span class="module-icon-badge"><i class="ti ti-speakerphone"></i></span>
-        <span class="pin-bar-label">公告栏</span>
+        <span class="module-icon-badge"><i class="ti ti-books"></i></span>
+        <span class="pin-bar-label">案例库</span>
       </div>
-      <span class="pin-text" id="announcement-text"></span>
-      <button id="announcement-expand-btn" type="button">展开全文</button>
-      <div class="pin-bar-actions">
-        <div class="pin-gear-wrap">
-          <button class="pin-edit-btn" id="announcement-gear-btn" type="button" title="更多操作"><i class="ti ti-settings"></i></button>
-          <div id="announcement-gear-menu" class="pin-gear-menu">
-            <button class="pin-edit-btn" id="announcement-edit-open-btn" title="编辑"><i class="ti ti-pencil"></i></button>
-            <button class="pin-edit-btn" id="announcement-history-toggle" type="button" title="修改记录"><i class="ti ti-clipboard-list"></i></button>
-          </div>
-        </div>
-      </div>
-      <div id="announcement-history-panel">
-        <div class="pin-history-title">公告栏修改记录</div>
-        <div id="announcement-history-list"></div>
-      </div>
-    </div>
-    <div id="announcement-edit-row">
-      <textarea id="announcement-input" placeholder="设置公告栏内容，留空则清除...（Shift+Enter换行）" maxlength="600" rows="1"></textarea>
-      <input id="announcement-password-input" type="password" placeholder="编辑密码" autocomplete="off" />
-      <div class="pin-edit-actions-row">
-        <button id="announcement-save-btn">保存</button>
-        <button class="pin-edit-btn" id="announcement-cancel-btn">取消</button>
-      </div>
-      <span id="announcement-error-msg"></span>
+      <button id="case-library-open-btn" class="tool-entry-btn" type="button">
+        <span class="module-icon-badge"><i class="ti ti-book"></i></span>
+        <span class="tool-entry-label">打开案例库</span>
+        <span class="case-count-badge" id="case-count-badge"></span>
+      </button>
     </div>
 
     <div class="sidebar-divider"></div>
@@ -3290,7 +3386,7 @@
         <span id="timeclock-lock-hint">默认提交人是你自己（<strong id="timeclock-username"></strong>）</span>
       </div>
       <div id="timeclock-unlock-row">
-        <input type="password" id="timeclock-password-input" placeholder="编辑密码（和公告栏一样）" autocomplete="off" />
+        <input type="password" id="timeclock-password-input" placeholder="编辑密码（和案例库一样）" autocomplete="off" />
         <button id="timeclock-unlock-ok-btn" class="timeclock-mini-btn" type="button">确定</button>
         <button id="timeclock-unlock-cancel-btn" class="timeclock-mini-btn" type="button">取消</button>
       </div>
@@ -3370,7 +3466,7 @@
   </div>
   <div id="staff-body">
     <div id="staff-unlock-row">
-      <input type="password" id="staff-password-input" placeholder="编辑密码（和公告栏一样）" autocomplete="off" />
+      <input type="password" id="staff-password-input" placeholder="编辑密码（和案例库一样）" autocomplete="off" />
       <button id="staff-unlock-ok-btn" class="timeclock-mini-btn" type="button">确定</button>
       <button id="staff-unlock-cancel-btn" class="timeclock-mini-btn" type="button">取消</button>
     </div>
@@ -3453,7 +3549,7 @@
     </div>
     <div class="staff-edit-field">
       <label>编辑密码</label>
-      <input type="password" id="timeclock-edit-password" autocomplete="off" placeholder="和公告栏一样" />
+      <input type="password" id="timeclock-edit-password" autocomplete="off" placeholder="和案例库一样" />
     </div>
     <div class="staff-edit-error" id="timeclock-edit-error"></div>
     <div class="staff-edit-actions">
@@ -3494,6 +3590,88 @@
   </div>
 </div>
 
+<!-- ===== 案例库（App内全屏）===== -->
+<div id="case-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-books"></i> 案例库</span>
+    <div class="case-header-actions">
+      <button id="case-add-btn" type="button"><i class="ti ti-plus"></i> 新增案例</button>
+      <button id="case-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="case-overlay-body">
+    <div id="case-sidebar">
+      <button class="case-filter-btn active" data-platform="全部">全部</button>
+      <button class="case-filter-btn" data-platform="煤炉">煤炉</button>
+      <button class="case-filter-btn" data-platform="代拍">代拍</button>
+      <button class="case-filter-btn" data-platform="代购">代购</button>
+    </div>
+    <div id="case-content-area">
+      <div id="case-toolbar">
+        <div id="case-search-wrap">
+          <i class="ti ti-search"></i>
+          <input id="case-search" type="search" placeholder="搜网站、问题、处理结果、改善举措…" autocomplete="off" />
+        </div>
+        <span id="case-count-text"></span>
+      </div>
+      <div id="case-list"></div>
+      <div id="case-empty">还没有案例，点右上角"新增案例"记一条</div>
+    </div>
+  </div>
+
+  <!-- 新增 / 编辑案例 -->
+  <div id="case-edit-panel">
+    <div id="case-edit-card">
+      <div class="problem-item-options-edit-title" id="case-edit-title">新增案例</div>
+      <div class="case-field">
+        <label class="problem-item-field-label">平台类别 <span class="problem-item-required">*</span></label>
+        <select id="case-platform">
+          <option value="">请选择…</option>
+          <option value="煤炉">煤炉</option>
+          <option value="代拍">代拍</option>
+          <option value="代购">代购</option>
+        </select>
+      </div>
+      <div class="case-field" id="case-site-field">
+        <label class="problem-item-field-label">网站 <span class="problem-item-required">*</span></label>
+        <select id="case-site"></select>
+        <input id="case-site-other" type="text" maxlength="60" placeholder="填写网站名" />
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">问题 <span class="problem-item-required">*</span></label>
+        <textarea id="case-problem" rows="3" placeholder="遇到了什么问题"></textarea>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">图片（选填，最多3张）</label>
+        <div id="case-image-row">
+          <button type="button" id="case-camera-btn"><i class="ti ti-camera"></i> 拍照</button>
+          <button type="button" id="case-image-btn"><i class="ti ti-photo-plus"></i> 从相册/文件选择</button>
+          <input type="file" id="case-image-input" accept="image/*" multiple style="display:none" />
+          <span id="case-image-status"></span>
+        </div>
+        <div id="case-image-thumbs"></div>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">处理结果</label>
+        <textarea id="case-result" rows="3" placeholder="最后是怎么处理的"></textarea>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">改善举措</label>
+        <textarea id="case-improvement" rows="3" placeholder="以后怎么避免 / 改进"></textarea>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">编辑密码</label>
+        <input id="case-edit-password" type="password" placeholder="编辑密码" autocomplete="off" />
+      </div>
+      <div id="case-edit-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="case-edit-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+        <button id="case-edit-save-btn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="problem-item-overlay">
   <div class="tool-overlay-header-bar">
     <span><i class="ti ti-alert-triangle"></i> 问题件列表</span>
@@ -3507,8 +3685,9 @@
       <div class="problem-item-cat-divider"></div>
       <button class="problem-item-panel-cat-btn" data-category="日志商家">日志商家</button>
       <button class="problem-item-panel-cat-btn" data-category="任务">任务</button>
+      <div id="problem-item-panel-person-entries"></div>
       <div class="problem-item-cat-divider"></div>
-      <button class="problem-item-panel-cat-btn" data-category="已完结问题件">已完结问题件</button>
+      <button class="problem-item-panel-cat-btn" data-category="完结问题件">完结问题件</button>
     </div>
     <div id="problem-item-content-area">
       <div id="problem-item-owner-bar">
@@ -3592,7 +3771,7 @@
 
       <div id="problem-item-list"></div>
 
-      <!-- 已完结问题件：不用导出也能直接在CC里翻和搜，实时跟着处理结果更新 -->
+      <!-- 完结问题件：不用导出也能直接在CC里翻和搜，实时跟着处理结果更新 -->
       <div id="problem-item-finished-panel">
         <div id="problem-item-finished-toolbar">
           <div id="problem-item-finished-search-wrap">
@@ -3691,11 +3870,6 @@
   const sendBtn = document.getElementById('send-btn');
   const connStatus = document.getElementById('conn-status');
   const myUsernameEl = document.getElementById('my-username');
-  const announcementHistoryToggle = document.getElementById('announcement-history-toggle');
-  const announcementHistoryPanel = document.getElementById('announcement-history-panel');
-  const announcementHistoryList = document.getElementById('announcement-history-list');
-  const announcementGearBtn = document.getElementById('announcement-gear-btn');
-  const announcementGearMenu = document.getElementById('announcement-gear-menu');
   const announceOverlay = document.getElementById('announce-overlay');
   const announceFromEl = document.getElementById('announce-from');
   const announceTextEl = document.getElementById('announce-text');
@@ -3704,15 +3878,6 @@
   const onlineListToggle = document.getElementById('online-list-toggle');
   const onlineCount = document.getElementById('online-count');
   const typingEl = document.getElementById('typing');
-  const announcementTextEl = document.getElementById('announcement-text');
-  const announcementExpandBtn = document.getElementById('announcement-expand-btn');
-  const announcementEditOpenBtn = document.getElementById('announcement-edit-open-btn');
-  const announcementEditRow = document.getElementById('announcement-edit-row');
-  const announcementInput = document.getElementById('announcement-input');
-  const announcementPasswordInput = document.getElementById('announcement-password-input');
-  const announcementErrorMsg = document.getElementById('announcement-error-msg');
-  const announcementSaveBtn = document.getElementById('announcement-save-btn');
-  const announcementCancelBtn = document.getElementById('announcement-cancel-btn');
   const reminderPanelToggle = document.getElementById('reminder-panel-toggle');
   const reminderPanelBody = document.getElementById('reminder-panel-body');
   const pendingPanelToggle = document.getElementById('pending-panel-toggle');
@@ -3935,19 +4100,20 @@
         scrollToBottom();
       } else if (data.type === 'online') {
         renderOnlineList(data.users);
-      } else if (data.type === 'announcement') {
-        setAnnouncementText(data.text || '');
-        closeAnnouncementEdit();
+      } else if (data.type === 'case_library') {
+        // 案例库全量同步：加入时发一次，之后每次增删改都会整包广播
+        caseLibraryData = Array.isArray(data.cases) ? data.cases : [];
+        renderCaseCountBadge();
         closeDeleteConfirm();
-        if (Array.isArray(data.history)) renderAnnouncementHistory(data.history);
-      } else if (data.type === 'announcement_error') {
-        if (lastAnnouncementAction === 'delete' && deleteConfirmOverlay.classList.contains('active')) {
+        closeCaseEdit();
+        if (caseOverlay.classList.contains('active')) renderCaseList();
+      } else if (data.type === 'case_error') {
+        if (deleteConfirmOverlay.classList.contains('active')) {
           deleteConfirmError.textContent = data.message || '密码错误';
           deleteConfirmPassword.focus();
         } else {
-          announcementErrorMsg.textContent = data.message || '密码错误';
-          announcementErrorMsg.classList.add('active');
-          announcementPasswordInput.focus();
+          caseEditError.textContent = data.message || '保存失败';
+          if (/密码/.test(caseEditError.textContent)) caseEditPassword.focus();
         }
       } else if (data.type === 'inspection_rules_all') {
         // 加入聊天室时，服务器把5个分类当前的内容一起发过来，先存起来；
@@ -3977,6 +4143,8 @@
         problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
         problemItemData.finished = Array.isArray(data.finished) ? data.finished : [];
+        problemItemHandlers = Array.isArray(data.handlers) ? data.handlers : [];
+        renderProblemItemPersonEntries();
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
       } else if (data.type === 'problem_item_error') {
@@ -4018,8 +4186,10 @@
         const list = problemItemData.reports[cat];
         if (list) {
           const target = list.find((r) => String(r.id) === String(data.reportId));
-          if (target) target.status = data.status;
-          else if (data.report) list.push(data.report);
+          if (target) {
+            target.status = data.status;
+            if (data.report && data.report.handledBy) target.handledBy = data.report.handledBy;
+          } else if (data.report) list.push(data.report);
         }
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
@@ -5270,10 +5440,6 @@
     });
   }
 
-  function renderAnnouncementHistory(historyList) {
-    renderHistoryList(historyList, announcementHistoryList, '（空 - 当时清除了公告栏内容）', handleDeleteAnnouncementHistoryEntry);
-  }
-
   // ===== 删除历史记录的自定义确认弹窗（不用confirm/prompt，Electron里prompt不可靠） =====
   const deleteConfirmOverlay = document.getElementById('delete-confirm-overlay');
   const deleteConfirmDesc = document.getElementById('delete-confirm-desc');
@@ -5281,7 +5447,7 @@
   const deleteConfirmError = document.getElementById('delete-confirm-error');
   const deleteConfirmOkBtn = document.getElementById('delete-confirm-ok-btn');
   const deleteConfirmCancelBtn = document.getElementById('delete-confirm-cancel-btn');
-  let pendingDeleteAction = null; // { kind: 'reminder' | 'announcement', entry }
+  let pendingDeleteAction = null; // { kind: 'reminder' | 'timeclock' | 'case', entry }
 
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
@@ -5294,8 +5460,8 @@
       label = '工时记录';
       preview = `${entry.username} ${formatJstClock(entry.startAt)} ~ ${entry.endAt ? formatJstClock(entry.endAt) : '（还在计时中）'}`;
     } else {
-      label = '公告栏';
-      preview = entry.text ? entry.text.slice(0, 40) : '(空)';
+      label = '案例';
+      preview = `${entry.platform}${entry.site ? '·' + entry.site : ''} ${entry.problem || ''}`.slice(0, 40);
     }
     deleteConfirmDesc.textContent = `${label}：\n"${preview}"`;
     deleteConfirmPassword.value = '';
@@ -5327,9 +5493,8 @@
       ws.send(JSON.stringify({ type: 'reminder_delete', id: entry.id, password }));
     } else if (kind === 'timeclock') {
       ws.send(JSON.stringify({ type: 'timeclock_delete', id: entry.id, password }));
-    } else {
-      lastAnnouncementAction = 'delete';
-      ws.send(JSON.stringify({ type: 'announcement_delete_history', id: entry.id, password }));
+    } else if (kind === 'case') {
+      ws.send(JSON.stringify({ type: 'case_delete', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
     // 成功了会收到 announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
@@ -5345,10 +5510,6 @@
   deleteConfirmOverlay.addEventListener('click', (e) => {
     if (e.target === deleteConfirmOverlay) closeDeleteConfirm();
   });
-
-  function handleDeleteAnnouncementHistoryEntry(entry) {
-    openDeleteConfirm('announcement', entry);
-  }
 
   // ===== 提醒事项（列表，多条，都可以自己增删改，不用改代码/重新部署） =====
   let lastReminderAction = 'edit'; // 'edit' 或 'delete'
@@ -5509,13 +5670,6 @@
       }
     });
   }
-  setupHistoryToggle(announcementHistoryToggle, announcementHistoryPanel);
-  // 齿轮图标本身也是同一套"点击展开/点外面收起"逻辑，直接复用
-  setupHistoryToggle(announcementGearBtn, announcementGearMenu);
-  // 在齿轮菜单里点了"编辑"或"记录"之后，齿轮菜单本身也应该跟着收起来，
-  // 不然点开编辑框/记录面板之后，齿轮小菜单还悬在那里，看着乱
-  announcementEditOpenBtn.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
-  announcementHistoryToggle.addEventListener('click', () => announcementGearMenu.classList.remove('active'));
 
   // ===== 检品规则（App内全屏面板，5个固定分类，所有人实时同步，编辑密码复用公告栏那个） =====
   let inspectionRulesData = {}; // { 分类名: { text, history } }
@@ -5631,6 +5785,14 @@
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
   const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
+  // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
+  let problemItemHandlers = [];
+  function isPersonView(cat) { return problemItemHandlers.includes(cat); }
+  // 队列和人名视图长得一样（结果按钮 + 跟进图章），只是筛选条件不同
+  function isQueueLike(cat) { return isQueueCategory(cat) || isPersonView(cat); }
+  function queueNameOfStatus(status) {
+    return Object.keys(PROBLEM_ITEM_QUEUES).find((k) => PROBLEM_ITEM_QUEUES[k] === status) || '';
+  }
   // 队列里的三种处理结果：点了就从队列里消失，结果会写进导出的表格
   const PROBLEM_ITEM_RESULTS = [
     { key: 'stocked', label: '已入库', icon: 'ti-package-import' },
@@ -5650,8 +5812,8 @@
   function getIssueTypeOptionKey() {
     return 'issue_type';
   }
-  // 第三种视图：已完结问题件。不是分类也不是队列，是一张能搜的表格
-  const PROBLEM_ITEM_FINISHED_VIEW = '已完结问题件';
+  // 第三种视图：完结问题件。不是分类也不是队列，是一张能搜的表格
+  const PROBLEM_ITEM_FINISHED_VIEW = '完结问题件';
   function isFinishedView(cat) { return cat === PROBLEM_ITEM_FINISHED_VIEW; }
   let problemItemData = {
     options: { issueTypes: [], inspectorNames: [] },
@@ -5672,8 +5834,20 @@
 
   // 某个去向队列里的记录（跨分类汇总）
   function getQueueReports(queueName) {
-    const status = PROBLEM_ITEM_QUEUES[queueName];
     const out = [];
+    if (isPersonView(queueName)) {
+      // 人名视图：两条队列里、由这个人转出去的记录都算，顺便记下它在哪条队列里
+      const transferredStatuses = Object.values(PROBLEM_ITEM_QUEUES);
+      PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
+        (problemItemData.reports[cat] || []).forEach((r) => {
+          if (transferredStatuses.includes(r.status) && r.handledBy === queueName) {
+            out.push({ ...r, _fromCategory: cat, _queueName: queueNameOfStatus(r.status) });
+          }
+        });
+      });
+      return out;
+    }
+    const status = PROBLEM_ITEM_QUEUES[queueName];
     PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
       (problemItemData.reports[cat] || []).forEach((r) => {
         if (r.status === status) out.push({ ...r, _fromCategory: cat });
@@ -5682,12 +5856,44 @@
     return out;
   }
 
+  // 两个侧栏里的人名入口：名单来自服务器，改名单不用动前端
+  function renderProblemItemPersonEntries() {
+    const sideWrap = document.getElementById('problem-item-person-entries');
+    const panelWrap = document.getElementById('problem-item-panel-person-entries');
+    sideWrap.innerHTML = '';
+    panelWrap.innerHTML = '';
+    problemItemHandlers.forEach((name) => {
+      const sideBtn = document.createElement('button');
+      sideBtn.type = 'button';
+      sideBtn.className = 'tool-entry-btn problem-item-cat-btn';
+      sideBtn.dataset.category = name;
+      sideBtn.innerHTML = `<span class="module-icon-badge"><i class="ti ti-user"></i></span>`
+        + `<span class="tool-entry-label">${escapeHtml(name)}</span>`
+        + `<span class="problem-item-badge" id="problem-badge-${escapeHtml(name)}"></span>`;
+      sideBtn.addEventListener('click', () => openProblemItemOverlay(name));
+      sideWrap.appendChild(sideBtn);
+
+      const panelBtn = document.createElement('button');
+      panelBtn.type = 'button';
+      panelBtn.className = 'problem-item-panel-cat-btn';
+      panelBtn.dataset.category = name;
+      panelBtn.textContent = name;
+      panelBtn.classList.toggle('active', currentProblemItemCategory === name);
+      panelBtn.addEventListener('click', () => {
+        currentProblemItemCategory = name;
+        resetProblemItemForm();
+        updateProblemItemPanelForCategory();
+      });
+      panelWrap.appendChild(panelBtn);
+    });
+  }
+
   function renderProblemItemBadges() {
-    PROBLEM_ITEM_CATEGORIES_CLIENT.concat(Object.keys(PROBLEM_ITEM_QUEUES)).forEach((cat) => {
+    PROBLEM_ITEM_CATEGORIES_CLIENT.concat(Object.keys(PROBLEM_ITEM_QUEUES), problemItemHandlers).forEach((cat) => {
       const badge = document.getElementById(`problem-badge-${cat}`);
       if (!badge) return;
-      // 三个分类算"待处理"的条数；两个队列算队列里还没解决的条数
-      const count = isQueueCategory(cat)
+      // 三个分类算"待处理"的条数；两个队列算队列里还没解决的条数；人名算她转出去、还没处理完的条数
+      const count = isQueueLike(cat)
         ? getQueueReports(cat).length
         : (problemItemData.reports[cat] || []).filter((r) => r.status === 'pending').length;
       if (count > 0) {
@@ -6053,14 +6259,14 @@
   }
 
   function updateProblemItemPanelForCategory() {
-    problemItemPanelCatBtns.forEach((btn) => {
+    document.querySelectorAll('.problem-item-panel-cat-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.category === currentProblemItemCategory);
     });
     problemItemContentTitle.textContent = currentProblemItemCategory;
     renderProblemItemOwner();
     // 队列视图只是看板，不能在这里提交新问题件，把表单和分隔线藏起来；
     // 已完结视图更彻底——表单、分隔线、卡片列表全收起来，只留那张表格
-    const isQueue = isQueueCategory(currentProblemItemCategory);
+    const isQueue = isQueueLike(currentProblemItemCategory);
     const isFinished = isFinishedView(currentProblemItemCategory);
     const formEl = document.getElementById('problem-item-form');
     const dividerEl = document.querySelector('.problem-item-divider');
@@ -6116,7 +6322,7 @@
       : '还没有现场管理人员，去人员管理里勾选';
   }
 
-  // ---- 已完结问题件表格 ----
+  // ---- 完结问题件表格 ----
   // 处理完的记录不再占着待处理列表，但也不该只能靠导出才看得到，
   // 所以在这里原样列出来（服务器保留最近500条），支持一个框搜全表
   const FINISHED_STATUS_LABELS = {
@@ -6210,7 +6416,7 @@
 
   function renderProblemItemList() {
     // 日志商家/任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
-    const isQueue = isQueueCategory(currentProblemItemCategory);
+    const isQueue = isQueueLike(currentProblemItemCategory);
     const reports = isQueue
       ? getQueueReports(currentProblemItemCategory)
       : (problemItemData.reports[currentProblemItemCategory] || []).filter((r) => r.status === 'pending');
@@ -6235,6 +6441,13 @@
         catChip.className = 'problem-item-cat-chip';
         catChip.textContent = report._fromCategory;
         tagsRow.appendChild(catChip);
+      }
+      // 人名视图是把两条队列合在一起看的，所以再多一枚章标明它现在在"日志商家"还是"任务"里
+      if (isQueue && report._queueName) {
+        const qChip = document.createElement('span');
+        qChip.className = 'problem-item-queue-chip';
+        qChip.textContent = report._queueName;
+        tagsRow.appendChild(qChip);
       }
       (report.issueTypes || []).forEach((t) => {
         const tag = document.createElement('span');
@@ -6702,90 +6915,336 @@
     }
   });
 
-  // ===== 公告栏（侧栏那个） =====
-  let currentAnnouncementText = '';
-  let lastAnnouncementAction = 'edit'; // 'edit' 或 'delete'，决定announcement_error回来时提示方式
+  // ===== 案例库（原来的公告栏换成了这个；所有人可看，增删改要编辑密码） =====
+  const caseOverlay = document.getElementById('case-overlay');
+  const caseOverlayCloseBtn = document.getElementById('case-overlay-close-btn');
+  const caseLibraryOpenBtn = document.getElementById('case-library-open-btn');
+  const caseCountBadge = document.getElementById('case-count-badge');
+  const caseAddBtn = document.getElementById('case-add-btn');
+  const caseFilterBtns = document.querySelectorAll('.case-filter-btn');
+  const caseSearchInput = document.getElementById('case-search');
+  const caseCountText = document.getElementById('case-count-text');
+  const caseListEl = document.getElementById('case-list');
+  const caseEmptyEl = document.getElementById('case-empty');
+  const caseEditPanel = document.getElementById('case-edit-panel');
+  const caseEditTitle = document.getElementById('case-edit-title');
+  const casePlatformSel = document.getElementById('case-platform');
+  const caseSiteField = document.getElementById('case-site-field');
+  const caseSiteSel = document.getElementById('case-site');
+  const caseSiteOther = document.getElementById('case-site-other');
+  const caseProblemInput = document.getElementById('case-problem');
+  const caseResultInput = document.getElementById('case-result');
+  const caseImprovementInput = document.getElementById('case-improvement');
+  const caseEditPassword = document.getElementById('case-edit-password');
+  const caseEditError = document.getElementById('case-edit-error');
+  const caseEditSaveBtn = document.getElementById('case-edit-save-btn');
+  const caseEditCancelBtn = document.getElementById('case-edit-cancel-btn');
+  const caseCameraBtn = document.getElementById('case-camera-btn');
+  const caseImageBtn = document.getElementById('case-image-btn');
+  const caseImageInput = document.getElementById('case-image-input');
+  const caseImageStatus = document.getElementById('case-image-status');
+  const caseImageThumbs = document.getElementById('case-image-thumbs');
 
-  function setAnnouncementText(text) {
-    currentAnnouncementText = text || '';
-    if (currentAnnouncementText) {
-      announcementTextEl.innerHTML = renderRichText(currentAnnouncementText);
-      announcementTextEl.classList.remove('empty');
-      announcementExpandBtn.textContent = '展开全文';
-      // 判断要不要显示"展开全文"按钮：先不截断量出完整高度，再截断量出截断后的高度，
-      // 两者一比就知道内容是不是真的被截掉了——直接读"已经截断状态下"的scrollHeight不太可靠，
-      // -webkit-line-clamp这个属性在这种场景下scrollHeight有时候量不准
-      announcementTextEl.classList.remove('clamped');
-      const fullHeight = announcementTextEl.scrollHeight;
-      announcementTextEl.classList.add('clamped');
-      const clampedHeight = announcementTextEl.clientHeight;
-      const isOverflowing = fullHeight > clampedHeight + 2;
-      announcementExpandBtn.classList.toggle('visible', isOverflowing);
-    } else {
-      announcementTextEl.textContent = '暂无内容，点击"编辑"设置一条';
-      announcementTextEl.classList.add('empty');
-      announcementTextEl.classList.remove('clamped');
-      announcementExpandBtn.classList.remove('visible');
-    }
-  }
+  // 代购常去的网站，下拉里直接选；不在里面的选"其他"手填
+  const CASE_SITES = ['亚马逊', '乐天', '雅虎', '骏河屋', 'ZOZOTOWN', '官网', '其他'];
+  const CASE_MAX_IMAGES = 3;
+  let caseLibraryData = [];
+  let caseFilterPlatform = '全部';
+  let caseSearchKeyword = '';
+  let editingCaseId = null; // null = 新增
+  let casePendingImages = []; // { id, url, uploading, previewUrl }
 
-  announcementExpandBtn.addEventListener('click', () => {
-    const nowClamped = announcementTextEl.classList.toggle('clamped');
-    announcementExpandBtn.textContent = nowClamped ? '展开全文' : '收起';
+  CASE_SITES.forEach((site) => {
+    const opt = document.createElement('option');
+    opt.value = site;
+    opt.textContent = site;
+    caseSiteSel.appendChild(opt);
   });
 
-  function autoResizeAnnouncementInput() {
-    announcementInput.style.height = 'auto';
-    announcementInput.style.height = Math.min(announcementInput.scrollHeight, 100) + 'px';
+  function renderCaseCountBadge() {
+    caseCountBadge.textContent = caseLibraryData.length ? String(caseLibraryData.length) : '';
   }
 
-  function openAnnouncementEdit() {
-    announcementInput.value = currentAnnouncementText;
-    announcementPasswordInput.value = '';
-    announcementErrorMsg.classList.remove('active');
-    announcementEditRow.classList.add('active');
-    announcementInput.focus();
-    autoResizeAnnouncementInput();
+  function formatCaseTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
-  function closeAnnouncementEdit() {
-    announcementEditRow.classList.remove('active');
-    announcementPasswordInput.value = '';
-    announcementErrorMsg.classList.remove('active');
-    announcementErrorMsg.textContent = '';
+  function openCaseOverlay() {
+    caseOverlay.classList.add('active');
+    renderCaseList();
+  }
+  function closeCaseOverlay() {
+    caseOverlay.classList.remove('active');
+    closeCaseEdit();
   }
 
-  function saveAnnouncementText() {
-    const text = announcementInput.value.trim();
-    const password = announcementPasswordInput.value;
-    if (!password) {
-      announcementErrorMsg.textContent = '请输入编辑密码';
-      announcementErrorMsg.classList.add('active');
-      announcementPasswordInput.focus();
+  function caseSectionEl(label, text, keyword) {
+    const wrap = document.createElement('div');
+    wrap.className = 'case-section';
+    const lab = document.createElement('div');
+    lab.className = 'case-section-label';
+    lab.textContent = label;
+    wrap.appendChild(lab);
+    const body = document.createElement('div');
+    body.className = 'case-section-text' + (text ? '' : ' empty');
+    body.innerHTML = text ? highlightCell(text, keyword) : '（未填写）';
+    wrap.appendChild(body);
+    return wrap;
+  }
+
+  function renderCaseList() {
+    const keyword = caseSearchKeyword.trim();
+    const lowerKey = keyword.toLowerCase();
+    const filtered = [...caseLibraryData].reverse().filter((c) => {
+      if (caseFilterPlatform !== '全部' && c.platform !== caseFilterPlatform) return false;
+      if (!lowerKey) return true;
+      return [c.platform, c.site, c.problem, c.result, c.improvement, c.by].join(' ').toLowerCase().includes(lowerKey);
+    });
+    caseListEl.innerHTML = '';
+    filtered.forEach((c) => {
+      const card = document.createElement('div');
+      card.className = 'case-card';
+
+      const head = document.createElement('div');
+      head.className = 'case-card-head';
+      const pChip = document.createElement('span');
+      pChip.className = 'case-platform-chip p-' + c.platform;
+      pChip.textContent = c.platform;
+      head.appendChild(pChip);
+      if (c.site) {
+        const sChip = document.createElement('span');
+        sChip.className = 'case-site-chip';
+        sChip.innerHTML = highlightCell(c.site, keyword);
+        head.appendChild(sChip);
+      }
+      const meta = document.createElement('span');
+      meta.className = 'case-card-meta';
+      meta.textContent = `${c.by || ''} · ${formatCaseTime(c.createdAt)}`;
+      head.appendChild(meta);
+      card.appendChild(head);
+
+      card.appendChild(caseSectionEl('问题', c.problem, keyword));
+
+      const imgs = Array.isArray(c.images) ? c.images : [];
+      if (imgs.length) {
+        const wrap = document.createElement('div');
+        wrap.className = 'case-section';
+        const lab = document.createElement('div');
+        lab.className = 'case-section-label';
+        lab.textContent = '图片';
+        wrap.appendChild(lab);
+        const row = document.createElement('div');
+        row.className = 'case-card-imgs';
+        imgs.forEach((url, idx) => {
+          const box = document.createElement('div');
+          box.className = 'problem-item-card-img';
+          const im = document.createElement('img');
+          im.src = url;
+          im.alt = '案例图片';
+          im.addEventListener('click', () => openImageLightbox(imgs, idx));
+          box.appendChild(im);
+          const dl = document.createElement('a');
+          dl.className = 'img-download';
+          dl.href = url;
+          dl.download = `案例-${c.id}-${idx + 1}.jpg`;
+          dl.title = '下载到本地';
+          dl.innerHTML = '<i class="ti ti-download"></i>';
+          dl.addEventListener('click', (e) => e.stopPropagation());
+          box.appendChild(dl);
+          row.appendChild(box);
+        });
+        wrap.appendChild(row);
+        card.appendChild(wrap);
+      }
+
+      card.appendChild(caseSectionEl('处理结果', c.result, keyword));
+      card.appendChild(caseSectionEl('改善举措', c.improvement, keyword));
+
+      const actions = document.createElement('div');
+      actions.className = 'case-card-actions';
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.innerHTML = '<i class="ti ti-pencil"></i> 编辑';
+      editBtn.addEventListener('click', () => openCaseEdit(c));
+      actions.appendChild(editBtn);
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'danger';
+      delBtn.innerHTML = '<i class="ti ti-trash"></i> 删除';
+      delBtn.addEventListener('click', () => openDeleteConfirm('case', c));
+      actions.appendChild(delBtn);
+      card.appendChild(actions);
+
+      caseListEl.appendChild(card);
+    });
+    caseCountText.textContent = (keyword || caseFilterPlatform !== '全部')
+      ? `${filtered.length} 条 / 共 ${caseLibraryData.length} 条`
+      : `共 ${caseLibraryData.length} 条`;
+    caseEmptyEl.textContent = caseLibraryData.length === 0
+      ? '还没有案例，点右上角"新增案例"记一条'
+      : '没有符合条件的案例';
+    caseEmptyEl.classList.toggle('active', filtered.length === 0);
+  }
+
+  // ---- 新增 / 编辑 ----
+  function syncCaseSiteField() {
+    const isDaigou = casePlatformSel.value === '代购';
+    caseSiteField.classList.toggle('active', isDaigou);
+    caseSiteOther.classList.toggle('active', isDaigou && caseSiteSel.value === '其他');
+  }
+  function renderCaseThumbs() {
+    caseImageThumbs.innerHTML = '';
+    casePendingImages.forEach((item) => {
+      const box = document.createElement('div');
+      box.className = 'problem-item-thumb' + (item.uploading ? ' uploading' : '');
+      const img = document.createElement('img');
+      img.src = item.url || item.previewUrl;
+      box.appendChild(img);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'thumb-del';
+      del.textContent = '✕';
+      del.title = '移除这张';
+      del.addEventListener('click', () => {
+        casePendingImages = casePendingImages.filter((x) => x.id !== item.id);
+        renderCaseThumbs();
+      });
+      box.appendChild(del);
+      caseImageThumbs.appendChild(box);
+    });
+  }
+  async function addCaseImages(files) {
+    const room = CASE_MAX_IMAGES - casePendingImages.length;
+    if (room <= 0) {
+      caseImageStatus.textContent = `最多只能传 ${CASE_MAX_IMAGES} 张`;
       return;
     }
-    announcementErrorMsg.classList.remove('active');
-    lastAnnouncementAction = 'edit';
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'announcement', text, password }));
+    const list = Array.from(files).slice(0, room);
+    for (const file of list) {
+      const item = { id: `cimg-${Date.now()}-${Math.round(Math.random() * 1e6)}`, url: '', uploading: true, previewUrl: URL.createObjectURL(file) };
+      casePendingImages.push(item);
+      renderCaseThumbs();
+      caseImageStatus.textContent = '⏳ 上传中…';
+      try {
+        const compressed = await compressImageFile(file);
+        const formData = new FormData();
+        formData.append('image', compressed, compressed.name);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+        item.url = data.url;
+        item.uploading = false;
+        caseImageStatus.textContent = '';
+      } catch (err) {
+        casePendingImages = casePendingImages.filter((x) => x.id !== item.id);
+        caseImageStatus.textContent = '上传失败：' + err.message;
+      }
+      renderCaseThumbs();
     }
-    // 同样不在这里直接关闭——由服务器广播回来的结果决定关闭还是提示错误
   }
 
-  announcementEditOpenBtn.addEventListener('click', openAnnouncementEdit);
-  announcementCancelBtn.addEventListener('click', closeAnnouncementEdit);
-  announcementSaveBtn.addEventListener('click', saveAnnouncementText);
-  announcementInput.addEventListener('input', autoResizeAnnouncementInput);
-  announcementInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      saveAnnouncementText();
+  function openCaseEdit(existing) {
+    editingCaseId = existing ? existing.id : null;
+    caseEditTitle.textContent = existing ? '编辑案例' : '新增案例';
+    casePlatformSel.value = existing ? existing.platform : '';
+    // 网站：在下拉列表里的就选中，不在的当"其他"并把名字填进手填框
+    const site = existing ? (existing.site || '') : '';
+    if (site && CASE_SITES.includes(site) && site !== '其他') {
+      caseSiteSel.value = site;
+      caseSiteOther.value = '';
+    } else if (site) {
+      caseSiteSel.value = '其他';
+      caseSiteOther.value = site;
+    } else {
+      caseSiteSel.value = CASE_SITES[0];
+      caseSiteOther.value = '';
     }
-    if (e.key === 'Escape') closeAnnouncementEdit();
+    caseProblemInput.value = existing ? existing.problem : '';
+    caseResultInput.value = existing ? existing.result : '';
+    caseImprovementInput.value = existing ? existing.improvement : '';
+    casePendingImages = (existing && Array.isArray(existing.images) ? existing.images : [])
+      .map((url, i) => ({ id: `cimg-old-${i}`, url, uploading: false, previewUrl: '' }));
+    caseImageStatus.textContent = '';
+    caseEditPassword.value = '';
+    caseEditError.textContent = '';
+    renderCaseThumbs();
+    syncCaseSiteField();
+    caseEditPanel.classList.add('active');
+    casePlatformSel.focus();
+  }
+  function closeCaseEdit() {
+    caseEditPanel.classList.remove('active');
+    editingCaseId = null;
+    caseEditPassword.value = '';
+    caseEditError.textContent = '';
+  }
+  function saveCase() {
+    const platform = casePlatformSel.value;
+    if (!platform) { caseEditError.textContent = '请选择平台类别'; casePlatformSel.focus(); return; }
+    let site = '';
+    if (platform === '代购') {
+      site = caseSiteSel.value === '其他' ? caseSiteOther.value.trim() : caseSiteSel.value;
+      if (!site) { caseEditError.textContent = '代购的案例请写明是哪个网站'; caseSiteOther.focus(); return; }
+    }
+    const problem = caseProblemInput.value.trim();
+    if (!problem) { caseEditError.textContent = '请填写问题'; caseProblemInput.focus(); return; }
+    if (casePendingImages.some((img) => img.uploading)) { caseEditError.textContent = '图片还在上传中，请稍等一下'; return; }
+    const password = caseEditPassword.value;
+    if (!password) { caseEditError.textContent = '请输入编辑密码'; caseEditPassword.focus(); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { caseEditError.textContent = '连接已断开，请稍后重试'; return; }
+    caseEditError.textContent = '';
+    ws.send(JSON.stringify({
+      type: editingCaseId === null ? 'case_add' : 'case_update',
+      id: editingCaseId,
+      platform,
+      site,
+      problem,
+      result: caseResultInput.value.trim(),
+      improvement: caseImprovementInput.value.trim(),
+      images: casePendingImages.filter((img) => img.url).map((img) => img.url),
+      password,
+    }));
+    // 不在这里关弹层——服务器广播 case_library 回来才算保存成功，密码错会收到 case_error
+  }
+
+  caseLibraryOpenBtn.addEventListener('click', () => {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    openCaseOverlay();
   });
-  announcementPasswordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveAnnouncementText();
-    if (e.key === 'Escape') closeAnnouncementEdit();
+  caseOverlayCloseBtn.addEventListener('click', closeCaseOverlay);
+  caseAddBtn.addEventListener('click', () => openCaseEdit(null));
+  caseFilterBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      caseFilterPlatform = btn.dataset.platform;
+      caseFilterBtns.forEach((b) => b.classList.toggle('active', b === btn));
+      renderCaseList();
+    });
+  });
+  caseSearchInput.addEventListener('input', () => {
+    caseSearchKeyword = caseSearchInput.value;
+    renderCaseList();
+  });
+  casePlatformSel.addEventListener('change', syncCaseSiteField);
+  caseSiteSel.addEventListener('change', syncCaseSiteField);
+  caseEditSaveBtn.addEventListener('click', saveCase);
+  caseEditCancelBtn.addEventListener('click', closeCaseEdit);
+  caseEditPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveCase(); });
+  caseEditPanel.addEventListener('click', (e) => { if (e.target === caseEditPanel) closeCaseEdit(); });
+  caseCameraBtn.addEventListener('click', () => {
+    openCameraModal('拍照 · 案例', (files) => addCaseImages(files), () => caseImageInput.click());
+  });
+  caseImageBtn.addEventListener('click', () => caseImageInput.click());
+  caseImageInput.addEventListener('change', () => {
+    if (caseImageInput.files && caseImageInput.files.length) addCaseImages(caseImageInput.files);
+    caseImageInput.value = '';
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (caseEditPanel.classList.contains('active')) closeCaseEdit();
+    else if (caseOverlay.classList.contains('active')) closeCaseOverlay();
   });
 
   // ===== 常用文本（本地保存，仅自己可见，按关键词自动分类为二级菜单）=====
@@ -7680,7 +8139,7 @@
     if (staffUnlocked()) return true;
     staffUnlockRow.classList.add('active');
     staffPasswordInput.focus();
-    showStaffMsg('改班表要先输一次编辑密码（和公告栏那个一样）', 'error');
+    showStaffMsg('改班表要先输一次编辑密码（和案例库那个一样）', 'error');
     return false;
   }
 
@@ -8461,7 +8920,7 @@
   sidebarEl.addEventListener('click', (e) => {
     const hit = e.target.closest('button, a');
     if (!hit) return;
-    if (hit.closest('#announcement-edit-row, #sidebar-announce')) return;
+    if (hit.closest('#sidebar-case-library')) return;
     closeDrawer();
   });
   document.addEventListener('keydown', (e) => {
@@ -8489,7 +8948,6 @@
     joinBtn.disabled = true;
     loginEl.style.display = 'none';
     appEl.classList.add('active');
-    setAnnouncementText('');
     myUsernameEl.textContent = username;
     myUsernameEl.title = `当前登录：${username}`;
     try {

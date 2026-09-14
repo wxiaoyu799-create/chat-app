@@ -1061,7 +1061,19 @@
   .msg-images-grid:not(.count-1) .msg-image { max-width: 100px; max-height: 100px; aspect-ratio: 1; }
   .msg-images-grid + div { margin-top: 6px; }
 
-  #sidebar { padding: 16px; overflow-y: auto; min-height: 0; }
+  /* 左侧栏项目变多了（问题件下面有 12 个入口），整体收紧一档，让常见的笔记本高度一屏放得下 */
+  #sidebar { padding: 12px 14px; overflow-y: auto; min-height: 0; }
+  #sidebar .sidebar-divider { margin: 9px 0; }
+  #sidebar .sidebar-toggle { padding-bottom: 7px; }
+  #sidebar .tool-entry-btn { padding: 5px 9px; margin-bottom: 4px; font-size: 12.5px; gap: 7px; }
+  #sidebar .tool-entry-btn .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
+  #sidebar .problem-item-queue-divider { margin: 5px 2px 5px; font-size: 10.5px; }
+  /* 四个人名并排成两列，省一半高度；名字短，放得下 */
+  #problem-item-person-entries { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px; }
+  #problem-item-person-entries .tool-entry-btn { margin-bottom: 0; min-width: 0; padding: 6px 8px; justify-content: center; }
+  /* 两列并排后格子只有 80px 左右，人名图标就不要了，把地方全留给名字 */
+  #problem-item-person-entries .module-icon-badge { display: none; }
+  #problem-item-person-entries .tool-entry-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-toggle {
     width: 100%;
     display: flex;
@@ -1779,6 +1791,50 @@
   #case-camera-btn:hover, #case-image-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
   #case-image-status { font-size: 12px; color: var(--muted); }
   #case-image-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .case-check-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .case-check-row input { width: 15px; height: 15px; accent-color: var(--accent); }
+  #case-order-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; min-height: 0; }
+  #case-order-hint:empty { display: none; }
+  /* 卡片上的单号行：公开的直接显示；没公开的显示一把小锁 + 查看按钮 */
+  .case-order-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 10px; }
+  .case-order-row .order-value { font-weight: 600; color: var(--text); }
+  .case-order-row .order-locked { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+  .case-order-row .order-reveal-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    font-size: 11px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .case-order-row .order-reveal-btn:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  .case-order-row .order-private-tag { font-size: 11px; color: var(--muted); }
+  #case-reveal-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10002;
+    background: rgba(10, 12, 18, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #case-reveal-panel.active { display: flex; }
+  #case-reveal-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 360px; }
+  #case-reveal-card input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  #case-reveal-error { color: #e5534b; font-size: 12px; min-height: 16px; margin: 6px 0 4px; }
   #case-edit-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 8px; }
   #case-edit-error:empty { display: none; }
 
@@ -3610,7 +3666,7 @@
       <div id="case-toolbar">
         <div id="case-search-wrap">
           <i class="ti ti-search"></i>
-          <input id="case-search" type="search" placeholder="搜网站、问题、处理结果、改善举措…" autocomplete="off" />
+          <input id="case-search" type="search" placeholder="搜单号、网站、问题、处理结果、改善举措…" autocomplete="off" />
         </div>
         <span id="case-count-text"></span>
       </div>
@@ -3636,6 +3692,15 @@
         <label class="problem-item-field-label">网站 <span class="problem-item-required">*</span></label>
         <select id="case-site"></select>
         <input id="case-site-other" type="text" maxlength="60" placeholder="填写网站名" />
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">单号（选填，默认不公开）</label>
+        <input id="case-order-id" type="text" maxlength="60" placeholder="订单ID / RS单号 / 快递单号" autocomplete="off" />
+        <div id="case-order-hint"></div>
+        <label class="case-check-row">
+          <input id="case-order-public" type="checkbox" />
+          <span>对全员公开这个单号</span>
+        </label>
       </div>
       <div class="case-field">
         <label class="problem-item-field-label">问题 <span class="problem-item-required">*</span></label>
@@ -3667,6 +3732,20 @@
       <div class="problem-item-options-edit-actions">
         <button id="case-edit-cancel-btn" type="button" class="pin-edit-btn">取消</button>
         <button id="case-edit-save-btn" type="button">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 没公开的单号：输编辑密码单独查 -->
+  <div id="case-reveal-panel">
+    <div id="case-reveal-card">
+      <div class="problem-item-options-edit-title">查看单号</div>
+      <div class="problem-item-options-edit-desc">这条案例的单号没有公开，输入编辑密码后只显示给你自己。</div>
+      <input id="case-reveal-password" type="password" placeholder="编辑密码" autocomplete="off" />
+      <div id="case-reveal-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="case-reveal-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+        <button id="case-reveal-ok-btn" type="button">查看</button>
       </div>
     </div>
   </div>
@@ -4107,8 +4186,15 @@
         closeDeleteConfirm();
         closeCaseEdit();
         if (caseOverlay.classList.contains('active')) renderCaseList();
+      } else if (data.type === 'case_order_revealed') {
+        revealedCaseOrders.set(String(data.id), data.orderId || '');
+        closeCaseReveal();
+        if (caseOverlay.classList.contains('active')) renderCaseList();
       } else if (data.type === 'case_error') {
-        if (deleteConfirmOverlay.classList.contains('active')) {
+        if (caseRevealPanel.classList.contains('active')) {
+          caseRevealError.textContent = data.message || '密码错误';
+          caseRevealPassword.focus();
+        } else if (deleteConfirmOverlay.classList.contains('active')) {
           deleteConfirmError.textContent = data.message || '密码错误';
           deleteConfirmPassword.focus();
         } else {
@@ -6944,6 +7030,17 @@
   const caseImageInput = document.getElementById('case-image-input');
   const caseImageStatus = document.getElementById('case-image-status');
   const caseImageThumbs = document.getElementById('case-image-thumbs');
+  const caseOrderIdInput = document.getElementById('case-order-id');
+  const caseOrderPublicChk = document.getElementById('case-order-public');
+  const caseOrderHint = document.getElementById('case-order-hint');
+  const caseRevealPanel = document.getElementById('case-reveal-panel');
+  const caseRevealPassword = document.getElementById('case-reveal-password');
+  const caseRevealError = document.getElementById('case-reveal-error');
+  const caseRevealOkBtn = document.getElementById('case-reveal-ok-btn');
+  const caseRevealCancelBtn = document.getElementById('case-reveal-cancel-btn');
+  // 这一次会话里凭密码查过的单号，记着，卡片和编辑表单都能直接用（刷新就没了）
+  const revealedCaseOrders = new Map();
+  let revealingCaseId = null;
 
   // 代购常去的网站，下拉里直接选；不在里面的选"其他"手填
   const CASE_SITES = ['亚马逊', '乐天', '雅虎', '骏河屋', 'ZOZOTOWN', '官网', '其他'];
@@ -7001,7 +7098,8 @@
     const filtered = [...caseLibraryData].reverse().filter((c) => {
       if (caseFilterPlatform !== '全部' && c.platform !== caseFilterPlatform) return false;
       if (!lowerKey) return true;
-      return [c.platform, c.site, c.problem, c.result, c.improvement, c.by].join(' ').toLowerCase().includes(lowerKey);
+      const knownOrder = c.orderPublic ? c.orderId : (revealedCaseOrders.get(String(c.id)) || '');
+      return [c.platform, c.site, c.problem, c.result, c.improvement, c.by, knownOrder].join(' ').toLowerCase().includes(lowerKey);
     });
     caseListEl.innerHTML = '';
     filtered.forEach((c) => {
@@ -7025,6 +7123,27 @@
       meta.textContent = `${c.by || ''} · ${formatCaseTime(c.createdAt)}`;
       head.appendChild(meta);
       card.appendChild(head);
+
+      // 单号：公开的直接显示；没公开但填了的，显示一把锁，凭密码可以查
+      const knownOrder = c.orderPublic ? c.orderId : (revealedCaseOrders.get(String(c.id)) || '');
+      if (knownOrder || c.hasOrderId) {
+        const orderRow = document.createElement('div');
+        orderRow.className = 'case-order-row';
+        if (knownOrder) {
+          orderRow.innerHTML = `<span class="order-locked"><i class="ti ${c.orderPublic ? 'ti-hash' : 'ti-lock-open'}"></i> 单号</span>`
+            + `<span class="order-value">${highlightCell(knownOrder, keyword)}</span>`
+            + (c.orderPublic ? '' : '<span class="order-private-tag">（未公开，仅你可见）</span>');
+        } else {
+          orderRow.innerHTML = '<span class="order-locked"><i class="ti ti-lock"></i> 单号未公开</span>';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'order-reveal-btn';
+          btn.textContent = '凭密码查看';
+          btn.addEventListener('click', () => openCaseReveal(c.id));
+          orderRow.appendChild(btn);
+        }
+        card.appendChild(orderRow);
+      }
 
       card.appendChild(caseSectionEl('问题', c.problem, keyword));
 
@@ -7162,6 +7281,17 @@
       caseSiteSel.value = CASE_SITES[0];
       caseSiteOther.value = '';
     }
+    // 单号：公开的、或这次会话里查过的，直接填进去；没公开又没查过的看不到原值，
+    // 留空提交就是"保持原来的"，服务器那边会这么处理
+    const knownOrder = existing ? (existing.orderPublic ? existing.orderId : (revealedCaseOrders.get(String(existing.id)) || '')) : '';
+    caseOrderIdInput.value = knownOrder;
+    caseOrderIdInput.placeholder = (existing && existing.hasOrderId && !knownOrder)
+      ? '已填过单号（未公开，看不到原值）——留空则保持不变'
+      : '订单ID / RS单号 / 快递单号';
+    caseOrderHint.textContent = (existing && existing.hasOrderId && !knownOrder)
+      ? '想看原来的单号，先关掉这个框、在卡片上点"凭密码查看"'
+      : '';
+    caseOrderPublicChk.checked = !!(existing && existing.orderPublic);
     caseProblemInput.value = existing ? existing.problem : '';
     caseResultInput.value = existing ? existing.result : '';
     caseImprovementInput.value = existing ? existing.improvement : '';
@@ -7205,10 +7335,39 @@
       result: caseResultInput.value.trim(),
       improvement: caseImprovementInput.value.trim(),
       images: casePendingImages.filter((img) => img.url).map((img) => img.url),
+      orderId: caseOrderIdInput.value.trim(),
+      orderPublic: caseOrderPublicChk.checked,
       password,
     }));
     // 不在这里关弹层——服务器广播 case_library 回来才算保存成功，密码错会收到 case_error
   }
+
+  function openCaseReveal(id) {
+    revealingCaseId = id;
+    caseRevealPassword.value = '';
+    caseRevealError.textContent = '';
+    caseRevealPanel.classList.add('active');
+    caseRevealPassword.focus();
+  }
+  function closeCaseReveal() {
+    caseRevealPanel.classList.remove('active');
+    revealingCaseId = null;
+    caseRevealPassword.value = '';
+  }
+  function submitCaseReveal() {
+    const password = caseRevealPassword.value;
+    if (!password) { caseRevealError.textContent = '请输入编辑密码'; caseRevealPassword.focus(); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { caseRevealError.textContent = '连接已断开，请稍后重试'; return; }
+    caseRevealError.textContent = '';
+    ws.send(JSON.stringify({ type: 'case_reveal_order', id: revealingCaseId, password }));
+  }
+  caseRevealOkBtn.addEventListener('click', submitCaseReveal);
+  caseRevealCancelBtn.addEventListener('click', closeCaseReveal);
+  caseRevealPassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitCaseReveal();
+    if (e.key === 'Escape') closeCaseReveal();
+  });
+  caseRevealPanel.addEventListener('click', (e) => { if (e.target === caseRevealPanel) closeCaseReveal(); });
 
   caseLibraryOpenBtn.addEventListener('click', () => {
     if (typeof closeDrawer === 'function') closeDrawer();
@@ -7243,7 +7402,8 @@
   });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (caseEditPanel.classList.contains('active')) closeCaseEdit();
+    if (caseRevealPanel.classList.contains('active')) closeCaseReveal();
+    else if (caseEditPanel.classList.contains('active')) closeCaseEdit();
     else if (caseOverlay.classList.contains('active')) closeCaseOverlay();
   });
 

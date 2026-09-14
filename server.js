@@ -429,6 +429,9 @@ async function ensureCaseLibraryTable() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // 单号：默认不公开，只存着；勾了"对全员公开"才会随案例一起发给所有人
+  await dbPool.query(`ALTER TABLE case_library ADD COLUMN IF NOT EXISTS order_id TEXT;`);
+  await dbPool.query(`ALTER TABLE case_library ADD COLUMN IF NOT EXISTS order_public BOOLEAN NOT NULL DEFAULT false;`);
 }
 function rowToCase(row) {
   return {
@@ -439,6 +442,8 @@ function rowToCase(row) {
     images: Array.isArray(row.images) ? row.images : [],
     result: row.result || '',
     improvement: row.improvement || '',
+    orderId: row.order_id || '',
+    orderPublic: !!row.order_public,
     by: row.by_user || '',
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
@@ -455,6 +460,14 @@ async function loadCaseLibraryFromDB() {
     console.error('[加载案例库失败，暂时改用内存]', err.message);
   }
 }
+// 发给客户端的样子：单号只在勾了公开时才带；没公开的只告诉大家"有没有填"，具体号码得凭密码单独查
+function publicCaseView(c) {
+  const { orderId, ...rest } = c;
+  return { ...rest, orderId: c.orderPublic ? (orderId || '') : '', hasOrderId: !!orderId };
+}
+function caseLibraryForClients() {
+  return caseLibrary.map(publicCaseView);
+}
 // 把前端发来的一条案例整理干净（截长度、过滤非法图片地址、平台只认三种）
 function sanitizeCaseInput(data) {
   const platform = CASE_PLATFORMS.includes(data.platform) ? data.platform : '';
@@ -465,7 +478,9 @@ function sanitizeCaseInput(data) {
   const images = Array.isArray(data.images)
     ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
     : [];
-  return { platform, site, problem, result, improvement, images };
+  const orderId = String(data.orderId || '').trim().slice(0, 60);
+  const orderPublic = data.orderPublic === true;
+  return { platform, site, problem, result, improvement, images, orderId, orderPublic };
 }
 async function addCase(input, byUsername) {
   const now = Date.now();
@@ -473,8 +488,8 @@ async function addCase(input, byUsername) {
   if (dbPool) {
     try {
       const r = await dbPool.query(
-        'INSERT INTO case_library (platform, site, problem, images, result, improvement, by_user) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id;',
-        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, byUsername]
+        'INSERT INTO case_library (platform, site, problem, images, result, improvement, by_user, order_id, order_public) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id;',
+        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, byUsername, input.orderId, input.orderPublic]
       );
       id = r.rows[0].id;
     } catch (err) {
@@ -489,12 +504,14 @@ async function updateCase(id, input, byUsername) {
   const idx = caseLibrary.findIndex((c) => String(c.id) === String(id));
   if (idx === -1) return null;
   const now = Date.now();
+  // 单号没公开时，编辑表单里是看不到原值的；这时前端会留空，留空就当"保持原来的"，别把它清掉
+  if (!input.orderId) input.orderId = caseLibrary[idx].orderId || '';
   caseLibrary[idx] = { ...caseLibrary[idx], ...input, updatedAt: now, updatedBy: byUsername };
   if (dbPool) {
     try {
       await dbPool.query(
-        'UPDATE case_library SET platform=$1, site=$2, problem=$3, images=$4, result=$5, improvement=$6, updated_at=now() WHERE id=$7;',
-        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, id]
+        'UPDATE case_library SET platform=$1, site=$2, problem=$3, images=$4, result=$5, improvement=$6, order_id=$7, order_public=$8, updated_at=now() WHERE id=$9;',
+        [input.platform, input.site, input.problem, JSON.stringify(input.images), input.result, input.improvement, input.orderId, input.orderPublic, id]
       );
     } catch (err) {
       console.error('[案例库更新数据库失败]', err.message);
@@ -1046,7 +1063,7 @@ wss.on('connection', (ws) => {
       // 发送历史消息 + 当前在线列表给新用户
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
-      ws.send(JSON.stringify({ type: 'case_library', cases: caseLibrary }));
+      ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -1244,7 +1261,24 @@ wss.on('connection', (ws) => {
           return;
         }
       }
-      broadcast({ type: 'case_library', cases: caseLibrary });
+      broadcast({ type: 'case_library', cases: caseLibraryForClients() });
+      return;
+    }
+
+    // 没公开的单号：凭编辑密码单独查，只回给问的这个人，不广播
+    if (data.type === 'case_reveal_order') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '密码错误，无法查看单号' }));
+        return;
+      }
+      const target = caseLibrary.find((c) => String(c.id) === String(data.id));
+      if (!target) {
+        ws.send(JSON.stringify({ type: 'case_error', message: '没找到这条案例' }));
+        return;
+      }
+      ws.send(JSON.stringify({ type: 'case_order_revealed', id: target.id, orderId: target.orderId || '' }));
       return;
     }
 
@@ -1256,7 +1290,7 @@ wss.on('connection', (ws) => {
         return;
       }
       const ok = await deleteCase(data.id);
-      if (ok) broadcast({ type: 'case_library', cases: caseLibrary });
+      if (ok) broadcast({ type: 'case_library', cases: caseLibraryForClients() });
       return;
     }
 

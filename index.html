@@ -199,7 +199,7 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
   }
   .msg { display: flex; flex-direction: column; max-width: 70%; }
   .msg.me { align-self: flex-end; align-items: flex-end; }
@@ -648,7 +648,8 @@
   .msg-edit-save-btn { background: var(--accent); color: #fff; }
   .msg-edit-save-btn:hover { background: var(--accent-dark); }
   .msg-edit-cancel-btn { background: var(--panel-alt); color: var(--text); }
-  .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 20px; }
+  /* 上边距是给挂在气泡下沿的点赞徽章留的位置，跟 .reaction-badges 的 bottom 配套改 */
+  .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 16px; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
   /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种。
@@ -656,7 +657,7 @@
      徽章（尤其现在里面还带着人名，本身可能比气泡还宽）会被左侧栏/右侧栏裁切看不全。 */
   .reaction-badges {
     position: absolute;
-    bottom: -20px;
+    bottom: -17px;
     left: 8px; /* 对方消息(左对齐气泡)：从气泡左边往右展开，朝对话中间去 */
     display: flex;
     gap: 3px;
@@ -1068,6 +1069,7 @@
   #sidebar .tool-entry-btn { padding: 5px 9px; margin-bottom: 4px; font-size: 12.5px; gap: 7px; }
   #sidebar .tool-entry-btn .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
   #sidebar .problem-item-queue-divider { margin: 7px 2px 6px; font-size: 10.5px; }
+  #sidebar #problem-item-body > .problem-item-queue-divider:first-child { margin-top: 0; }
   /* 四个人名跟上面的入口一样，一人一整行、同宽同样式（并成两列太挤，红点会压到名字） */
   #problem-item-person-entries .tool-entry-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-toggle {
@@ -3140,6 +3142,7 @@
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <div id="problem-item-body">
+      <div class="problem-item-queue-divider"><span>待处理</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="代购" type="button">
         <span class="module-icon-badge"><i class="ti ti-shopping-cart"></i></span>
         <span class="tool-entry-label">代购</span>
@@ -3155,7 +3158,7 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
-      <div class="problem-item-queue-divider"><span>待处理</span></div>
+      <div class="problem-item-queue-divider"><span>按类别需关注</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="日志商家" type="button">
         <span class="module-icon-badge"><i class="ti ti-truck-delivery"></i></span>
         <span class="tool-entry-label">日志商家</span>
@@ -3166,6 +3169,7 @@
         <span class="tool-entry-label">任务</span>
         <span class="problem-item-badge" id="problem-badge-任务"></span>
       </button>
+      <div class="problem-item-queue-divider"><span>按处理人需关注</span></div>
       <!-- 按转出人分的人名视图，名单从服务器来，这里动态生成 -->
       <div id="problem-item-person-entries"></div>
       <div class="problem-item-queue-divider"><span>已处理</span></div>
@@ -3760,6 +3764,7 @@
       <div class="problem-item-cat-divider"></div>
       <button class="problem-item-panel-cat-btn" data-category="日志商家">日志商家</button>
       <button class="problem-item-panel-cat-btn" data-category="任务">任务</button>
+      <div class="problem-item-cat-divider"></div>
       <div id="problem-item-panel-person-entries"></div>
       <div class="problem-item-cat-divider"></div>
       <button class="problem-item-panel-cat-btn" data-category="完结问题件">完结问题件</button>

@@ -7796,17 +7796,12 @@
     // 把聊天昵称带过去当"上传人"，云盘页面自己不再另外问名字
     openToolOverlay('/cloud-drive.html?user=' + encodeURIComponent(username || ''), '云盘（共享文件）');
   });
-  // 内存面板是装在每台电脑本机上的小服务（MemGuard，端口 8765），这里只是个入口：
-  // 先探测本机有没有装，装了就全屏打开本机那份，没装就提示去要安装包。
-  // 浏览器把 http://localhost 视为安全来源，所以即使聊天室是 https 也能嵌进 iframe
-  toolMemguardBtn.addEventListener('click', async () => {
-    const url = 'http://localhost:8765/';
-    try {
-      await fetch(url + 'api/status', { mode: 'no-cors', cache: 'no-store' });
-      openToolOverlay(url, '内存面板（本机）');
-    } catch (e) {
-      alert('这台电脑还没有安装内存面板。\n请找管理员要 memguard 文件夹，双击里面的 Install.bat 安装，装完再点这里。');
-    }
+  // 内存面板是装在每台电脑本机上的小服务（MemGuard，端口 8765），这里只是个入口。
+  // 聊天室是 https、面板是 http://localhost，浏览器不允许把它嵌进 iframe，也不让页面先去探测它有没有装，
+  // 所以跟骏河屋/佐川那几个一样用新标签页打开。没装的电脑会看到浏览器的"无法访问此网站"，
+  // 装一下就好（找管理员要 memguard 文件夹，双击 Install.bat）
+  toolMemguardBtn.addEventListener('click', () => {
+    window.open('http://localhost:8765/', '_blank', 'noopener,noreferrer');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

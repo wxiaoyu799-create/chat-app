@@ -355,7 +355,8 @@ app.post('/api/drive/delete', express.json(), (req, res) => {
   broadcastDriveUpdate();
   res.json({ ok: true });
 });
-// 在线用户: ws -> { username, id }
+
+// 在线用户: ws -> { username, id }
 const clients = new Map();
 // 最近消息历史——内存里始终保留最近MAX_HISTORY条，用于日常渲染/查找（快，不用每次都查数据库）；
 // 如果数据库连上了，这些消息也会异步写入数据库，服务器重启后能从数据库把最近的消息读回来，
@@ -660,6 +661,107 @@ async function deleteCase(id) {
       await dbPool.query('DELETE FROM case_library WHERE id = $1;', [id]);
     } catch (err) {
       console.error('[案例库删除数据库记录失败]', err.message);
+    }
+  }
+  return true;
+}
+
+// ==================== 特殊要求（部分用户的特殊检品要求，按入库码查） ====================
+// 一条 = 入库码 + 用户名 + 品类 + 平台 + 要求。所有人可看，增删改要编辑密码（跟案例库同一个）
+const SPECIAL_REQ_TEXT_MAX = 2000;
+let specialRequirements = []; // [{ id, code, username, category, platform, requirement, by, createdAt, updatedAt }]
+
+async function ensureSpecialRequirementsTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS special_requirements (
+      id BIGSERIAL PRIMARY KEY,
+      code TEXT NOT NULL,
+      username TEXT NOT NULL,
+      category TEXT,
+      platform TEXT,
+      requirement TEXT NOT NULL,
+      by_user TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+function rowToSpecialReq(row) {
+  return {
+    id: row.id,
+    code: row.code,
+    username: row.username,
+    category: row.category || '',
+    platform: row.platform || '',
+    requirement: row.requirement || '',
+    by: row.by_user || '',
+    createdAt: new Date(row.created_at).getTime(),
+    updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
+async function loadSpecialRequirementsFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureSpecialRequirementsTable();
+    const { rows } = await dbPool.query('SELECT * FROM special_requirements ORDER BY code ASC, id ASC;');
+    specialRequirements = rows.map(rowToSpecialReq);
+    console.log(`已从数据库加载特殊要求，共 ${specialRequirements.length} 条`);
+  } catch (err) {
+    console.error('[加载特殊要求失败，暂时改用内存]', err.message);
+  }
+}
+function sanitizeSpecialReqInput(data) {
+  return {
+    code: String(data.code || '').trim().slice(0, 60),
+    username: String(data.username || '').trim().slice(0, 60),
+    category: String(data.category || '').trim().slice(0, 100),
+    platform: String(data.platform || '').trim().slice(0, 60),
+    requirement: String(data.requirement || '').trim().slice(0, SPECIAL_REQ_TEXT_MAX),
+  };
+}
+async function addSpecialReq(input, byUsername) {
+  const now = Date.now();
+  let id = `mem-sr-${now}`;
+  if (dbPool) {
+    try {
+      const r = await dbPool.query(
+        'INSERT INTO special_requirements (code, username, category, platform, requirement, by_user) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id;',
+        [input.code, input.username, input.category, input.platform, input.requirement, byUsername]
+      );
+      id = r.rows[0].id;
+    } catch (err) {
+      console.error('[特殊要求写入数据库失败]', err.message);
+    }
+  }
+  const entry = { id, ...input, by: byUsername, createdAt: now, updatedAt: now };
+  specialRequirements.push(entry);
+  return entry;
+}
+async function updateSpecialReq(id, input, byUsername) {
+  const idx = specialRequirements.findIndex((r) => String(r.id) === String(id));
+  if (idx === -1) return null;
+  specialRequirements[idx] = { ...specialRequirements[idx], ...input, updatedAt: Date.now(), updatedBy: byUsername };
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE special_requirements SET code=$1, username=$2, category=$3, platform=$4, requirement=$5, updated_at=now() WHERE id=$6;',
+        [input.code, input.username, input.category, input.platform, input.requirement, id]
+      );
+    } catch (err) {
+      console.error('[特殊要求更新数据库失败]', err.message);
+    }
+  }
+  return specialRequirements[idx];
+}
+async function deleteSpecialReq(id) {
+  const idx = specialRequirements.findIndex((r) => String(r.id) === String(id));
+  if (idx === -1) return false;
+  specialRequirements.splice(idx, 1);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM special_requirements WHERE id = $1;', [id]);
+    } catch (err) {
+      console.error('[特殊要求删除数据库记录失败]', err.message);
     }
   }
   return true;
@@ -1196,6 +1298,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'history', messages: history }));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
+      ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -1411,6 +1514,44 @@ wss.on('connection', (ws) => {
         return;
       }
       ws.send(JSON.stringify({ type: 'case_order_revealed', id: target.id, orderId: target.orderId || '' }));
+      return;
+    }
+
+    // ---- 特殊要求：看不用密码，增删改都要编辑密码 ----
+    if (data.type === 'special_req_add' || data.type === 'special_req_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'special_req_error', message: '密码错误，无法保存' }));
+        return;
+      }
+      const input = sanitizeSpecialReqInput(data);
+      if (!input.code) { ws.send(JSON.stringify({ type: 'special_req_error', message: '请填写入库码' })); return; }
+      if (!input.username) { ws.send(JSON.stringify({ type: 'special_req_error', message: '请填写用户名' })); return; }
+      if (!input.requirement) { ws.send(JSON.stringify({ type: 'special_req_error', message: '请填写要求' })); return; }
+      let saved;
+      if (data.type === 'special_req_add') {
+        saved = await addSpecialReq(input, client.username);
+      } else {
+        saved = await updateSpecialReq(data.id, input, client.username);
+        if (!saved) {
+          ws.send(JSON.stringify({ type: 'special_req_error', message: '没找到这条记录，可能已经被删了' }));
+          return;
+        }
+      }
+      broadcast({ type: 'special_req_list', items: specialRequirements, savedId: saved.id });
+      return;
+    }
+
+    if (data.type === 'special_req_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'special_req_error', message: '密码错误，无法删除' }));
+        return;
+      }
+      const ok = await deleteSpecialReq(data.id);
+      if (ok) broadcast({ type: 'special_req_list', items: specialRequirements });
       return;
     }
 
@@ -2797,6 +2938,7 @@ async function startServer() {
   await verifyDatabaseConnection();
   await loadChatHistoryFromDB();
   await loadCaseLibraryFromDB();
+  await loadSpecialRequirementsFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
   await loadRemindersFromDB();

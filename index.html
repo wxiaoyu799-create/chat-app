@@ -1322,7 +1322,7 @@
     padding: 5px 8px;
   }
 
-  /* 实用工具入口（比如骏河屋判定台），点了之后全屏打开 */
+  /* 工具入口，点了之后全屏打开 */
   .tool-entry-btn {
     width: 100%;
     display: flex;
@@ -1589,6 +1589,156 @@
   .problem-item-badge.show { display: block; }
 
   /* ===== 问题件列表全屏面板 ===== */
+  /* ===== 特殊要求 ===== */
+  #special-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: var(--bg);
+    flex-direction: column;
+  }
+  #special-overlay.active { display: flex; }
+  #special-add-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 7px 12px;
+    font-weight: 600;
+  }
+  #special-add-btn:hover { filter: brightness(1.08); }
+  #special-overlay-close-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  #special-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #special-overlay-body { flex: 1; display: flex; min-height: 0; }
+  /* 左栏：一列入库码，点哪个右边显示哪个 */
+  #special-sidebar {
+    flex-shrink: 0;
+    width: 200px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 12px 8px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  #special-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 0 8px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  #special-search-wrap:focus-within { border-color: var(--accent); }
+  #special-search {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 7px 0;
+  }
+  #special-code-list { display: flex; flex-direction: column; gap: 2px; }
+  .special-code-btn {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 10px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .special-code-btn .code { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: 0.3px; }
+  .special-code-btn .who { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .special-code-btn:hover { background: var(--hover-dark); }
+  .special-code-btn.active { background: var(--accent); }
+  .special-code-btn.active .code, .special-code-btn.active .who { color: #fff; }
+  #special-list-empty { display: none; color: var(--muted); font-size: 12px; padding: 12px 6px; }
+  #special-list-empty.active { display: block; }
+  #special-content-area { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 28px 40px; }
+  #special-detail-empty { color: var(--muted); font-size: 13px; padding: 30px 4px; }
+  #special-detail-empty.hidden { display: none; }
+  #special-detail { display: none; max-width: 720px; }
+  #special-detail.active { display: block; }
+  #special-detail-code {
+    display: inline-block;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: rgba(63, 111, 214, 0.1);
+    border-radius: 10px;
+    padding: 6px 14px;
+    margin-bottom: 16px;
+  }
+  .special-detail-grid {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    row-gap: 8px;
+    column-gap: 10px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .special-detail-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: 0.5px; }
+  .special-detail-value { font-size: 15px; color: var(--text); }
+  .special-detail-value.empty { color: var(--muted); font-style: italic; font-size: 13px; }
+  #special-detail-requirement {
+    margin-top: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid #f0a94e;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #special-detail-meta { font-size: 12px; color: var(--muted); margin: 10px 0 12px; }
+  #special-edit-panel {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(10, 12, 18, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #special-edit-panel.active { display: flex; }
+  #special-edit-card {
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  #special-edit-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 8px; }
+  #special-edit-error:empty { display: none; }
+
   /* ===== 案例库 ===== */
   #sidebar-case-library { padding: 4px 0 6px; }
   #sidebar-case-library .pin-bar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
@@ -3105,6 +3255,10 @@
     .problem-item-stamps { flex-direction: row; width: 100%; gap: 8px; padding: 0 0 12px; }
     .problem-item-stamp { flex: 1 1 0; min-width: 0; font-size: 12px; padding: 9px 4px; }
     #problem-item-list.queue-mode { max-width: none; }
+    #special-sidebar { width: 128px; padding: 8px 4px; }
+    .special-code-btn { padding: 8px 6px; }
+    .special-code-btn .code { font-size: 13px; }
+    #special-content-area { padding: 14px 12px 40px; }
     #case-sidebar { width: 84px; padding: 8px 4px; }
     .case-filter-btn { padding: 10px 6px; font-size: 13px; }
     #case-content-area { padding: 12px 10px 40px; }
@@ -3320,18 +3474,10 @@
 
     <div class="sidebar-divider"></div>
 
-<h3>实用工具</h3>
-    <button id="tool-surugaya-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-search"></i></span>
-      <span class="tool-entry-label">骏河屋检品判定台</span>
-    </button>
+<h3>检品工具</h3>
     <button id="tool-ai-inspection-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-robot"></i></span>
       <span class="tool-entry-label">AI检品工具</span>
-    </button>
-    <button id="tool-calculator-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-calculator"></i></span>
-      <span class="tool-entry-label">计算器（带明细）</span>
     </button>
     <button id="tool-sagawa-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-truck"></i></span>
@@ -3344,6 +3490,23 @@
     <button id="tool-daipai-clipboard-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
       <span class="tool-entry-label">代拍剪贴板</span>
+    </button>
+    <button id="tool-special-req-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-star"></i></span>
+      <span class="tool-entry-label">特殊要求</span>
+      <span class="case-count-badge" id="special-req-count-badge"></span>
+    </button>
+
+    <div class="sidebar-divider"></div>
+
+<h3>实用工具</h3>
+    <button id="tool-drive-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-cloud-upload"></i></span>
+      <span class="tool-entry-label">云盘（共享文件）</span>
+    </button>
+    <button id="tool-memguard-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-cpu"></i></span>
+      <span class="tool-entry-label">内存面板（本机）</span>
     </button>
 
     <button id="reminder-panel-toggle" class="tool-entry-btn reminder-entry-btn collapsed" type="button">
@@ -3385,7 +3548,7 @@
 
 <div id="tool-overlay">
   <div id="tool-overlay-header" class="tool-overlay-header-bar">
-    <span id="tool-overlay-title">骏河屋检品判定台</span>
+    <span id="tool-overlay-title"></span>
     <button id="tool-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
   </div>
   <iframe id="tool-overlay-frame" title="工具页面" allow="camera; clipboard-write"></iframe>
@@ -3643,6 +3806,87 @@
     <div class="announce-from" id="announce-from"></div>
     <div class="announce-text" id="announce-text"></div>
     <button id="announce-close-btn">知道了</button>
+  </div>
+</div>
+
+<!-- ===== 特殊要求（部分用户的特殊检品要求，按入库码查，App内全屏）===== -->
+<div id="special-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-star"></i> 特殊要求</span>
+    <div class="case-header-actions">
+      <button id="special-add-btn" type="button"><i class="ti ti-plus"></i> 新增</button>
+      <button id="special-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="special-overlay-body">
+    <div id="special-sidebar">
+      <div id="special-search-wrap">
+        <i class="ti ti-search"></i>
+        <input id="special-search" type="search" placeholder="搜入库码 / 用户名" autocomplete="off" />
+      </div>
+      <div id="special-code-list"></div>
+      <div id="special-list-empty">还没有记录</div>
+    </div>
+    <div id="special-content-area">
+      <div id="special-detail-empty">左边点一个入库码，这里显示对应用户的特殊要求</div>
+      <div id="special-detail">
+        <div id="special-detail-code"></div>
+        <div class="special-detail-grid">
+          <div class="special-detail-label">用户名</div><div class="special-detail-value" id="special-detail-username"></div>
+          <div class="special-detail-label">品类</div><div class="special-detail-value" id="special-detail-category"></div>
+          <div class="special-detail-label">平台</div><div class="special-detail-value" id="special-detail-platform"></div>
+        </div>
+        <div class="special-detail-label">要求</div>
+        <div id="special-detail-requirement"></div>
+        <div id="special-detail-meta"></div>
+        <div class="case-card-actions">
+          <button id="special-edit-btn" type="button"><i class="ti ti-pencil"></i> 编辑</button>
+          <button id="special-delete-btn" type="button" class="danger"><i class="ti ti-trash"></i> 删除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新增 / 编辑 -->
+  <div id="special-edit-panel">
+    <div id="special-edit-card">
+      <div class="problem-item-options-edit-title" id="special-edit-title">新增特殊要求</div>
+      <div class="case-field">
+        <label class="problem-item-field-label">入库码 <span class="problem-item-required">*</span></label>
+        <input id="special-code" type="text" maxlength="60" autocomplete="off" />
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">用户名 <span class="problem-item-required">*</span></label>
+        <input id="special-username" type="text" maxlength="60" autocomplete="off" />
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">品类</label>
+        <input id="special-category" type="text" maxlength="100" placeholder="比如：手办 / 周边 / 书籍" autocomplete="off" />
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">平台</label>
+        <input id="special-platform" type="text" maxlength="60" list="special-platform-options" placeholder="煤炉 / 代拍 / 代购…" autocomplete="off" />
+        <datalist id="special-platform-options">
+          <option value="煤炉"></option>
+          <option value="代拍"></option>
+          <option value="代购"></option>
+          <option value="全部"></option>
+        </datalist>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">要求 <span class="problem-item-required">*</span></label>
+        <textarea id="special-requirement" rows="4" placeholder="这个用户检品时要特别注意什么"></textarea>
+      </div>
+      <div class="case-field">
+        <label class="problem-item-field-label">编辑密码</label>
+        <input id="special-edit-password" type="password" placeholder="编辑密码" autocomplete="off" />
+      </div>
+      <div id="special-edit-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="special-edit-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+        <button id="special-edit-save-btn" type="button">保存</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3976,12 +4220,12 @@
   const quickCategoryManageList = document.getElementById('quick-category-manage-list');
   const quickCategoryAddInput = document.getElementById('quick-category-add-input');
   const quickCategoryAddBtn = document.getElementById('quick-category-add-btn');
-  const toolSurugayaBtn = document.getElementById('tool-surugaya-btn');
   const toolAiInspectionBtn = document.getElementById('tool-ai-inspection-btn');
-  const toolCalculatorBtn = document.getElementById('tool-calculator-btn');
   const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
   const toolCameraBtn = document.getElementById('tool-camera-btn');
   const toolDaipaiClipboardBtn = document.getElementById('tool-daipai-clipboard-btn');
+  const toolDriveBtn = document.getElementById('tool-drive-btn');
+  const toolMemguardBtn = document.getElementById('tool-memguard-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -4180,6 +4424,24 @@
         scrollToBottom();
       } else if (data.type === 'online') {
         renderOnlineList(data.users);
+      } else if (data.type === 'special_req_list') {
+        specialReqData = Array.isArray(data.items) ? data.items : [];
+        renderSpecialCountBadge();
+        closeDeleteConfirm();
+        closeSpecialEdit();
+        // 自己刚新增/编辑的那条自动选中，省得再去左边找；别人保存的不动我的选择
+        if (data.savedId !== undefined && awaitingSpecialSave) selectedSpecialId = data.savedId;
+        awaitingSpecialSave = false;
+        if (specialOverlay.classList.contains('active')) renderSpecialList();
+      } else if (data.type === 'special_req_error') {
+        if (deleteConfirmOverlay.classList.contains('active')) {
+          deleteConfirmError.textContent = data.message || '密码错误';
+          deleteConfirmPassword.focus();
+        } else {
+          awaitingSpecialSave = false;
+          specialEditError.textContent = data.message || '保存失败';
+          if (/密码/.test(specialEditError.textContent)) specialEditPassword.focus();
+        }
       } else if (data.type === 'case_library') {
         // 案例库全量同步：加入时发一次，之后每次增删改都会整包广播
         caseLibraryData = Array.isArray(data.cases) ? data.cases : [];
@@ -5534,7 +5796,7 @@
   const deleteConfirmError = document.getElementById('delete-confirm-error');
   const deleteConfirmOkBtn = document.getElementById('delete-confirm-ok-btn');
   const deleteConfirmCancelBtn = document.getElementById('delete-confirm-cancel-btn');
-  let pendingDeleteAction = null; // { kind: 'reminder' | 'timeclock' | 'case', entry }
+  let pendingDeleteAction = null; // { kind: 'reminder' | 'timeclock' | 'case' | 'special', entry }
 
   function openDeleteConfirm(kind, entry) {
     pendingDeleteAction = { kind, entry };
@@ -5546,6 +5808,9 @@
     } else if (kind === 'timeclock') {
       label = '工时记录';
       preview = `${entry.username} ${formatJstClock(entry.startAt)} ~ ${entry.endAt ? formatJstClock(entry.endAt) : '（还在计时中）'}`;
+    } else if (kind === 'special') {
+      label = '特殊要求';
+      preview = `${entry.code} ${entry.username}`.slice(0, 40);
     } else {
       label = '案例';
       preview = `${entry.platform}${entry.site ? '·' + entry.site : ''} ${entry.problem || ''}`.slice(0, 40);
@@ -5582,6 +5847,8 @@
       ws.send(JSON.stringify({ type: 'timeclock_delete', id: entry.id, password }));
     } else if (kind === 'case') {
       ws.send(JSON.stringify({ type: 'case_delete', id: entry.id, password }));
+    } else if (kind === 'special') {
+      ws.send(JSON.stringify({ type: 'special_req_delete', id: entry.id, password }));
     }
     // 不在这里关闭弹窗——密码对不对、删除成不成功由服务器说了算，
     // 成功了会收到 announcement/reminder_list 广播，里面会顺带关掉这个弹窗；
@@ -7002,6 +7269,171 @@
     }
   });
 
+  // ===== 特殊要求（部分用户的特殊检品要求；所有人可看，增删改要编辑密码） =====
+  const specialOverlay = document.getElementById('special-overlay');
+  const specialOverlayCloseBtn = document.getElementById('special-overlay-close-btn');
+  const specialOpenBtn = document.getElementById('tool-special-req-btn');
+  const specialCountBadge = document.getElementById('special-req-count-badge');
+  const specialAddBtn = document.getElementById('special-add-btn');
+  const specialSearchInput = document.getElementById('special-search');
+  const specialCodeList = document.getElementById('special-code-list');
+  const specialListEmpty = document.getElementById('special-list-empty');
+  const specialDetailEmpty = document.getElementById('special-detail-empty');
+  const specialDetail = document.getElementById('special-detail');
+  const specialDetailCode = document.getElementById('special-detail-code');
+  const specialDetailUsername = document.getElementById('special-detail-username');
+  const specialDetailCategory = document.getElementById('special-detail-category');
+  const specialDetailPlatform = document.getElementById('special-detail-platform');
+  const specialDetailRequirement = document.getElementById('special-detail-requirement');
+  const specialDetailMeta = document.getElementById('special-detail-meta');
+  const specialEditBtn = document.getElementById('special-edit-btn');
+  const specialDeleteBtn = document.getElementById('special-delete-btn');
+  const specialEditPanel = document.getElementById('special-edit-panel');
+  const specialEditTitle = document.getElementById('special-edit-title');
+  const specialCodeInput = document.getElementById('special-code');
+  const specialUsernameInput = document.getElementById('special-username');
+  const specialCategoryInput = document.getElementById('special-category');
+  const specialPlatformInput = document.getElementById('special-platform');
+  const specialRequirementInput = document.getElementById('special-requirement');
+  const specialEditPassword = document.getElementById('special-edit-password');
+  const specialEditError = document.getElementById('special-edit-error');
+  const specialEditSaveBtn = document.getElementById('special-edit-save-btn');
+  const specialEditCancelBtn = document.getElementById('special-edit-cancel-btn');
+
+  let specialReqData = [];
+  let specialSearchKeyword = '';
+  let selectedSpecialId = null;
+  let editingSpecialId = null;
+  let awaitingSpecialSave = false; // 我自己刚点了保存，等服务器广播回来时把那条选中
+
+  function renderSpecialCountBadge() {
+    specialCountBadge.textContent = specialReqData.length ? String(specialReqData.length) : '';
+  }
+
+  function getSelectedSpecial() {
+    return specialReqData.find((r) => String(r.id) === String(selectedSpecialId)) || null;
+  }
+
+  function fillSpecialValue(el, text) {
+    el.textContent = text || '（未填写）';
+    el.classList.toggle('empty', !text);
+  }
+
+  function renderSpecialDetail() {
+    const item = getSelectedSpecial();
+    specialDetailEmpty.classList.toggle('hidden', !!item);
+    specialDetail.classList.toggle('active', !!item);
+    if (!item) return;
+    specialDetailCode.textContent = item.code;
+    fillSpecialValue(specialDetailUsername, item.username);
+    fillSpecialValue(specialDetailCategory, item.category);
+    fillSpecialValue(specialDetailPlatform, item.platform);
+    specialDetailRequirement.textContent = item.requirement;
+    specialDetailMeta.textContent = `${item.by || ''} 添加于 ${formatCaseTime(item.createdAt)}`
+      + (item.updatedAt && item.updatedAt !== item.createdAt ? ` · 最后修改 ${formatCaseTime(item.updatedAt)}` : '');
+  }
+
+  function renderSpecialList() {
+    const key = specialSearchKeyword.trim().toLowerCase();
+    // 按入库码排序，找起来跟翻货架一样
+    const list = [...specialReqData]
+      .sort((a, b) => String(a.code).localeCompare(String(b.code), 'zh-Hans-CN', { numeric: true }))
+      .filter((r) => !key || `${r.code} ${r.username}`.toLowerCase().includes(key));
+    specialCodeList.innerHTML = '';
+    list.forEach((r) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'special-code-btn' + (String(r.id) === String(selectedSpecialId) ? ' active' : '');
+      btn.innerHTML = `<span class="code">${escapeHtml(r.code)}</span><span class="who">${escapeHtml(r.username)}</span>`;
+      btn.addEventListener('click', () => {
+        selectedSpecialId = r.id;
+        renderSpecialList();
+        renderSpecialDetail();
+      });
+      specialCodeList.appendChild(btn);
+    });
+    specialListEmpty.textContent = specialReqData.length === 0 ? '还没有记录，点右上角"新增"' : '没搜到';
+    specialListEmpty.classList.toggle('active', list.length === 0);
+    // 选中的那条被删了/被搜掉了就清掉右边
+    if (selectedSpecialId !== null && !getSelectedSpecial()) selectedSpecialId = null;
+    renderSpecialDetail();
+  }
+
+  function openSpecialOverlay() {
+    specialOverlay.classList.add('active');
+    renderSpecialList();
+  }
+  function closeSpecialOverlay() {
+    specialOverlay.classList.remove('active');
+    closeSpecialEdit();
+  }
+
+  function openSpecialEdit(existing) {
+    editingSpecialId = existing ? existing.id : null;
+    specialEditTitle.textContent = existing ? '编辑特殊要求' : '新增特殊要求';
+    specialCodeInput.value = existing ? existing.code : '';
+    specialUsernameInput.value = existing ? existing.username : '';
+    specialCategoryInput.value = existing ? existing.category : '';
+    specialPlatformInput.value = existing ? existing.platform : '';
+    specialRequirementInput.value = existing ? existing.requirement : '';
+    specialEditPassword.value = '';
+    specialEditError.textContent = '';
+    specialEditPanel.classList.add('active');
+    specialCodeInput.focus();
+  }
+  function closeSpecialEdit() {
+    specialEditPanel.classList.remove('active');
+    editingSpecialId = null;
+    specialEditPassword.value = '';
+    specialEditError.textContent = '';
+  }
+  function saveSpecial() {
+    const code = specialCodeInput.value.trim();
+    if (!code) { specialEditError.textContent = '请填写入库码'; specialCodeInput.focus(); return; }
+    const uname = specialUsernameInput.value.trim();
+    if (!uname) { specialEditError.textContent = '请填写用户名'; specialUsernameInput.focus(); return; }
+    const requirement = specialRequirementInput.value.trim();
+    if (!requirement) { specialEditError.textContent = '请填写要求'; specialRequirementInput.focus(); return; }
+    const password = specialEditPassword.value;
+    if (!password) { specialEditError.textContent = '请输入编辑密码'; specialEditPassword.focus(); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { specialEditError.textContent = '连接已断开，请稍后重试'; return; }
+    specialEditError.textContent = '';
+    awaitingSpecialSave = true;
+    ws.send(JSON.stringify({
+      type: editingSpecialId === null ? 'special_req_add' : 'special_req_update',
+      id: editingSpecialId,
+      code,
+      username: uname,
+      category: specialCategoryInput.value.trim(),
+      platform: specialPlatformInput.value.trim(),
+      requirement,
+      password,
+    }));
+    // 服务器广播 special_req_list 回来才算成功；密码错会收到 special_req_error
+  }
+
+  specialOpenBtn.addEventListener('click', () => {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    openSpecialOverlay();
+  });
+  specialOverlayCloseBtn.addEventListener('click', closeSpecialOverlay);
+  specialAddBtn.addEventListener('click', () => openSpecialEdit(null));
+  specialEditBtn.addEventListener('click', () => { const it = getSelectedSpecial(); if (it) openSpecialEdit(it); });
+  specialDeleteBtn.addEventListener('click', () => { const it = getSelectedSpecial(); if (it) openDeleteConfirm('special', it); });
+  specialSearchInput.addEventListener('input', () => {
+    specialSearchKeyword = specialSearchInput.value;
+    renderSpecialList();
+  });
+  specialEditSaveBtn.addEventListener('click', saveSpecial);
+  specialEditCancelBtn.addEventListener('click', closeSpecialEdit);
+  specialEditPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveSpecial(); });
+  specialEditPanel.addEventListener('click', (e) => { if (e.target === specialEditPanel) closeSpecialEdit(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (specialEditPanel.classList.contains('active')) closeSpecialEdit();
+    else if (specialOverlay.classList.contains('active') && !deleteConfirmOverlay.classList.contains('active')) closeSpecialOverlay();
+  });
+
   // ===== 案例库（原来的公告栏换成了这个；所有人可看，增删改要编辑密码） =====
   const caseOverlay = document.getElementById('case-overlay');
   const caseOverlayCloseBtn = document.getElementById('case-overlay-close-btn');
@@ -7745,7 +8177,7 @@
   renderQuickList();
   renderPendingList();
 
-  // ===== 实用工具全屏面板（比如骏河屋检品判定台）=====
+  // ===== 实用工具全屏面板（拍照搜图、代拍剪贴板、云盘这些自家页面）=====
   // iframe的src故意留空，点开才设置——避免每个人一进聊天室，
   // 浏览器就顺带把整个判定工具也加载一遍，白白浪费流量和加载时间
   function openToolOverlay(url, title) {
@@ -7760,17 +8192,9 @@
     toolOverlay.classList.remove('active');
   }
 
-  toolSurugayaBtn.addEventListener('click', () => {
-    // 这是骏河屋官方自己的网站，没法像我们自己的工具那样嵌进全屏iframe里
-    // （外部网站基本都会挡掉被别的网站嵌入），所以改成新标签页直接打开
-    window.open('https://www.suruga-ya.jp/man/customer_guide/used_item_policy.html', '_blank', 'noopener,noreferrer');
-  });
   toolAiInspectionBtn.addEventListener('click', () => {
     // ChatGPT官网跟骏河屋一样会拦截被其他网站嵌入(iframe)，同样只能新标签页打开
     window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
-  });
-  toolCalculatorBtn.addEventListener('click', () => {
-    openToolOverlay('/calculator-detail.html', '计算器（带明细）');
   });
   toolSagawaBtn.addEventListener('click', () => {
     // 佐川官网确认会拦截被嵌入(ERR_BLOCKED_BY_RESPONSE)，改成新标签页打开
@@ -7781,6 +8205,17 @@
   });
   toolDaipaiClipboardBtn.addEventListener('click', () => {
     openToolOverlay('/daipai-clipboard.html', '代拍剪贴板');
+  });
+  toolDriveBtn.addEventListener('click', () => {
+    // 把聊天昵称带过去当"上传人"，云盘页面自己不再另外问名字
+    openToolOverlay('/cloud-drive.html?user=' + encodeURIComponent(username || ''), '云盘（共享文件）');
+  });
+  // 内存面板是装在每台电脑本机上的小服务（MemGuard，端口 8765），这里只是个入口。
+  // 聊天室是 https、面板是 http://localhost，浏览器不允许把它嵌进 iframe，也不让页面先去探测它有没有装，
+  // 所以跟骏河屋/佐川那几个一样用新标签页打开。没装的电脑会看到浏览器的"无法访问此网站"，
+  // 装一下就好（找管理员要 memguard 文件夹，双击 Install.bat）
+  toolMemguardBtn.addEventListener('click', () => {
+    window.open('http://localhost:8765/', '_blank', 'noopener,noreferrer');
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

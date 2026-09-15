@@ -3345,6 +3345,14 @@
       <span class="module-icon-badge"><i class="ti ti-clipboard-list"></i></span>
       <span class="tool-entry-label">代拍剪贴板</span>
     </button>
+    <button id="tool-drive-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-cloud-upload"></i></span>
+      <span class="tool-entry-label">云盘（共享文件）</span>
+    </button>
+    <button id="tool-memguard-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-cpu"></i></span>
+      <span class="tool-entry-label">内存面板（本机）</span>
+    </button>
 
     <button id="reminder-panel-toggle" class="tool-entry-btn reminder-entry-btn collapsed" type="button">
       <span class="module-icon-badge"><i class="ti ti-alarm"></i></span>
@@ -3982,6 +3990,8 @@
   const toolSagawaBtn = document.getElementById('tool-sagawa-btn');
   const toolCameraBtn = document.getElementById('tool-camera-btn');
   const toolDaipaiClipboardBtn = document.getElementById('tool-daipai-clipboard-btn');
+  const toolDriveBtn = document.getElementById('tool-drive-btn');
+  const toolMemguardBtn = document.getElementById('tool-memguard-btn');
   const reminderListEl = document.getElementById('reminder-list');
   const reminderAddOpenBtn = document.getElementById('reminder-add-open-btn');
   const reminderEditRow = document.getElementById('reminder-edit-row');
@@ -7781,6 +7791,22 @@
   });
   toolDaipaiClipboardBtn.addEventListener('click', () => {
     openToolOverlay('/daipai-clipboard.html', '代拍剪贴板');
+  });
+  toolDriveBtn.addEventListener('click', () => {
+    // 把聊天昵称带过去当"上传人"，云盘页面自己不再另外问名字
+    openToolOverlay('/cloud-drive.html?user=' + encodeURIComponent(username || ''), '云盘（共享文件）');
+  });
+  // 内存面板是装在每台电脑本机上的小服务（MemGuard，端口 8765），这里只是个入口：
+  // 先探测本机有没有装，装了就全屏打开本机那份，没装就提示去要安装包。
+  // 浏览器把 http://localhost 视为安全来源，所以即使聊天室是 https 也能嵌进 iframe
+  toolMemguardBtn.addEventListener('click', async () => {
+    const url = 'http://localhost:8765/';
+    try {
+      await fetch(url + 'api/status', { mode: 'no-cors', cache: 'no-store' });
+      openToolOverlay(url, '内存面板（本机）');
+    } catch (e) {
+      alert('这台电脑还没有安装内存面板。\n请找管理员要 memguard 文件夹，双击里面的 Install.bat 安装，装完再点这里。');
+    }
   });
   toolOverlayCloseBtn.addEventListener('click', closeToolOverlay);
   document.addEventListener('keydown', (e) => {

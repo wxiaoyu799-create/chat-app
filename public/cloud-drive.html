@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>云盘（共享文件）</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f4f5f7;
+    --panel-alt: #eef1f6;
+    --border: #dde1e8;
+    --text: #1a1d24;
+    --muted: #6b7280;
+    --accent: #3f6fd6;
+    --accent-dark: #2f56b0;
+    --ok: #2e9e5b;
+    --warn: #d98a1f;
+    --danger: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 20px;
+    max-width: 960px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  header p { color: var(--muted); font-size: 13px; margin: 0; }
+  .stat { color: var(--muted); font-size: 13px; text-align: right; }
+  .stat b { color: var(--text); font-size: 18px; }
+
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 18px;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    transition: border-color .15s, background .15s;
+  }
+  .drop.over { border-color: var(--accent); background: #eaf0fb; }
+  .drop .big-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 12px 22px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .drop .big-btn:hover { background: var(--accent-dark); }
+  .drop .big-btn:disabled { opacity: .6; cursor: default; }
+  .drop .hint { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; line-height: 1.6; }
+  .drop label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .drop input[type=text] {
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit; width: 150px; background: #fff;
+  }
+  #progress { display: none; width: 100%; }
+  #progress.active { display: block; }
+  #progress .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  #progress .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  #progress .txt { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  #msg { font-size: 13px; margin: -6px 0 12px; min-height: 18px; }
+  #msg.err { color: var(--danger); } #msg.ok { color: var(--ok); }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer;
+  }
+  .chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar input[type=search] {
+    margin-left: auto; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; min-width: 180px;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  td.name { max-width: 380px; }
+  td.name a { color: var(--text); text-decoration: none; font-weight: 600; word-break: break-all; }
+  td.name a:hover { color: var(--accent); text-decoration: underline; }
+  td.name .ico { margin-right: 6px; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  td .tag { background: var(--panel-alt); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); }
+  td.act { white-space: nowrap; text-align: right; }
+  td.act button {
+    background: transparent; border: 1px solid var(--border); border-radius: 6px; color: var(--muted);
+    padding: 4px 8px; font-size: 12px; cursor: pointer; margin-left: 4px;
+  }
+  td.act button:hover { border-color: var(--accent); color: var(--accent); }
+  td.act button.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; font-style: italic; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 10; }
+  .modal-bg.active { display: flex; }
+  .modal { background: #fff; border-radius: 14px; padding: 20px; width: min(420px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .modal input { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font-size: 14px; font-family: inherit; }
+  .modal .err { color: var(--danger); font-size: 12px; min-height: 16px; margin-top: 6px; }
+  .modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .modal button { border-radius: 8px; padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid var(--border); background: #fff; }
+  .modal button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .modal button.primary.danger { background: var(--danger); border-color: var(--danger); }
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    td.meta.uploader, th.uploader, td.meta.time, th.time { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>☁️ 云盘（共享文件）</h1>
+    <p>所有人共用，上传后大家都能下载。改名和删除需要编辑密码（和公告栏同一个）。</p>
+  </div>
+  <div class="stat"><b id="stat-count">0</b> 个文件 · <span id="stat-size">0 B</span></div>
+</header>
+
+<div class="drop" id="drop">
+  <button class="big-btn" id="pick-btn" type="button">📤 选择文件上传</button>
+  <input type="file" id="file-input" multiple style="display:none">
+  <label>分类 <input type="text" id="folder-input" list="folder-list" placeholder="如 安装包 / 表格 / 图片"></label>
+  <datalist id="folder-list"></datalist>
+  <div class="hint">也可以把文件直接拖到这个框里。一次最多 <span id="lim-files">10</span> 个，单个最大 <span id="lim-size">200MB</span>。上传人：<b id="me">匿名</b></div>
+  <div id="progress"><div class="bar"><i id="progress-bar"></i></div><div class="txt" id="progress-txt"></div></div>
+</div>
+<div id="msg"></div>
+
+<div class="toolbar" id="chips"></div>
+<div id="list"></div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">删除文件</h3>
+    <div id="modal-fields"></div>
+    <label>编辑密码</label>
+    <input type="password" id="modal-pass" autocomplete="off">
+    <div class="err" id="modal-err"></div>
+    <div class="row">
+      <button type="button" id="modal-cancel">取消</button>
+      <button type="button" class="primary" id="modal-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  const me = (params.get('user') || '').trim().slice(0, 20) || '匿名';
+  $('me').textContent = me;
+
+  let files = [];
+  let folderFilter = '全部';
+  let keyword = '';
+  let limits = { maxFileSize: 200 * 1024 * 1024, maxFiles: 10 };
+
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+    return (n / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+  }
+  function fmtTime(ts) {
+    const d = new Date(ts);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function icon(name) {
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'].includes(ext)) return '🖼️';
+    if (['xls', 'xlsx', 'csv'].includes(ext)) return '📊';
+    if (['doc', 'docx', 'txt', 'md', 'pdf'].includes(ext)) return '📄';
+    if (['ppt', 'pptx'].includes(ext)) return '📽️';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '🗜️';
+    if (['exe', 'msi', 'bat', 'apk', 'dmg'].includes(ext)) return '⚙️';
+    if (['mp4', 'mov', 'avi', 'mkv'].includes(ext)) return '🎬';
+    if (['mp3', 'wav', 'm4a'].includes(ext)) return '🎵';
+    return '📁';
+  }
+  function showMsg(text, cls) { const m = $('msg'); m.textContent = text || ''; m.className = cls || ''; if (text) setTimeout(() => { if (m.textContent === text) { m.textContent = ''; m.className = ''; } }, 6000); }
+
+  async function load() {
+    try {
+      const r = await fetch('/api/drive/list', { cache: 'no-store' });
+      const j = await r.json();
+      files = Array.isArray(j.files) ? j.files : [];
+      if (j.maxFileSize) limits = { maxFileSize: j.maxFileSize, maxFiles: j.maxFiles || 10 };
+      $('lim-files').textContent = limits.maxFiles;
+      $('lim-size').textContent = fmtSize(limits.maxFileSize);
+      render();
+    } catch (e) { showMsg('加载列表失败：' + e.message, 'err'); }
+  }
+
+  function render() {
+    const folders = {};
+    files.forEach((f) => { folders[f.folder] = (folders[f.folder] || 0) + 1; });
+    const names = Object.keys(folders).sort((a, b) => a.localeCompare(b, 'zh'));
+    if (folderFilter !== '全部' && !folders[folderFilter]) folderFilter = '全部';
+    $('folder-list').innerHTML = names.map((n) => `<option value="${esc(n)}">`).join('');
+    $('chips').innerHTML =
+      `<button class="chip ${folderFilter === '全部' ? 'on' : ''}" data-f="全部">全部 (${files.length})</button>` +
+      names.map((n) => `<button class="chip ${folderFilter === n ? 'on' : ''}" data-f="${esc(n)}">${esc(n)} (${folders[n]})</button>`).join('') +
+      `<input type="search" id="search" placeholder="搜文件名 / 上传人" value="${esc(keyword)}">`;
+    $('chips').querySelectorAll('.chip').forEach((c) => c.onclick = () => { folderFilter = c.dataset.f; render(); });
+    const s = $('search'); s.oninput = () => { keyword = s.value.trim().toLowerCase(); renderList(); };
+    renderList();
+    const total = files.reduce((a, f) => a + (f.size || 0), 0);
+    $('stat-count').textContent = files.length;
+    $('stat-size').textContent = fmtSize(total);
+  }
+
+  function renderList() {
+    const shown = files.filter((f) =>
+      (folderFilter === '全部' || f.folder === folderFilter) &&
+      (!keyword || f.name.toLowerCase().includes(keyword) || (f.uploader || '').toLowerCase().includes(keyword))
+    );
+    if (shown.length === 0) { $('list').innerHTML = `<div class="empty">${files.length ? '没有匹配的文件' : '还没有文件，点上面的按钮或把文件拖进来上传'}</div>`; return; }
+    $('list').innerHTML = `<table><thead><tr>
+      <th>文件</th><th>分类</th><th class="uploader">上传人</th><th class="time">时间</th><th style="text-align:right">大小</th><th></th>
+    </tr></thead><tbody>` + shown.map((f) => `<tr>
+      <td class="name"><span class="ico">${icon(f.name)}</span><a href="/api/drive/download/${esc(f.id)}" download="${esc(f.name)}" title="点击下载">${esc(f.name)}</a></td>
+      <td><span class="tag">${esc(f.folder)}</span></td>
+      <td class="meta uploader">${esc(f.uploader)}</td>
+      <td class="meta time">${fmtTime(f.time)}</td>
+      <td class="num">${fmtSize(f.size)}</td>
+      <td class="act">
+        <button type="button" data-dl="${esc(f.id)}">下载</button>
+        <button type="button" data-rn="${esc(f.id)}">改名/分类</button>
+        <button type="button" class="danger" data-del="${esc(f.id)}">删除</button>
+      </td></tr>`).join('') + '</tbody></table>';
+    $('list').querySelectorAll('[data-dl]').forEach((b) => b.onclick = () => { location.href = '/api/drive/download/' + b.dataset.dl; });
+    $('list').querySelectorAll('[data-rn]').forEach((b) => b.onclick = () => openModal('rename', files.find((f) => f.id === b.dataset.rn)));
+    $('list').querySelectorAll('[data-del]').forEach((b) => b.onclick = () => openModal('delete', files.find((f) => f.id === b.dataset.del)));
+  }
+
+  // ---- 上传 ----
+  function upload(fileList) {
+    const arr = Array.from(fileList || []);
+    if (arr.length === 0) return;
+    if (arr.length > limits.maxFiles) { showMsg(`一次最多上传 ${limits.maxFiles} 个文件`, 'err'); return; }
+    const tooBig = arr.find((f) => f.size > limits.maxFileSize);
+    if (tooBig) { showMsg(`「${tooBig.name}」超过 ${fmtSize(limits.maxFileSize)}，请压缩或用网盘链接`, 'err'); return; }
+    const fd = new FormData();
+    fd.append('uploader', me);
+    fd.append('folder', $('folder-input').value.trim());
+    arr.forEach((f) => fd.append('files', f, f.name));
+    const total = arr.reduce((a, f) => a + f.size, 0);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/drive/upload');
+    $('progress').classList.add('active'); $('pick-btn').disabled = true;
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      $('progress-bar').style.width = (e.loaded / e.total * 100).toFixed(1) + '%';
+      $('progress-txt').textContent = `正在上传 ${arr.length} 个文件… ${fmtSize(e.loaded)} / ${fmtSize(total)}`;
+    };
+    xhr.onload = () => {
+      $('progress').classList.remove('active'); $('pick-btn').disabled = false; $('progress-bar').style.width = '0';
+      let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status !== 200) { showMsg('上传失败：' + (j.error || xhr.status), 'err'); return; }
+      showMsg(`上传成功 ${j.files.length} 个文件`, 'ok');
+      $('file-input').value = '';
+      load();
+    };
+    xhr.onerror = () => { $('progress').classList.remove('active'); $('pick-btn').disabled = false; showMsg('上传失败：网络错误', 'err'); };
+    xhr.send(fd);
+  }
+  $('pick-btn').onclick = () => $('file-input').click();
+  $('file-input').onchange = () => upload($('file-input').files);
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => upload(e.dataTransfer.files));
+  document.addEventListener('dragover', (e) => e.preventDefault());
+  document.addEventListener('drop', (e) => { e.preventDefault(); if (e.target.closest && !e.target.closest('#drop')) upload(e.dataTransfer.files); });
+
+  // ---- 改名 / 删除（要编辑密码） ----
+  let modalMode = 'delete', modalFile = null;
+  function openModal(mode, f) {
+    if (!f) return;
+    modalMode = mode; modalFile = f;
+    $('modal-title').textContent = mode === 'delete' ? '删除文件' : '改名 / 换分类';
+    $('modal-fields').innerHTML = mode === 'delete'
+      ? `<p style="margin:0;color:var(--muted);font-size:13px">确定删除「<b style="color:var(--text)">${esc(f.name)}</b>」？删除后所有人都下载不了了。</p>`
+      : `<label>文件名</label><input type="text" id="modal-name" value="${esc(f.name)}"><label>分类</label><input type="text" id="modal-folder" list="folder-list" value="${esc(f.folder)}">`;
+    $('modal-ok').className = 'primary' + (mode === 'delete' ? ' danger' : '');
+    $('modal-ok').textContent = mode === 'delete' ? '删除' : '保存';
+    $('modal-pass').value = ''; $('modal-err').textContent = '';
+    $('modal').classList.add('active');
+    setTimeout(() => (mode === 'delete' ? $('modal-pass') : $('modal-name')).focus(), 50);
+  }
+  function closeModal() { $('modal').classList.remove('active'); }
+  $('modal-cancel').onclick = closeModal;
+  $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
+  $('modal-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('modal-ok').click(); });
+  $('modal-ok').onclick = async () => {
+    const password = $('modal-pass').value;
+    if (!password) { $('modal-err').textContent = '请输入编辑密码'; return; }
+    const body = { id: modalFile.id, password };
+    if (modalMode === 'rename') { body.name = $('modal-name').value.trim(); body.folder = $('modal-folder').value.trim(); }
+    try {
+      const r = await fetch('/api/drive/' + modalMode, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) { $('modal-err').textContent = j.error || ('失败 ' + r.status); return; }
+      closeModal();
+      showMsg(modalMode === 'delete' ? '已删除' : '已保存', 'ok');
+      load();
+    } catch (e) { $('modal-err').textContent = '网络错误：' + e.message; }
+  };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('modal').classList.contains('active')) closeModal(); });
+
+  // 列表每 10 秒刷新一次，别人刚传的文件很快就能看到；页面切回前台时也刷一次
+  load();
+  setInterval(() => { if (!document.hidden) load(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

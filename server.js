@@ -223,7 +223,139 @@ app.get('/api/problem-item-export', async (req, res) => {
   }
 });
 
-// 在线用户: ws -> { username, id }
+// ==================== 云盘（团队共享文件，简单版） ====================
+// 文件本体放在 drive/ 目录，元数据（原始文件名/上传人/时间/分类）记在 drive/.index.json 里，
+// 跟聊天附件一样存在服务器磁盘上：局域网自建服务器会一直保留；部署到 Render 这类平台时磁盘是临时的，
+// 重新部署会清空——大文件、要长期保存的东西还是放正规网盘，这里定位是团队内部随手共享。
+const DRIVE_DIR = path.join(__dirname, 'drive');
+const DRIVE_INDEX_PATH = path.join(DRIVE_DIR, '.index.json');
+const DRIVE_MAX_FILE_SIZE = 200 * 1024 * 1024; // 单个文件 200MB
+const DRIVE_MAX_FILES_PER_UPLOAD = 10;
+if (!fs.existsSync(DRIVE_DIR)) fs.mkdirSync(DRIVE_DIR, { recursive: true });
+
+let driveFiles = []; // { id, name, size, folder, uploader, time, stored }  stored=磁盘上的随机文件名，不对外暴露
+
+function loadDriveIndex() {
+  try {
+    if (!fs.existsSync(DRIVE_INDEX_PATH)) return;
+    const parsed = JSON.parse(fs.readFileSync(DRIVE_INDEX_PATH, 'utf8'));
+    if (!Array.isArray(parsed)) return;
+    // 索引里有、磁盘上却没有的（比如被手动删了）直接跳过，避免列表里出现点了下载不了的幽灵文件
+    driveFiles = parsed.filter((f) => f && f.id && f.stored && fs.existsSync(path.join(DRIVE_DIR, f.stored)));
+    console.log(`已加载云盘索引，共 ${driveFiles.length} 个文件`);
+  } catch (err) {
+    console.error('[云盘索引读取失败，改用空列表]', err.message);
+    driveFiles = [];
+  }
+}
+function saveDriveIndex() {
+  try {
+    fs.writeFileSync(DRIVE_INDEX_PATH, JSON.stringify(driveFiles, null, 2));
+  } catch (err) {
+    console.error('[云盘索引写入失败]', err.message);
+  }
+}
+loadDriveIndex();
+
+function publicDriveList() {
+  return driveFiles
+    .map(({ id, name, size, folder, uploader, time }) => ({ id, name, size, folder, uploader, time }))
+    .sort((a, b) => b.time - a.time);
+}
+function broadcastDriveUpdate() {
+  broadcast({ type: 'drive_update', files: publicDriveList() });
+}
+
+// multipart 里的文件名有些浏览器/版本会被按 latin1 解析，中文名变成一串乱码，这里识别出来转回 UTF-8；
+// 已经是正常中文或纯英文的原样返回
+function fixUploadName(raw) {
+  const s = String(raw || '');
+  if (!/[\u0080-\u00ff]/.test(s) || /[\u0100-\uffff]/.test(s)) return s;
+  const decoded = Buffer.from(s, 'latin1').toString('utf8');
+  return decoded.includes('\uFFFD') ? s : decoded;
+}
+
+const driveUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, DRIVE_DIR),
+    filename: (req, file, cb) => {
+      const ext = (path.extname(file.originalname) || '').slice(0, 16);
+      cb(null, `${Date.now()}-${crypto.randomBytes(12).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: DRIVE_MAX_FILE_SIZE, files: DRIVE_MAX_FILES_PER_UPLOAD },
+});
+
+app.get('/api/drive/list', (req, res) => {
+  res.json({ files: publicDriveList(), maxFileSize: DRIVE_MAX_FILE_SIZE, maxFiles: DRIVE_MAX_FILES_PER_UPLOAD });
+});
+
+app.post('/api/drive/upload', (req, res) => {
+  driveUpload.array('files', DRIVE_MAX_FILES_PER_UPLOAD)(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: `单个文件最大 ${Math.round(DRIVE_MAX_FILE_SIZE / 1024 / 1024)}MB` });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({ error: `一次最多上传 ${DRIVE_MAX_FILES_PER_UPLOAD} 个文件` });
+      }
+      return res.status(400).json({ error: err.message || '上传失败' });
+    }
+    const files = req.files || [];
+    if (files.length === 0) return res.status(400).json({ error: '没有收到文件' });
+    const uploader = String(req.body.uploader || '').slice(0, 20).trim() || '匿名';
+    const folder = String(req.body.folder || '').slice(0, 30).trim() || '未分类';
+    const added = files.map((f) => ({
+      id: crypto.randomBytes(8).toString('hex'),
+      name: fixUploadName(f.originalname).slice(0, 150) || '未命名文件',
+      size: f.size,
+      folder,
+      uploader,
+      time: Date.now(),
+      stored: f.filename,
+    }));
+    driveFiles.push(...added);
+    saveDriveIndex();
+    broadcastDriveUpdate();
+    res.json({ files: added.map(({ stored, ...rest }) => rest) });
+  });
+});
+
+app.get('/api/drive/download/:id', (req, res) => {
+  const f = driveFiles.find((x) => x.id === req.params.id);
+  if (!f) return res.status(404).send('文件不存在或已被删除');
+  // res.download 会自动把中文文件名按 RFC 5987 编码进 Content-Disposition，浏览器保存时显示原始文件名
+  res.download(path.join(DRIVE_DIR, f.stored), f.name, (err) => {
+    if (err && !res.headersSent) res.status(404).send('文件不存在或已被删除');
+  });
+});
+
+// 改名/换分类和删除都要编辑密码（跟公告栏/提醒事项共用同一个），避免共享文件被随手删掉
+app.post('/api/drive/rename', express.json(), (req, res) => {
+  const { id, name, folder, password } = req.body || {};
+  if (String(password || '') !== PIN_EDIT_PASSWORD) return res.status(403).json({ error: '密码错误' });
+  const f = driveFiles.find((x) => x.id === id);
+  if (!f) return res.status(404).json({ error: '文件不存在或已被删除' });
+  const newName = String(name || '').slice(0, 150).trim();
+  if (newName) f.name = newName;
+  f.folder = String(folder || '').slice(0, 30).trim() || '未分类';
+  saveDriveIndex();
+  broadcastDriveUpdate();
+  res.json({ ok: true });
+});
+
+app.post('/api/drive/delete', express.json(), (req, res) => {
+  const { id, password } = req.body || {};
+  if (String(password || '') !== PIN_EDIT_PASSWORD) return res.status(403).json({ error: '密码错误，无法删除' });
+  const idx = driveFiles.findIndex((x) => x.id === id);
+  if (idx === -1) return res.status(404).json({ error: '文件不存在或已被删除' });
+  const [removed] = driveFiles.splice(idx, 1);
+  saveDriveIndex();
+  fs.unlink(path.join(DRIVE_DIR, removed.stored), () => {});
+  broadcastDriveUpdate();
+  res.json({ ok: true });
+});
+// 在线用户: ws -> { username, id }
 const clients = new Map();
 // 最近消息历史——内存里始终保留最近MAX_HISTORY条，用于日常渲染/查找（快，不用每次都查数据库）；
 // 如果数据库连上了，这些消息也会异步写入数据库，服务器重启后能从数据库把最近的消息读回来，

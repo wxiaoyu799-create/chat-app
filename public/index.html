@@ -763,6 +763,16 @@
   .msg-edit-cancel-btn { background: var(--panel-alt); color: var(--text); }
   /* 上边距是给挂在气泡下沿的点赞徽章留的位置，跟 .reaction-badges 的 bottom 配套改 */
   .msg .meta-row { display: flex; align-items: center; gap: 6px; margin-top: 16px; }
+  /* 已读/未读分界线 */
+  .unread-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #e5534b; font-size: 11.5px; font-weight: 600; }
+  .unread-divider::before, .unread-divider::after { content: ''; flex: 1; height: 1px; background: rgba(229, 83, 75, 0.45); }
+  /* 我发的消息下面的已读回执 */
+  .read-receipt { font-size: 10.5px; color: var(--muted); margin-top: 2px; padding: 0 4px; cursor: pointer; text-align: right; max-width: 100%; }
+  .read-receipt.all-read { color: #2e9e5b; }
+  .read-receipt .rr-names { display: none; }
+  .read-receipt.expanded .rr-summary { display: none; }
+  .read-receipt.expanded .rr-names { display: inline; white-space: normal; word-break: break-word; }
+  .read-receipt:empty { display: none; }
   .msg.me .meta-row { flex-direction: row-reverse; }
 
   /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种。
@@ -1208,6 +1218,16 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
   .dot.off { background: var(--border); }
   #online-list li { cursor: pointer; border-radius: 6px; padding: 5px 4px; }
+  #online-list li.plaza-role-head {
+    padding: 6px 4px 3px; margin-top: 4px; cursor: pointer;
+    font-size: 11.5px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px;
+    border-bottom: 1px dashed var(--border); border-radius: 0; gap: 5px;
+  }
+  #online-list li.plaza-role-head:hover { background: transparent; color: var(--text); }
+  #online-list li.plaza-role-head .plaza-role-arrow { font-size: 10px; transition: transform 0.15s; }
+  #online-list li.plaza-role-head.collapsed .plaza-role-arrow { transform: rotate(-90deg); }
+  #online-list li.plaza-role-head .plaza-role-count { margin-left: auto; font-weight: 500; }
+  #online-list li.plaza-user { padding-left: 10px; }
   #online-list li.is-me { cursor: default; }
   #online-list li:not(.is-me):hover { background: var(--hover-dark); }
   #online-list li.is-offline .ol-name { color: var(--muted); }
@@ -1216,6 +1236,10 @@
   #online-list .ol-dm { color: var(--muted); font-size: 13px; opacity: 0; flex-shrink: 0; }
   #online-list li:hover .ol-dm { opacity: 1; color: var(--accent); }
   .group-tab .gt-dm-icon { font-size: 13px; opacity: 0.8; }
+  .group-tab .gt-close { font-size: 13px; line-height: 1; opacity: 0; margin-left: 2px; }
+  .group-tab:hover .gt-close, .group-tab.active .gt-close { opacity: 0.7; }
+  .group-tab .gt-close:hover { opacity: 1; color: #e5534b; }
+  .group-tab.active .gt-close:hover { color: #ffd0cc; }
   .group-tabs-empty { font-size: 12px; color: var(--muted); padding: 5px 4px; }
   body.role-manager #group-manage-btn { display: inline-flex !important; }
   .mention-all-icon { font-size: 12px; flex-shrink: 0; }
@@ -4820,6 +4844,8 @@
   try { currentGroupId = localStorage.getItem(LAST_GROUP_KEY) || ''; } catch (e) { /* 忽略 */ }
   let groupsData = []; // 服务器给的：{ id, name, members, isAll, memberOfIt, pinned, unread, lastTime }
   let lastSeenMessageId = 0; // 当前群里已经渲染到的最大消息ID，切群/新消息时报给服务器当"看到哪了"
+  let groupReadsLocal = {}; // 当前群里每个人看到哪条了：{ username: lastReadId }，用来画"谁已读"
+  let unreadDividerDrawn = false;
 
   function findGroupLocal(id) { return groupsData.find((g) => g.id === String(id)) || null; }
   function currentGroupName() { const g = findGroupLocal(currentGroupId); return g ? g.name : ''; }
@@ -4918,6 +4944,11 @@
           renderGroupManageList();
           if (editingGroupId && !findGroupLocal(editingGroupId)) selectGroupForEdit(null);
         }
+      } else if (data.type === 'group_read_update') {
+        if (data.groupId === currentGroupId) {
+          groupReadsLocal[data.username] = Math.max(Number(groupReadsLocal[data.username] || 0), Number(data.lastId || 0));
+          updateReadReceipts();
+        }
       } else if (data.type === 'group_saved') {
         groupFormError.textContent = '';
         if (data.switchTo && data.id) {
@@ -4941,8 +4972,28 @@
           empty.textContent = '你还没有加入任何群。找管理员或现场管理把你拉进群，或者在左边「达人广场」点一个人开始私聊。';
           messagesEl.appendChild(empty);
         }
-        data.messages.forEach((m) => renderMessage(m, { live: false }));
-        scrollToBottom();
+        // "以下是新消息"横线：画在我上次看到的那条之后、第一条别人发的新消息前面
+        const myLastRead = Number(data.myLastRead || 0);
+        unreadDividerDrawn = false;
+        let dividerTarget = null;
+        data.messages.forEach((m) => {
+          if (!dividerTarget && !unreadDividerDrawn && typeof m.id === 'number' && m.id > myLastRead && m.username !== username && !m.deletedAt) {
+            dividerTarget = m;
+          }
+          if (dividerTarget === m) {
+            const line = document.createElement('div');
+            line.className = 'unread-divider';
+            line.innerHTML = '<span>以下是新消息</span>';
+            messagesEl.appendChild(line);
+            unreadDividerDrawn = true;
+          }
+          renderMessage(m, { live: false });
+        });
+        groupReadsLocal = (data.reads && typeof data.reads === 'object') ? data.reads : {};
+        updateReadReceipts();
+        // 有新消息横线就停在横线那里，没有就到底
+        const dividerEl = messagesEl.querySelector('.unread-divider');
+        if (dividerEl) dividerEl.scrollIntoView({ block: 'start' }); else scrollToBottom();
         lastSeenMessageId = data.messages.reduce((mx, m) => (typeof m.id === 'number' && m.id > mx ? m.id : mx), 0);
         markGroupRead(currentGroupId, lastSeenMessageId);
         // 历史消息里可能已经有之前标记过、还没处理完的待处理项，扫一遍填进侧边栏列表里，
@@ -4968,6 +5019,7 @@
           lastSeenMessageId = data.id;
           if (data.groupId && data.username !== username) markGroupRead(data.groupId, data.id);
         }
+        if (data.username === username) updateReadReceipts();
         const gl = findGroupLocal(data.groupId);
         if (gl) { gl.lastTime = Date.now(); renderGroupTabs(); }
         notifyIfMentioned(data);
@@ -6188,32 +6240,59 @@
   document.addEventListener('keydown', clearWindowMentionSettled);
 
   let userDirectory = []; // 所有账号 [{username, role, roleLabel}]，服务器随在线列表一起发
+  const ROLE_ORDER = ['管理员', '现场管理', '质检员', '代购', '客服'];
+  const PLAZA_COLLAPSE_KEY = 'ccPlazaCollapsed';
+  let plazaCollapsed = {};
+  try { plazaCollapsed = JSON.parse(localStorage.getItem(PLAZA_COLLAPSE_KEY) || '{}') || {}; } catch (e) { plazaCollapsed = {}; }
   function renderOnlineList(users, directory) {
     onlineUsers = users;
     if (Array.isArray(directory)) userDirectory = directory;
     onlineList.innerHTML = '';
     onlineCount.textContent = users.length;
-    // 在线的排前面，其余按名字；点自己以外的人 -> 私聊
     const onlineSet = new Set(users);
-    const list = userDirectory.length ? [...userDirectory] : users.map((u) => ({ username: u, roleLabel: '' }));
-    list.sort((x, y) => {
-      const ox = onlineSet.has(x.username) ? 0 : 1;
-      const oy = onlineSet.has(y.username) ? 0 : 1;
-      return ox !== oy ? ox - oy : x.username.localeCompare(y.username, 'zh-Hans-CN');
-    });
+    const list = userDirectory.length ? [...userDirectory] : users.map((u) => ({ username: u, roleLabel: '其他' }));
+    // 按角色分组，同一角色折在一起；组内在线的排前面
+    const byRole = new Map();
     list.forEach((u) => {
-      const li = document.createElement('li');
-      const isOnline = onlineSet.has(u.username);
-      const isMe = u.username === username;
-      li.className = (isOnline ? 'is-online' : 'is-offline') + (isMe ? ' is-me' : '');
-      li.innerHTML = `<span class="dot${isOnline ? '' : ' off'}"></span><span class="ol-name">${escapeHtml(u.username)}</span>`
-        + (u.roleLabel ? `<span class="ol-role">${escapeHtml(u.roleLabel)}</span>` : '')
-        + (isMe ? '' : '<span class="ol-dm" title="私聊"><i class="ti ti-message-2"></i></span>');
-      if (!isMe) {
-        li.title = `和 ${u.username} 私聊`;
-        li.addEventListener('click', () => openDirectMessage(u.username));
-      }
-      onlineList.appendChild(li);
+      const key = u.roleLabel || '其他';
+      if (!byRole.has(key)) byRole.set(key, []);
+      byRole.get(key).push(u);
+    });
+    const roleKeys = [...byRole.keys()].sort((x, y) => {
+      const ix = ROLE_ORDER.indexOf(x); const iy = ROLE_ORDER.indexOf(y);
+      return (ix === -1 ? 99 : ix) - (iy === -1 ? 99 : iy);
+    });
+    roleKeys.forEach((role) => {
+      const members = byRole.get(role).sort((x, y) => {
+        const ox = onlineSet.has(x.username) ? 0 : 1;
+        const oy = onlineSet.has(y.username) ? 0 : 1;
+        return ox !== oy ? ox - oy : x.username.localeCompare(y.username, 'zh-Hans-CN');
+      });
+      const onlineN = members.filter((m) => onlineSet.has(m.username)).length;
+      const collapsed = !!plazaCollapsed[role];
+      const head = document.createElement('li');
+      head.className = 'plaza-role-head' + (collapsed ? ' collapsed' : '');
+      head.innerHTML = `<span class="plaza-role-arrow">▾</span><span class="plaza-role-name">${escapeHtml(role)}</span><span class="plaza-role-count">${onlineN}/${members.length}</span>`;
+      head.addEventListener('click', () => {
+        plazaCollapsed[role] = !plazaCollapsed[role];
+        try { localStorage.setItem(PLAZA_COLLAPSE_KEY, JSON.stringify(plazaCollapsed)); } catch (e) { /* 忽略 */ }
+        renderOnlineList(onlineUsers, userDirectory);
+      });
+      onlineList.appendChild(head);
+      if (collapsed) return;
+      members.forEach((u) => {
+        const li = document.createElement('li');
+        const isOnline = onlineSet.has(u.username);
+        const isMe = u.username === username;
+        li.className = 'plaza-user ' + (isOnline ? 'is-online' : 'is-offline') + (isMe ? ' is-me' : '');
+        li.innerHTML = `<span class="dot${isOnline ? '' : ' off'}"></span><span class="ol-name">${escapeHtml(u.username)}</span>`
+          + (isMe ? '<span class="ol-role">我</span>' : '<span class="ol-dm" title="私聊"><i class="ti ti-message-2"></i></span>');
+        if (!isMe) {
+          li.title = `和 ${u.username} 私聊`;
+          li.addEventListener('click', () => openDirectMessage(u.username));
+        }
+        onlineList.appendChild(li);
+      });
     });
   }
   function openDirectMessage(otherName) {
@@ -7912,7 +7991,14 @@
       tab.title = g.isDm ? `和 ${g.name} 的私聊` : (g.memberOfIt ? `${g.name} · ${g.members.length} 人` : `${g.name}（你不在这个群里，只能管理）`);
       tab.innerHTML = (g.isDm ? '<i class="ti ti-user gt-dm-icon"></i>' : '') + `<span class="gt-name">${escapeHtml(g.name)}</span>`
         + `<span class="gt-pin${g.pinned ? ' on' : ''}" title="${g.pinned ? '取消置顶' : '置顶'}"><i class="ti ${g.pinned ? 'ti-pin-filled' : 'ti-pin'}"></i></span>`
-        + `<span class="gt-unread">${g.unread > 0 ? (g.unread > 99 ? '99+' : g.unread) : ''}</span>`;
+        + `<span class="gt-unread">${g.unread > 0 ? (g.unread > 99 ? '99+' : g.unread) : ''}</span>`
+        + (g.isDm ? '<span class="gt-close" title="关闭这个私聊（记录还在，对方再发消息会重新出现）"><i class="ti ti-x"></i></span>' : '');
+      if (g.isDm) {
+        tab.querySelector('.gt-close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_dm_close', groupId: g.id }));
+        });
+      }
       tab.querySelector('.gt-pin').addEventListener('click', (e) => {
         e.stopPropagation();
         if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_pin', groupId: g.id, pinned: !g.pinned }));
@@ -7940,6 +8026,39 @@
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_switch', groupId }));
     closeChatSearch();
   }
+  // 我发的每条消息下面标"谁已读"：群里除我以外、看到的位置 >= 这条ID 的人。
+  // 私聊只显示"已读/未读"，群里显示人数，点一下展开名字
+  function updateReadReceipts() {
+    const g = findGroupLocal(currentGroupId);
+    if (!g) return;
+    const others = (g.members || []).filter((u) => u !== username);
+    messagesEl.querySelectorAll('.msg.me[data-message-id]').forEach((wrap) => {
+      const id = Number(wrap.dataset.messageId);
+      if (!Number.isFinite(id)) return;
+      let el = wrap.querySelector('.read-receipt');
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'read-receipt';
+        el.addEventListener('click', () => el.classList.toggle('expanded'));
+        wrap.appendChild(el);
+      }
+      const readers = others.filter((u) => Number(groupReadsLocal[u] || 0) >= id);
+      const unread = others.filter((u) => Number(groupReadsLocal[u] || 0) < id);
+      if (others.length === 0) { el.textContent = ''; return; }
+      if (g.isDm) {
+        el.textContent = readers.length ? '已读' : '未读';
+        el.classList.toggle('all-read', readers.length > 0);
+        el.title = '';
+        return;
+      }
+      const allRead = readers.length === others.length;
+      el.classList.toggle('all-read', allRead);
+      el.innerHTML = `<span class="rr-summary">${allRead ? '全部已读' : (readers.length ? `已读 ${readers.length}/${others.length}` : '未读')}</span>`
+        + `<span class="rr-names">${readers.length ? '已读：' + escapeHtml(readers.join('、')) : ''}${unread.length ? (readers.length ? ' · ' : '') + '未读：' + escapeHtml(unread.join('、')) : ''}</span>`;
+      el.title = '点一下看名字';
+    });
+  }
+
   // 告诉服务器"这个群我看到第几条了"，并把本地红点清零
   function markGroupRead(groupId, lastId) {
     if (!lastId) return;

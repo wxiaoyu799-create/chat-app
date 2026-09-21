@@ -1730,6 +1730,7 @@ const ALL_GROUP_NAME = '全员';
 let groups = []; // { id(string), name, members:[username], createdBy, createdAt }
 const groupPins = new Map();  // username -> Set(groupId)
 const groupReads = new Map(); // username -> Map(groupId -> lastReadId)
+const groupHidden = new Map(); // username -> Set(groupId)  关掉的私聊（对方再发消息会自动重新出现）
 
 async function ensureGroupTables() {
   await dbPool.query(`
@@ -1750,6 +1751,13 @@ async function ensureGroupTables() {
   `);
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS group_pins (
+      username TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      PRIMARY KEY (username, group_id)
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS group_hidden (
       username TEXT NOT NULL,
       group_id TEXT NOT NULL,
       PRIMARY KEY (username, group_id)
@@ -1778,6 +1786,11 @@ async function loadGroupsFromDB() {
     pins.rows.forEach((r) => {
       if (!groupPins.has(r.username)) groupPins.set(r.username, new Set());
       groupPins.get(r.username).add(String(r.group_id));
+    });
+    const hidden = await dbPool.query('SELECT * FROM group_hidden;');
+    hidden.rows.forEach((r) => {
+      if (!groupHidden.has(r.username)) groupHidden.set(r.username, new Set());
+      groupHidden.get(r.username).add(String(r.group_id));
     });
     const reads = await dbPool.query('SELECT * FROM group_reads;');
     reads.rows.forEach((r) => {
@@ -1808,6 +1821,20 @@ function canEditGroup(g, client) {
 }
 function findDm(a, b) {
   return groups.find((g) => g.isDm && g.members.length === 2 && g.members.includes(a) && g.members.includes(b)) || null;
+}
+function isGroupHidden(username, groupId) {
+  const set = groupHidden.get(username);
+  return !!set && set.has(String(groupId));
+}
+async function setGroupHidden(username, groupId, hidden) {
+  if (!groupHidden.has(username)) groupHidden.set(username, new Set());
+  if (hidden) groupHidden.get(username).add(String(groupId)); else groupHidden.get(username).delete(String(groupId));
+  if (dbPool) {
+    try {
+      if (hidden) await dbPool.query('INSERT INTO group_hidden (username, group_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [username, String(groupId)]);
+      else await dbPool.query('DELETE FROM group_hidden WHERE username=$1 AND group_id=$2;', [username, String(groupId)]);
+    } catch (err) { console.error('[关闭私聊写入失败]', err.message); }
+  }
 }
 function isGroupPinned(username, groupId) {
   const set = groupPins.get(username);
@@ -1840,8 +1867,9 @@ function groupsForUser(username, role) {
   const out = [];
   groups.forEach((g) => {
     if (g.isDm) {
-      // 私聊：只有这两个人看得到，标签上显示对方的名字
+      // 私聊：只有这两个人看得到，标签上显示对方的名字；自己关掉的不列
       if (!g.members.includes(username)) return;
+      if (isGroupHidden(username, g.id)) return;
       const other = g.members.find((m) => m !== username) || username;
       out.push({ ...view(g.id, other, g.members, false), isDm: true });
       return;
@@ -1873,10 +1901,20 @@ function broadcastToGroup(groupId, data, exclude) {
     if (members.has(c.username)) sock.send(msg);
   }
 }
-function groupHistoryPayload(groupId) {
-  if (!groupId) return { type: 'history', groupId: '', messages: [] };
+// 群历史 + 我上次看到哪条（前端画"以下是新消息"的横线）+ 群里每个人看到哪条（画已读回执）
+function groupReadsMap(groupId) {
+  const out = {};
+  getGroupMembers(groupId).forEach((u) => { out[u] = getLastRead(u, groupId); });
+  return out;
+}
+function groupHistoryPayload(groupId, username) {
+  if (!groupId) return { type: 'history', groupId: '', messages: [], myLastRead: 0, reads: {} };
   const list = history.filter((m) => m.type === 'message' && (m.groupId || ALL_GROUP_ID) === groupId);
-  return { type: 'history', groupId, messages: list.slice(-HISTORY_PER_GROUP) };
+  return {
+    type: 'history', groupId, messages: list.slice(-HISTORY_PER_GROUP),
+    myLastRead: username ? getLastRead(username, groupId) : 0,
+    reads: groupReadsMap(groupId),
+  };
 }
 async function createGroupRecord(name, members, byUsername, isDm) {
   const g = { id: `mem-g-${Date.now()}-${Math.round(Math.random() * 1e6)}`, name, members, createdBy: byUsername, createdAt: Date.now(), isDm: !!isDm };
@@ -2041,7 +2079,7 @@ wss.on('connection', (ws) => {
       // 先发群列表，再发她上次停留的那个群的历史（不在那个群里了就退回全员群）
       const startGroup = pickStartGroup(username, user.role, String(data.groupId || ''));
       sendGroupsTo(ws, { username, role: user.role });
-      ws.send(JSON.stringify(groupHistoryPayload(startGroup)));
+      ws.send(JSON.stringify(groupHistoryPayload(startGroup, username)));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers(), directory: getDirectory() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
@@ -2125,6 +2163,18 @@ wss.on('connection', (ws) => {
       };
       pushHistory(msg);
       saveChatMessageToDB(msg);
+      // 私聊被对方关掉了的话，来新消息时自动给她重新打开（标签带红点出现）
+      const gObj = findGroup(groupId);
+      if (gObj && gObj.isDm) {
+        for (const m of gObj.members) {
+          if (m !== client.username && isGroupHidden(m, groupId)) {
+            await setGroupHidden(m, groupId, false);
+            for (const [sock, c] of clients.entries()) {
+              if (c.username === m && sock.readyState === WebSocket.OPEN) sendGroupsTo(sock, c);
+            }
+          }
+        }
+      }
       broadcastToGroup(groupId, msg); // 包括发送者自己（用于统一渲染顺序）
       scheduleMentionReminder(msg);
       return;
@@ -2872,10 +2922,10 @@ wss.on('connection', (ws) => {
       const gid = String(data.groupId || '');
       if (!isGroupMember(gid, client.username)) {
         ws.send(JSON.stringify({ type: 'group_error', message: '你不在这个群里' }));
-        ws.send(JSON.stringify(groupHistoryPayload(pickStartGroup(client.username, client.role, ''))));
+        ws.send(JSON.stringify(groupHistoryPayload(pickStartGroup(client.username, client.role, ''), client.username)));
         return;
       }
-      ws.send(JSON.stringify(groupHistoryPayload(gid)));
+      ws.send(JSON.stringify(groupHistoryPayload(gid, client.username)));
       return;
     }
     if (data.type === 'group_read') {
@@ -2884,7 +2934,10 @@ wss.on('connection', (ws) => {
       const gid = String(data.groupId || '');
       if (!gid) return;
       const lastId = Number(data.lastId);
-      if (Number.isFinite(lastId) && lastId > 0) await setGroupRead(client.username, gid, lastId);
+      if (Number.isFinite(lastId) && lastId > 0 && lastId > getLastRead(client.username, gid) && isGroupMember(gid, client.username)) {
+        await setGroupRead(client.username, gid, lastId);
+        broadcastToGroup(gid, { type: 'group_read_update', groupId: gid, username: client.username, lastId }, ws);
+      }
       return;
     }
     if (data.type === 'group_pin') {
@@ -2907,11 +2960,24 @@ wss.on('connection', (ws) => {
         return;
       }
       let dm = findDm(client.username, target.username);
+      if (dm && isGroupHidden(client.username, dm.id)) await setGroupHidden(client.username, dm.id, false);
       if (!dm) dm = await createGroupRecord(`${client.username}·${target.username}`, [client.username, target.username], client.username, true);
       for (const [sock, c] of clients.entries()) {
         if (sock.readyState === WebSocket.OPEN && (c.username === client.username || c.username === target.username)) sendGroupsTo(sock, c);
       }
       ws.send(JSON.stringify({ type: 'group_saved', id: dm.id, switchTo: true }));
+      return;
+    }
+
+    // 关掉一个私聊标签：只对自己隐藏，记录都在；对方再发消息会自动回来
+    if (data.type === 'group_dm_close') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const g = findGroup(data.groupId);
+      if (!g || !g.isDm || !g.members.includes(client.username)) return;
+      await setGroupHidden(client.username, g.id, true);
+      sendGroupsTo(ws, client);
+      ws.send(JSON.stringify(groupHistoryPayload(pickStartGroup(client.username, client.role, ''), client.username)));
       return;
     }
 

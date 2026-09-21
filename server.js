@@ -68,6 +68,76 @@ async function verifyDatabaseConnection() {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ==================== 文件存储：Supabase Storage（配了就用）/ 本机磁盘（没配就跟以前一样） ====================
+// Render 这类平台的磁盘是临时的，重新部署就清空；把图片和文件放到 Supabase Storage 里就不怕了。
+// 需要三个环境变量（都在 Render 后台设置）：
+//   SUPABASE_URL          项目地址，形如 https://xxxx.supabase.co（不填的话会从 DATABASE_URL 里的项目 ref 推出来）
+//   SUPABASE_SERVICE_KEY  Project Settings → API 里的 service_role key（只放服务器，别发给任何人）
+//   SUPABASE_BUCKET       bucket 名，默认 cc-files（要在 Supabase 后台先建好、设成 Public）
+// 三个都没配 → 自动退回本机磁盘，行为跟以前完全一样。
+function deriveSupabaseUrl() {
+  if (process.env.SUPABASE_URL) return String(process.env.SUPABASE_URL).replace(/\/+$/, '');
+  // 连接池的用户名是 postgres.<项目ref>，从这里把 ref 抠出来
+  const m = String(DATABASE_URL).match(/\/\/postgres\.([a-z0-9]+):/i);
+  return m ? `https://${m[1]}.supabase.co` : '';
+}
+const SUPABASE_URL = deriveSupabaseUrl();
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'cc-files';
+const STORAGE_ENABLED = !!(SUPABASE_URL && SUPABASE_SERVICE_KEY);
+// Supabase 免费版单个文件上限 50MB（付费版可以在后台调高，调了之后把这个环境变量一起改）
+const STORAGE_MAX_FILE_SIZE = Number(process.env.SUPABASE_MAX_FILE_MB || 50) * 1024 * 1024;
+const STORAGE_PUBLIC_PREFIX = STORAGE_ENABLED ? `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/` : '';
+
+function storagePublicUrl(objectPath) {
+  return STORAGE_PUBLIC_PREFIX + objectPath;
+}
+// 把本机临时文件流式传到 Storage，成功后删掉临时文件，返回公开地址
+async function uploadToStorage(localPath, objectPath, contentType) {
+  const { Readable } = require('stream');
+  const stat = fs.statSync(localPath);
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      apikey: SUPABASE_SERVICE_KEY,
+      'Content-Type': contentType || 'application/octet-stream',
+      'Content-Length': String(stat.size),
+      'x-upsert': 'false',
+    },
+    body: Readable.toWeb(fs.createReadStream(localPath)),
+    duplex: 'half',
+  });
+  fs.unlink(localPath, () => {});
+  if (!res.ok) {
+    let msg = `Storage 返回 ${res.status}`;
+    try { const j = await res.json(); if (j && (j.message || j.error)) msg = j.message || j.error; } catch (e) { /* 忽略 */ }
+    throw new Error('上传到云端存储失败：' + msg);
+  }
+  return storagePublicUrl(objectPath);
+}
+async function deleteFromStorage(objectPath) {
+  try {
+    await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${objectPath}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`, apikey: SUPABASE_SERVICE_KEY },
+    });
+  } catch (err) {
+    console.error('[云端存储删除失败]', err.message);
+  }
+}
+// 消息/问题件/案例里带的图片地址只认两种：本机 /uploads/xxx，或者我们自己 bucket 的公开地址
+function isOwnUploadUrl(u) {
+  if (typeof u !== 'string') return false;
+  if (/^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)) return true;
+  if (!STORAGE_ENABLED || !u.startsWith(STORAGE_PUBLIC_PREFIX)) return false;
+  // bucket 里的路径只允许 目录/文件名 这种形状，目录名不带点，堵住 ../ 之类的花样
+  const rest = u.slice(STORAGE_PUBLIC_PREFIX.length);
+  return /^(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-][a-zA-Z0-9_\-.]*$/.test(rest) && !rest.includes('..');
+}
+if (STORAGE_ENABLED) console.log(`图片/文件将存到 Supabase Storage（bucket: ${SUPABASE_BUCKET}，单文件上限 ${Math.round(STORAGE_MAX_FILE_SIZE / 1024 / 1024)}MB）`);
+else console.log('未配置 SUPABASE_SERVICE_KEY，图片/文件存在本机磁盘（部署到 Render 的话重新部署会清空）');
+
 // ==================== 图片上传 ====================
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -100,7 +170,10 @@ app.post('/upload', (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: '没有收到图片文件' });
     }
-    res.json({ url: `/uploads/${req.file.filename}` });
+    if (!STORAGE_ENABLED) return res.json({ url: `/uploads/${req.file.filename}` });
+    uploadToStorage(req.file.path, `images/${req.file.filename}`, req.file.mimetype)
+      .then((url) => res.json({ url }))
+      .catch((e) => res.status(500).json({ error: e.message }));
   });
 });
 
@@ -117,14 +190,15 @@ const uploadFile = multer({
       cb(null, `${Date.now()}-${randomName}${ext}`);
     },
   }),
-  limits: { fileSize: MAX_FILE_SIZE },
+  limits: { fileSize: STORAGE_ENABLED ? Math.min(MAX_FILE_SIZE, STORAGE_MAX_FILE_SIZE) : MAX_FILE_SIZE },
 });
 
 app.post('/upload-file', (req, res) => {
   uploadFile.single('file')(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: `文件太大了，最大支持 ${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB` });
+        const cap = STORAGE_ENABLED ? Math.min(MAX_FILE_SIZE, STORAGE_MAX_FILE_SIZE) : MAX_FILE_SIZE;
+        return res.status(400).json({ error: `文件太大了，最大支持 ${Math.round(cap / 1024 / 1024)}MB` });
       }
       return res.status(400).json({ error: err.message || '上传失败' });
     }
@@ -133,11 +207,12 @@ app.post('/upload-file', (req, res) => {
     }
     // 原始文件名做个长度截断，避免超长文件名把消息体撑得太大；存储用的文件名跟原始名无关，不影响下载时的显示名
     const originalName = String(req.file.originalname || '未命名文件').slice(0, 150);
-    res.json({
-      url: `/uploads/${req.file.filename}`,
-      name: originalName,
-      size: req.file.size,
-    });
+    if (!STORAGE_ENABLED) {
+      return res.json({ url: `/uploads/${req.file.filename}`, name: originalName, size: req.file.size });
+    }
+    uploadToStorage(req.file.path, `files/${req.file.filename}`, req.file.mimetype)
+      .then((url) => res.json({ url, name: originalName, size: req.file.size }))
+      .catch((e2) => res.status(500).json({ error: e2.message }));
   });
 });
 
@@ -229,11 +304,71 @@ app.get('/api/problem-item-export', async (req, res) => {
 // 重新部署会清空——大文件、要长期保存的东西还是放正规网盘，这里定位是团队内部随手共享。
 const DRIVE_DIR = path.join(__dirname, 'drive');
 const DRIVE_INDEX_PATH = path.join(DRIVE_DIR, '.index.json');
-const DRIVE_MAX_FILE_SIZE = 200 * 1024 * 1024; // 单个文件 200MB
+// 单个文件 200MB；走 Supabase Storage 时按它的上限来（免费版 50MB）
+const DRIVE_MAX_FILE_SIZE = STORAGE_ENABLED ? Math.min(200 * 1024 * 1024, STORAGE_MAX_FILE_SIZE) : 200 * 1024 * 1024;
 const DRIVE_MAX_FILES_PER_UPLOAD = 10;
 if (!fs.existsSync(DRIVE_DIR)) fs.mkdirSync(DRIVE_DIR, { recursive: true });
 
-let driveFiles = []; // { id, name, size, folder, uploader, time, stored }  stored=磁盘上的随机文件名，不对外暴露
+let driveFiles = []; // { id, name, size, folder, uploader, time, stored, url }  stored=随机文件名；url=云端地址（存在 Storage 时才有）
+
+// 配了数据库的话，云盘索引也进数据库（.index.json 跟文件一样在临时盘上，重新部署会一起丢）
+async function ensureDriveTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS drive_files (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      size BIGINT NOT NULL DEFAULT 0,
+      folder TEXT,
+      uploader TEXT,
+      time BIGINT NOT NULL,
+      stored TEXT,
+      url TEXT
+    );
+  `);
+}
+async function loadDriveIndexFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureDriveTable();
+    const { rows } = await dbPool.query('SELECT * FROM drive_files ORDER BY time ASC;');
+    driveFiles = rows
+      .map((r) => ({ id: r.id, name: r.name, size: Number(r.size), folder: r.folder || '未分类', uploader: r.uploader || '匿名', time: Number(r.time), stored: r.stored || '', url: r.url || '' }))
+      // 本机文件要确认还在；云端的不用查
+      .filter((f) => f.url || (f.stored && fs.existsSync(path.join(DRIVE_DIR, f.stored))));
+    console.log(`已从数据库加载云盘索引，共 ${driveFiles.length} 个文件`);
+  } catch (err) {
+    console.error('[云盘索引读取数据库失败]', err.message);
+  }
+}
+async function driveInsertDB(list) {
+  if (!dbPool) return;
+  for (const f of list) {
+    try {
+      await dbPool.query(
+        'INSERT INTO drive_files (id, name, size, folder, uploader, time, stored, url) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING;',
+        [f.id, f.name, f.size, f.folder, f.uploader, f.time, f.stored || '', f.url || '']
+      );
+    } catch (err) {
+      console.error('[云盘索引写入数据库失败]', err.message);
+    }
+  }
+}
+async function driveUpdateDB(f) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('UPDATE drive_files SET name=$1, folder=$2 WHERE id=$3;', [f.name, f.folder, f.id]);
+  } catch (err) {
+    console.error('[云盘索引更新数据库失败]', err.message);
+  }
+}
+async function driveDeleteDB(id) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query('DELETE FROM drive_files WHERE id=$1;', [id]);
+  } catch (err) {
+    console.error('[云盘索引删除数据库失败]', err.message);
+  }
+}
 
 function loadDriveIndex() {
   try {
@@ -249,13 +384,14 @@ function loadDriveIndex() {
   }
 }
 function saveDriveIndex() {
+  if (dbPool) return; // 有数据库就以数据库为准，不再写本机索引
   try {
     fs.writeFileSync(DRIVE_INDEX_PATH, JSON.stringify(driveFiles, null, 2));
   } catch (err) {
     console.error('[云盘索引写入失败]', err.message);
   }
 }
-loadDriveIndex();
+if (!dbPool) loadDriveIndex(); // 有数据库的话在 startServer 里从数据库读
 
 function publicDriveList() {
   return driveFiles
@@ -313,17 +449,34 @@ app.post('/api/drive/upload', (req, res) => {
       uploader,
       time: Date.now(),
       stored: f.filename,
+      url: '',
+      _path: f.path,
+      _mime: f.mimetype,
     }));
-    driveFiles.push(...added);
-    saveDriveIndex();
-    broadcastDriveUpdate();
-    res.json({ files: added.map(({ stored, ...rest }) => rest) });
+    (async () => {
+      if (STORAGE_ENABLED) {
+        for (const f of added) {
+          f.url = await uploadToStorage(f._path, `drive/${f.stored}`, f._mime);
+        }
+      }
+      added.forEach((f) => { delete f._path; delete f._mime; });
+      driveFiles.push(...added);
+      saveDriveIndex();
+      await driveInsertDB(added);
+      broadcastDriveUpdate();
+      res.json({ files: added.map(({ stored, url, ...rest }) => rest) });
+    })().catch((e) => {
+      added.forEach((f) => { if (f._path) fs.unlink(f._path, () => {}); });
+      res.status(500).json({ error: e.message });
+    });
   });
 });
 
 app.get('/api/drive/download/:id', (req, res) => {
   const f = driveFiles.find((x) => x.id === req.params.id);
   if (!f) return res.status(404).send('文件不存在或已被删除');
+  // 云端文件：直接跳到 Storage 的公开地址，带上 download 参数让浏览器按原始文件名保存
+  if (f.url) return res.redirect(`${f.url}?download=${encodeURIComponent(f.name)}`);
   // res.download 会自动把中文文件名按 RFC 5987 编码进 Content-Disposition，浏览器保存时显示原始文件名
   res.download(path.join(DRIVE_DIR, f.stored), f.name, (err) => {
     if (err && !res.headersSent) res.status(404).send('文件不存在或已被删除');
@@ -340,6 +493,7 @@ app.post('/api/drive/rename', express.json(), (req, res) => {
   if (newName) f.name = newName;
   f.folder = String(folder || '').slice(0, 30).trim() || '未分类';
   saveDriveIndex();
+  driveUpdateDB(f);
   broadcastDriveUpdate();
   res.json({ ok: true });
 });
@@ -351,7 +505,9 @@ app.post('/api/drive/delete', express.json(), (req, res) => {
   if (idx === -1) return res.status(404).json({ error: '文件不存在或已被删除' });
   const [removed] = driveFiles.splice(idx, 1);
   saveDriveIndex();
-  fs.unlink(path.join(DRIVE_DIR, removed.stored), () => {});
+  driveDeleteDB(removed.id);
+  if (removed.url) deleteFromStorage(`drive/${removed.stored}`);
+  else fs.unlink(path.join(DRIVE_DIR, removed.stored), () => {});
   broadcastDriveUpdate();
   res.json({ ok: true });
 });
@@ -609,7 +765,7 @@ function sanitizeCaseInput(data) {
   const result = String(data.result || '').trim().slice(0, CASE_TEXT_MAX);
   const improvement = String(data.improvement || '').trim().slice(0, CASE_TEXT_MAX);
   const images = Array.isArray(data.images)
-    ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+    ? data.images.filter((u) => isOwnUploadUrl(u)).slice(0, 3)
     : [];
   const orderId = String(data.orderId || '').trim().slice(0, 60);
   const orderPublic = data.orderPublic === true;
@@ -1323,7 +1479,7 @@ wss.on('connection', (ws) => {
       let images = [];
       if (Array.isArray(data.images)) {
         images = data.images
-          .filter((url) => typeof url === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(url))
+          .filter((url) => isOwnUploadUrl(url))
           .slice(0, MAX_IMAGES_PER_MESSAGE);
       }
 
@@ -1334,7 +1490,7 @@ wss.on('connection', (ws) => {
         files = data.files
           .filter((f) =>
             f && typeof f === 'object' &&
-            typeof f.url === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(f.url) &&
+            isOwnUploadUrl(f.url) &&
             typeof f.name === 'string' &&
             typeof f.size === 'number'
           )
@@ -1643,7 +1799,7 @@ wss.on('connection', (ws) => {
 
       // 图片：只接受我们自己 /upload 接口生成的路径，最多3张
       const images = Array.isArray(data.images)
-        ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+        ? data.images.filter((u) => isOwnUploadUrl(u)).slice(0, 3)
         : [];
 
       // 脏污/破损/多货这几类是需要照片佐证的，但不强制在提交时就传——
@@ -1663,7 +1819,7 @@ wss.on('connection', (ws) => {
       const category = String(data.category || '');
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
       const images = Array.isArray(data.images)
-        ? data.images.filter((u) => typeof u === 'string' && /^\/uploads\/[a-zA-Z0-9_\-.]+$/.test(u)).slice(0, 3)
+        ? data.images.filter((u) => isOwnUploadUrl(u)).slice(0, 3)
         : [];
       if (images.length === 0) {
         ws.send(JSON.stringify({ type: 'problem_item_error', message: '没有可补传的照片' }));
@@ -2939,6 +3095,7 @@ async function startServer() {
   await loadChatHistoryFromDB();
   await loadCaseLibraryFromDB();
   await loadSpecialRequirementsFromDB();
+  await loadDriveIndexFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
   await loadRemindersFromDB();

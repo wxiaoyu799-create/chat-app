@@ -4676,6 +4676,13 @@
     };
   }
 
+  // 下载链接：本机 /uploads/ 的靠 <a download> 就行；存在 Supabase Storage 的是跨域地址，
+  // 浏览器会忽略 download 属性直接打开，所以带上 Storage 认的 ?download=文件名 让它按这个名字保存
+  function downloadHref(url, name) {
+    if (!/^https?:\/\//i.test(url || '')) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'download=' + encodeURIComponent(name || '');
+  }
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
@@ -4868,7 +4875,7 @@
       data.files.forEach((f) => {
         const card = document.createElement('a');
         card.className = 'msg-file-card';
-        card.href = f.url;
+        card.href = downloadHref(f.url, f.name || '');
         card.download = f.name || '';
         card.target = '_blank';
         card.rel = 'noopener noreferrer';
@@ -6856,8 +6863,8 @@
           box.appendChild(im);
           const dl = document.createElement('a');
           dl.className = 'img-download';
-          dl.href = url;
           dl.download = `问题件-${report.orderId || report.id}-${idx + 1}.jpg`;
+          dl.href = downloadHref(url, dl.download);
           dl.title = '下载到本地';
           dl.innerHTML = '<i class="ti ti-download"></i>';
           dl.addEventListener('click', (e) => e.stopPropagation());
@@ -7600,8 +7607,8 @@
           box.appendChild(im);
           const dl = document.createElement('a');
           dl.className = 'img-download';
-          dl.href = url;
           dl.download = `案例-${c.id}-${idx + 1}.jpg`;
+          dl.href = downloadHref(url, dl.download);
           dl.title = '下载到本地';
           dl.innerHTML = '<i class="ti ti-download"></i>';
           dl.addEventListener('click', (e) => e.stopPropagation());

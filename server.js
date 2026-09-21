@@ -218,6 +218,51 @@ app.post('/upload-file', (req, res) => {
 
 // 问题件提醒导出：把"已解决"和"转处理"这两种终结状态的记录按分类/日期范围导出成CSV表格，
 // 用浏览器直接打开这个链接就会触发下载，不用密码保护——导出是查看性质的操作，不是破坏性的
+// ==================== 聊天记录关键词搜索 ====================
+// 有数据库就搜全部历史（包括早已不在内存里的老消息）；没数据库就只能搜内存里最近这 100 条
+const SEARCH_MAX_RESULTS = 60;
+app.get('/api/messages/search', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  if (!q) return res.json({ results: [], total: 0 });
+  const pick = (m) => ({ id: m.id, username: m.username, text: m.text || '', time: m.time, hasImages: (m.images || []).length > 0, hasFiles: (m.files || []).length > 0 });
+  if (!dbPool) {
+    const lower = q.toLowerCase();
+    const hits = history.filter((m) => m.type === 'message' && !m.deletedAt && String(m.text || '').toLowerCase().includes(lower));
+    return res.json({ results: hits.slice(-SEARCH_MAX_RESULTS).reverse().map(pick), total: hits.length, scope: 'memory' });
+  }
+  try {
+    // ILIKE 的 % _ 要转义，不然搜 "100%" 这种会变成通配
+    const BS = String.fromCharCode(92);
+    const pattern = '%' + q.split('').map((ch) => (ch === '%' || ch === '_' || ch === BS ? BS + ch : ch)).join('') + '%';
+    const { rows } = await dbPool.query(
+      "SELECT * FROM chat_messages WHERE deleted_at IS NULL AND text ILIKE $1 ESCAPE '" + BS + "' ORDER BY id DESC LIMIT $2;",
+      [pattern, SEARCH_MAX_RESULTS + 1]
+    );
+    const more = rows.length > SEARCH_MAX_RESULTS;
+    res.json({ results: rows.slice(0, SEARCH_MAX_RESULTS).map((r) => pick(rowToChatMessage(r))), total: rows.length, more, scope: 'db' });
+  } catch (err) {
+    console.error('[聊天搜索失败]', err.message);
+    res.status(500).json({ error: '搜索失败：' + err.message });
+  }
+});
+// 某条老消息的前后各 15 条，给搜索结果点开看上下文用（内存里已经没有的那些）
+app.get('/api/messages/context', async (req, res) => {
+  const id = Number(req.query.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: '缺少消息ID' });
+  if (!dbPool) {
+    const idx = history.findIndex((m) => m.id === id);
+    if (idx === -1) return res.json({ messages: [] });
+    return res.json({ messages: history.slice(Math.max(0, idx - 15), idx + 16).filter((m) => m.type === 'message' && !m.deletedAt) });
+  }
+  try {
+    const before = await dbPool.query('SELECT * FROM chat_messages WHERE id <= $1 AND deleted_at IS NULL ORDER BY id DESC LIMIT 16;', [id]);
+    const after = await dbPool.query('SELECT * FROM chat_messages WHERE id > $1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 15;', [id]);
+    res.json({ messages: before.rows.reverse().concat(after.rows).map(rowToChatMessage) });
+  } catch (err) {
+    res.status(500).json({ error: '读取失败：' + err.message });
+  }
+});
+
 app.get('/api/problem-item-export', async (req, res) => {
   if (!dbPool) {
     res.status(503).send('数据库未配置，没有历史数据可以导出');
@@ -545,6 +590,25 @@ async function ensureChatMessagesTable() {
   await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`);
 }
 
+function rowToChatMessage(row) {
+  return {
+    type: 'message',
+    id: Number(row.id),
+    username: row.username,
+    text: row.text,
+    images: row.images || [],
+    files: row.files || [],
+    mentions: row.mentions || [],
+    mentionsAll: row.mentions_all,
+    quote: row.quote,
+    reactions: row.reactions || {},
+    pending: row.pending,
+    time: Number(row.msg_time),
+    editedAt: row.edited_at ? new Date(row.edited_at).getTime() : null,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
+  };
+}
+
 async function loadChatHistoryFromDB() {
   if (!dbPool) return;
   try {
@@ -554,22 +618,7 @@ async function loadChatHistoryFromDB() {
       'SELECT * FROM chat_messages ORDER BY id DESC LIMIT $1;',
       [MAX_HISTORY]
     );
-    history = rows.reverse().map((row) => ({
-      type: 'message',
-      id: Number(row.id),
-      username: row.username,
-      text: row.text,
-      images: row.images || [],
-      files: row.files || [],
-      mentions: row.mentions || [],
-      mentionsAll: row.mentions_all,
-      quote: row.quote,
-      reactions: row.reactions || {},
-      pending: row.pending,
-      time: Number(row.msg_time),
-      editedAt: row.edited_at ? new Date(row.edited_at).getTime() : null,
-      deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
-    }));
+    history = rows.reverse().map(rowToChatMessage);
     if (history.length > 0) {
       // 下一条消息的ID接着数据库里最大的那个往后排，避免重启后ID撞车
       nextMessageId = Math.max(...history.map((m) => m.id)) + 1;

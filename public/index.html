@@ -137,6 +137,119 @@
   }
   header h2 { margin: 0; font-size: 22px; }
   header .status { font-size: 12px; color: var(--muted); }
+  .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  #chat-search-btn, #right-sidebar-toggle {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+  }
+  #chat-search-btn:hover, #right-sidebar-toggle:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  #chat-search-btn.active { color: var(--accent); border-color: var(--accent); }
+  /* 右侧栏收起：整个 #app 变成两栏，聊天区把空出来的宽度吃掉 */
+  #app.right-collapsed { grid-template-columns: 200px 1fr; }
+  #app.right-collapsed > #quick-sidebar { display: none; }
+  @media (max-width: 900px) { #right-sidebar-toggle { display: none; } }
+
+  /* ---- 聊天记录搜索面板 ---- */
+  #chat-search-panel {
+    display: none;
+    position: relative;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px 12px;
+    max-height: 55vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  #chat-search-panel.active { display: block; }
+  #chat-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    border-radius: 9px;
+    padding: 0 8px 0 10px;
+    color: var(--muted);
+  }
+  #chat-search-row:focus-within { border-color: var(--accent); }
+  #chat-search-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 9px 0;
+  }
+  #chat-search-close {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 15px;
+    padding: 4px;
+    cursor: pointer;
+  }
+  #chat-search-close:hover { color: var(--text); background: transparent; }
+  #chat-search-summary { font-size: 12px; color: var(--muted); margin: 8px 2px 6px; min-height: 14px; }
+  #chat-search-results { display: flex; flex-direction: column; gap: 4px; }
+  .chat-search-hit {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .chat-search-hit:hover { border-color: var(--accent); background: var(--bg); }
+  .chat-search-hit .hit-meta { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; display: flex; gap: 8px; align-items: center; }
+  .chat-search-hit .hit-meta .hit-name { font-weight: 600; color: var(--text); }
+  .chat-search-hit .hit-meta .hit-attach { font-size: 11px; }
+  .chat-search-hit .hit-text {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #chat-search-panel mark { background: rgba(245, 196, 179, 0.6); color: inherit; border-radius: 3px; padding: 0 1px; }
+  #chat-search-context { display: none; }
+  #chat-search-context.active { display: block; }
+  #chat-search-context-head { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); margin: 8px 0; }
+  #chat-search-back {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    font-size: 12px;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #chat-search-back:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
+  #chat-search-context-list { display: flex; flex-direction: column; gap: 6px; }
+  .ctx-msg { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 7px 12px; }
+  .ctx-msg.is-target { border-color: #f0a94e; box-shadow: 0 0 0 2px rgba(240, 169, 78, 0.25); }
+  .ctx-msg .ctx-meta { font-size: 11.5px; color: var(--muted); margin-bottom: 2px; }
+  .ctx-msg .ctx-meta b { color: var(--text); }
+  .ctx-msg .ctx-text { font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .ctx-msg .ctx-imgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .ctx-msg .ctx-imgs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
   .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .username-block { position: relative; display: flex; flex-direction: column; gap: 2px; }
   .my-username {
@@ -3353,8 +3466,29 @@
         </div>
         <h2><i class="ti ti-message-circle icon-soft"></i> CC</h2>
       </div>
-      <span class="status" id="conn-status">连接中...</span>
+      <div class="header-right">
+        <span class="status" id="conn-status">连接中...</span>
+        <button id="chat-search-btn" type="button" title="搜索聊天记录"><i class="ti ti-search"></i></button>
+        <button id="right-sidebar-toggle" type="button" title="收起右侧栏，聊天区更宽"><i class="ti ti-layout-sidebar-right-collapse"></i></button>
+      </div>
     </header>
+    <!-- 聊天记录搜索：从头部下拉出来的面板 -->
+    <div id="chat-search-panel">
+      <div id="chat-search-row">
+        <i class="ti ti-search"></i>
+        <input id="chat-search-input" type="search" placeholder="输入关键词，回车搜索（单号、人名、任意文字）" autocomplete="off" />
+        <button id="chat-search-close" type="button" title="关闭"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="chat-search-summary"></div>
+      <div id="chat-search-results"></div>
+      <div id="chat-search-context">
+        <div id="chat-search-context-head">
+          <button id="chat-search-back" type="button"><i class="ti ti-arrow-left"></i> 返回结果</button>
+          <span>上下文（前后各 15 条）</span>
+        </div>
+        <div id="chat-search-context-list"></div>
+      </div>
+    </div>
     <button id="pending-panel-toggle" type="button" class="collapsed">
       <span><span class="module-icon-badge"><i class="ti ti-flag"></i></span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
@@ -7273,6 +7407,147 @@
       closeProblemItemOptionsEdit();
     } else if (problemItemOverlay.classList.contains('active')) {
       closeProblemItemOverlay();
+    }
+  });
+
+  // ===== 右侧栏收起/展开：默认展开，收起后聊天区变宽；记在本机，下次打开还是那样 =====
+  const rightSidebarToggle = document.getElementById('right-sidebar-toggle');
+  const RIGHT_SIDEBAR_KEY = 'ccRightSidebarCollapsed';
+  function applyRightSidebarState(collapsed) {
+    appEl.classList.toggle('right-collapsed', collapsed);
+    rightSidebarToggle.innerHTML = collapsed
+      ? '<i class="ti ti-layout-sidebar-right-expand"></i>'
+      : '<i class="ti ti-layout-sidebar-right-collapse"></i>';
+    rightSidebarToggle.title = collapsed ? '展开右侧栏' : '收起右侧栏，聊天区更宽';
+  }
+  rightSidebarToggle.addEventListener('click', () => {
+    const collapsed = !appEl.classList.contains('right-collapsed');
+    applyRightSidebarState(collapsed);
+    try { localStorage.setItem(RIGHT_SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) { /* 忽略 */ }
+  });
+  try { applyRightSidebarState(localStorage.getItem(RIGHT_SIDEBAR_KEY) === '1'); } catch (e) { /* 忽略 */ }
+
+  // ===== 聊天记录关键词搜索 =====
+  // 搜的是数据库里的全部历史（没配数据库时只有内存里最近的）。命中的消息还在当前屏幕上就直接跳过去高亮；
+  // 已经不在屏幕上的老消息，点开看它前后各 15 条的上下文
+  const chatSearchBtn = document.getElementById('chat-search-btn');
+  const chatSearchPanel = document.getElementById('chat-search-panel');
+  const chatSearchInput = document.getElementById('chat-search-input');
+  const chatSearchClose = document.getElementById('chat-search-close');
+  const chatSearchSummary = document.getElementById('chat-search-summary');
+  const chatSearchResults = document.getElementById('chat-search-results');
+  const chatSearchContext = document.getElementById('chat-search-context');
+  const chatSearchContextList = document.getElementById('chat-search-context-list');
+  const chatSearchBack = document.getElementById('chat-search-back');
+  let chatSearchLastKeyword = '';
+
+  function formatSearchTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function openChatSearch() {
+    chatSearchPanel.classList.add('active');
+    chatSearchBtn.classList.add('active');
+    chatSearchInput.focus();
+    chatSearchInput.select();
+  }
+  function closeChatSearch() {
+    chatSearchPanel.classList.remove('active');
+    chatSearchBtn.classList.remove('active');
+    chatSearchContext.classList.remove('active');
+    chatSearchResults.style.display = '';
+  }
+  function jumpToMessageInView(messageId) {
+    const target = messagesEl.querySelector(`[data-message-id="${messageId}"]`);
+    if (!target) return false;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('jump-highlight');
+    setTimeout(() => target.classList.remove('jump-highlight'), 1500);
+    return true;
+  }
+  async function runChatSearch() {
+    const q = chatSearchInput.value.trim();
+    if (!q) { chatSearchSummary.textContent = ''; chatSearchResults.innerHTML = ''; return; }
+    chatSearchLastKeyword = q;
+    chatSearchContext.classList.remove('active');
+    chatSearchResults.style.display = '';
+    chatSearchSummary.textContent = '搜索中…';
+    chatSearchResults.innerHTML = '';
+    let data;
+    try {
+      const res = await fetch('/api/messages/search?q=' + encodeURIComponent(q), { cache: 'no-store' });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || '搜索失败');
+    } catch (err) {
+      chatSearchSummary.textContent = err.message;
+      return;
+    }
+    const results = data.results || [];
+    chatSearchSummary.textContent = results.length === 0
+      ? '没搜到'
+      : `找到 ${data.more ? results.length + '+' : results.length} 条` + (data.scope === 'memory' ? '（未连数据库，只搜了最近的消息）' : '') + '，点一条跳过去';
+    results.forEach((m) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chat-search-hit';
+      const attach = (m.hasImages ? ' <i class="ti ti-photo"></i>' : '') + (m.hasFiles ? ' <i class="ti ti-paperclip"></i>' : '');
+      btn.innerHTML = `<div class="hit-meta"><span class="hit-name">${escapeHtml(m.username || '')}</span><span>${formatSearchTime(m.time)}</span><span class="hit-attach">${attach}</span></div>`
+        + `<div class="hit-text">${highlightCell(m.text || '', q)}</div>`;
+      btn.addEventListener('click', () => {
+        if (jumpToMessageInView(m.id)) { closeChatSearch(); return; }
+        showChatSearchContext(m.id);
+      });
+      chatSearchResults.appendChild(btn);
+    });
+  }
+  async function showChatSearchContext(messageId) {
+    chatSearchResults.style.display = 'none';
+    chatSearchContext.classList.add('active');
+    chatSearchContextList.innerHTML = '<div class="ctx-msg">读取中…</div>';
+    let data;
+    try {
+      const res = await fetch('/api/messages/context?id=' + encodeURIComponent(messageId), { cache: 'no-store' });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || '读取失败');
+    } catch (err) {
+      chatSearchContextList.innerHTML = `<div class="ctx-msg">${escapeHtml(err.message)}</div>`;
+      return;
+    }
+    chatSearchContextList.innerHTML = '';
+    let targetEl = null;
+    (data.messages || []).forEach((m) => {
+      const div = document.createElement('div');
+      div.className = 'ctx-msg' + (String(m.id) === String(messageId) ? ' is-target' : '');
+      const imgs = Array.isArray(m.images) ? m.images : [];
+      div.innerHTML = `<div class="ctx-meta"><b>${escapeHtml(m.username || '')}</b> ${formatSearchTime(m.time)}</div>`
+        + `<div class="ctx-text">${String(m.id) === String(messageId) ? highlightCell(m.text || '', chatSearchLastKeyword) : escapeHtml(m.text || '')}</div>`
+        + (imgs.length ? `<div class="ctx-imgs">${imgs.map((u) => `<img src="${escapeHtml(u)}" alt="图片">`).join('')}</div>` : '');
+      div.querySelectorAll('.ctx-imgs img').forEach((im, idx) => im.addEventListener('click', () => openImageLightbox(imgs, idx)));
+      chatSearchContextList.appendChild(div);
+      if (String(m.id) === String(messageId)) targetEl = div;
+    });
+    if (targetEl) targetEl.scrollIntoView({ block: 'center' });
+  }
+  chatSearchBtn.addEventListener('click', () => {
+    if (chatSearchPanel.classList.contains('active')) closeChatSearch(); else openChatSearch();
+  });
+  chatSearchClose.addEventListener('click', closeChatSearch);
+  chatSearchBack.addEventListener('click', () => {
+    chatSearchContext.classList.remove('active');
+    chatSearchResults.style.display = '';
+  });
+  chatSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runChatSearch(); }
+    if (e.key === 'Escape') closeChatSearch();
+  });
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+F / Cmd+F 直接打开聊天搜索，比浏览器自带的查找好用（能搜到不在屏幕上的老消息）
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && appEl.classList.contains('active')) {
+      const tag = (document.activeElement && document.activeElement.tagName) || '';
+      if (tag === 'TEXTAREA' && document.activeElement !== textInput) return;
+      e.preventDefault();
+      openChatSearch();
     }
   });
 

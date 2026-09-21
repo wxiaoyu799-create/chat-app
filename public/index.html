@@ -1702,6 +1702,91 @@
   .problem-item-badge.show { display: block; }
 
   /* ===== 问题件列表全屏面板 ===== */
+  /* ===== 群标签 ===== */
+  #group-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+  #group-tabs-scroll { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: none; }
+  #group-tabs-scroll::-webkit-scrollbar { display: none; }
+  .group-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    max-width: 180px;
+  }
+  .group-tab:hover { background: var(--hover-dark); color: var(--text); }
+  .group-tab.active { background: var(--accent); color: #fff; }
+  .group-tab .gt-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .group-tab .gt-pin { font-size: 13px; opacity: 0.35; cursor: pointer; line-height: 1; }
+  .group-tab .gt-pin.on { opacity: 1; color: #f0a94e; }
+  .group-tab.active .gt-pin.on { color: #ffd98a; }
+  .group-tab:hover .gt-pin { opacity: 0.8; }
+  .group-tab .gt-unread {
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: #e5534b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+  }
+  .group-tab .gt-unread:empty { display: none; }
+  .group-tab.not-member { opacity: 0.55; font-style: italic; }
+  #group-manage-btn {
+    width: 28px; height: 28px; padding: 0; flex-shrink: 0;
+    align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--muted); font-size: 15px; cursor: pointer;
+  }
+  #group-manage-btn:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  body.role-admin #group-manage-btn { display: inline-flex !important; }
+  .reminder-group-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
+  #reminder-group-select {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: inherit; font-size: 12px; padding: 5px 6px;
+  }
+  .reminder-group-tag { font-size: 11px; color: var(--accent); margin-left: 6px; }
+  /* 群管理弹层 */
+  #group-manage-panel {
+    display: none; position: fixed; inset: 0; z-index: 10003;
+    background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px;
+  }
+  #group-manage-panel.active { display: flex; }
+  #group-manage-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; }
+  #group-manage-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .gm-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 12px; font-size: 13px; cursor: pointer; font-family: inherit; color: var(--text);
+  }
+  .gm-chip:hover, .gm-chip.active { border-color: var(--accent); color: var(--accent); background: var(--panel); }
+  .gm-chip .gm-count { font-size: 11px; color: var(--muted); }
+  .gm-chip.new { border-style: dashed; }
+  #group-manage-form { border-top: 1px solid var(--border); padding-top: 14px; }
+  #group-form-name { width: 100%; box-sizing: border-box; margin: 8px 0 10px; }
+  #group-form-members-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #group-form-members { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 10px; max-height: 40vh; overflow-y: auto; margin-bottom: 8px; }
+  #group-form-members label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; padding: 3px 0; }
+  #group-form-members label input { accent-color: var(--accent); }
+  #group-form-members label .gm-role { font-size: 11px; color: var(--muted); }
+  #group-form-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 6px; }
+  #group-form-delete-btn.hidden { display: none; }
+  @media (max-width: 640px) {
+    .group-tab { font-size: 12px; padding: 4px 10px; max-width: 130px; }
+  }
+
   /* ===== 账号 / 角色 ===== */
   #password-input { margin-top: 10px; }
   #my-role-tag {
@@ -3598,6 +3683,11 @@
         <div id="chat-search-context-list"></div>
       </div>
     </div>
+    <!-- 群标签：置顶的在前，图钉在名字后面；红点 = 这个群里没看过的条数 -->
+    <div id="group-tabs">
+      <div id="group-tabs-scroll"></div>
+      <button id="group-manage-btn" class="admin-only" type="button" title="建群 / 拉人"><i class="ti ti-users-plus"></i></button>
+    </div>
     <button id="pending-panel-toggle" type="button" class="collapsed">
       <span><span class="module-icon-badge"><i class="ti ti-flag"></i></span> 待处理事项 <span id="pending-count-badge"></span></span>
       <span class="sidebar-toggle-arrow">▶</span>
@@ -3778,6 +3868,10 @@
           <label><input type="checkbox" value="0" checked />日</label>
         </div>
         <textarea id="reminder-text-input" placeholder="提醒内容..." rows="2"></textarea>
+        <div class="reminder-group-row">
+          <span>发到</span>
+          <select id="reminder-group-select"></select>
+        </div>
         <input type="password" id="reminder-password-input" placeholder="编辑密码" autocomplete="off" />
         <div class="pin-edit-actions-row">
           <button id="reminder-save-btn">保存</button>
@@ -4049,6 +4143,28 @@
     <div class="announce-from" id="announce-from"></div>
     <div class="announce-text" id="announce-text"></div>
     <button id="announce-close-btn">知道了</button>
+  </div>
+</div>
+
+<!-- ===== 群管理（管理员）===== -->
+<div id="group-manage-panel">
+  <div id="group-manage-card">
+    <div class="problem-item-options-edit-title">群管理</div>
+    <div class="problem-item-options-edit-desc">全员群自动包含所有账号，不用管。下面是建的群：点一个改名字、改成员，或者新建一个。</div>
+    <div id="group-manage-list"></div>
+    <div id="group-manage-form">
+      <div class="problem-item-options-edit-title" id="group-form-title" style="font-size:14px">新建群</div>
+      <input id="group-form-name" type="text" maxlength="30" placeholder="群名" autocomplete="off" />
+      <div id="group-form-members-head"><span>成员</span><button id="group-form-select-all" type="button" class="pin-edit-btn">全选 / 全不选</button></div>
+      <div id="group-form-members"></div>
+      <div id="group-form-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="group-form-delete-btn" type="button" class="pin-edit-btn" style="color:#e5534b">删除这个群</button>
+        <span style="flex:1"></span>
+        <button id="group-form-cancel-btn" type="button" class="pin-edit-btn">关闭</button>
+        <button id="group-form-save-btn" type="button">保存</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4679,6 +4795,17 @@
   ];
   const REMOVED_QUICK_CATEGORIES = ['代拍', '代购', '煤炉'];
 
+  // ===== 群组：当前在哪个群、群列表、每个群的未读数 =====
+  const ALL_GROUP_ID = 'all';
+  const LAST_GROUP_KEY = 'ccLastGroup';
+  let currentGroupId = ALL_GROUP_ID;
+  try { currentGroupId = localStorage.getItem(LAST_GROUP_KEY) || ALL_GROUP_ID; } catch (e) { /* 忽略 */ }
+  let groupsData = []; // 服务器给的：{ id, name, members, isAll, memberOfIt, pinned, unread, lastTime }
+  let lastSeenMessageId = 0; // 当前群里已经渲染到的最大消息ID，切群/新消息时报给服务器当"看到哪了"
+
+  function findGroupLocal(id) { return groupsData.find((g) => g.id === String(id)) || null; }
+  function currentGroupName() { const g = findGroupLocal(currentGroupId); return g ? g.name : ''; }
+
   // ===== 登录状态：令牌记在本机，刷新不用重登；角色决定页面上哪些按钮显示 =====
   const AUTH_TOKEN_KEY = 'ccAuthToken';
   let authToken = '';
@@ -4713,7 +4840,7 @@
 
     ws.onopen = () => {
       connStatus.textContent = '已连接';
-      ws.send(JSON.stringify({ type: 'join', token: authToken }));
+      ws.send(JSON.stringify({ type: 'join', token: authToken, groupId: currentGroupId }));
     };
 
     ws.onclose = () => {
@@ -4759,11 +4886,39 @@
           try { sessionStorage.setItem('ccPwHintShown', '1'); } catch (e) { /* 忽略 */ }
           openAccountPanel();
         }
+      } else if (data.type === 'groups') {
+        groupsData = Array.isArray(data.groups) ? data.groups : [];
+        // 当前群不见了（被踢出群/群被删）就退回全员群
+        const cur = findGroupLocal(currentGroupId);
+        if (!cur || !cur.memberOfIt) {
+          currentGroupId = ALL_GROUP_ID;
+          try { localStorage.setItem(LAST_GROUP_KEY, ALL_GROUP_ID); } catch (e) { /* 忽略 */ }
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_switch', groupId: ALL_GROUP_ID }));
+        }
+        renderGroupTabs();
+        renderReminderGroupOptions();
+        if (groupManagePanel.classList.contains('active')) {
+          renderGroupManageList();
+          if (editingGroupId && !findGroupLocal(editingGroupId)) selectGroupForEdit(null);
+        }
+      } else if (data.type === 'group_saved') {
+        groupFormError.textContent = '';
+        if (data.id) { editingGroupId = data.id; groupFormTitle.textContent = '✓ 已保存'; setTimeout(() => { const g = findGroupLocal(editingGroupId); if (g) groupFormTitle.textContent = `编辑：${g.name}`; }, 900); }
+        else selectGroupForEdit(null);
+      } else if (data.type === 'group_error') {
+        groupFormError.textContent = data.message || '操作失败';
       } else if (data.type === 'history') {
         joinBtn.disabled = false;
+        if (data.groupId) {
+          currentGroupId = data.groupId;
+          try { localStorage.setItem(LAST_GROUP_KEY, currentGroupId); } catch (e) { /* 忽略 */ }
+          renderGroupTabs();
+        }
         messagesEl.innerHTML = '';
         data.messages.forEach((m) => renderMessage(m, { live: false }));
         scrollToBottom();
+        lastSeenMessageId = data.messages.reduce((mx, m) => (typeof m.id === 'number' && m.id > mx ? m.id : mx), 0);
+        markGroupRead(currentGroupId, lastSeenMessageId);
         // 历史消息里可能已经有之前标记过、还没处理完的待处理项，扫一遍填进侧边栏列表里，
         // 不然刚进聊天室的人看不到"之前就已经有的"待处理事项
         pendingMessages.clear();
@@ -4774,8 +4929,21 @@
         });
         renderPendingList();
       } else if (data.type === 'message') {
+        // 别的群来的消息：不画在当前屏幕上，只给那个群的标签加红点；@ 我的照样弹提醒
+        if (data.groupId && !data.private && data.groupId !== currentGroupId) {
+          bumpGroupUnread(data.groupId);
+          notifyIfMentioned(data);
+          maybeShowAnnounceOverlay(data);
+          return;
+        }
         renderMessage(data, { live: true });
         scrollToBottom();
+        if (typeof data.id === 'number' && data.id > lastSeenMessageId) {
+          lastSeenMessageId = data.id;
+          if (data.groupId && data.username !== username) markGroupRead(data.groupId, data.id);
+        }
+        const gl = findGroupLocal(data.groupId || ALL_GROUP_ID);
+        if (gl) { gl.lastTime = Date.now(); renderGroupTabs(); }
         notifyIfMentioned(data);
         maybeShowAnnounceOverlay(data);
       } else if (data.type === 'system') {
@@ -4994,7 +5162,8 @@
           if (reactionBtn) applyLiveReactionUpdate(reactionBtn, Array.isArray(data.users) ? data.users : []);
         }
       } else if (data.type === 'pending_update') {
-        applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
+        // 只处理当前群的；别的群的待办不进这边的列表
+        if (!data.groupId || data.groupId === currentGroupId) applyPendingUpdate(data.messageId, data.pending, data.username, data.text);
       } else if (data.type === 'message_edited') {
         applyMessageEdited(data.messageId, data.text);
       } else if (data.type === 'message_deleted') {
@@ -5028,6 +5197,7 @@
           });
         }
       } else if (data.type === 'typing') {
+        if (data.groupId && data.groupId !== currentGroupId) return;
         typingEl.textContent = `${data.username} 正在输入...`;
         clearTimeout(typingEl._t);
         typingEl._t = setTimeout(() => { typingEl.textContent = ''; }, 1500);
@@ -6253,6 +6423,24 @@
     return `每周${dayLabels} ${timeStr}`;
   }
 
+  const reminderGroupSelect = document.getElementById('reminder-group-select');
+  function renderReminderGroupOptions() {
+    const keep = reminderGroupSelect.value;
+    reminderGroupSelect.innerHTML = '';
+    groupsData.filter((g) => g.memberOfIt || myRole === 'admin').forEach((g) => {
+      const opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = g.isAll ? '全员群' : g.name;
+      reminderGroupSelect.appendChild(opt);
+    });
+    if (keep && findGroupLocal(keep)) reminderGroupSelect.value = keep;
+  }
+  function reminderGroupLabel(r) {
+    if (!r.groupId || r.groupId === ALL_GROUP_ID) return '';
+    const g = findGroupLocal(r.groupId);
+    return g ? g.name : '（群已删除）';
+  }
+
   function renderReminderList(list) {
     reminderListEl.innerHTML = '';
     if (!Array.isArray(list) || list.length === 0) {
@@ -6269,6 +6457,13 @@
       const schedule = document.createElement('div');
       schedule.className = 'reminder-schedule';
       schedule.textContent = formatReminderSchedule(r);
+      const gLabel = reminderGroupLabel(r);
+      if (gLabel) {
+        const tag = document.createElement('span');
+        tag.className = 'reminder-group-tag';
+        tag.textContent = '→ ' + gLabel;
+        schedule.appendChild(tag);
+      }
       item.appendChild(schedule);
 
       const text = document.createElement('div');
@@ -6303,6 +6498,8 @@
     if (existing) {
       reminderTimeInput.value = `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`;
       reminderTextInput.value = existing.text;
+      renderReminderGroupOptions();
+      reminderGroupSelect.value = (existing.groupId && findGroupLocal(existing.groupId)) ? existing.groupId : ALL_GROUP_ID;
       const selectedDays = existing.weekdays || [0, 1, 2, 3, 4, 5, 6];
       reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
         cb.checked = selectedDays.includes(Number(cb.value));
@@ -6311,6 +6508,8 @@
       reminderTimeInput.value = '';
       reminderTextInput.value = '';
       reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+      renderReminderGroupOptions();
+      reminderGroupSelect.value = currentGroupId; // 默认发到现在正开着的群
     }
     reminderPasswordInput.value = '';
     reminderErrorMsg.classList.remove('active');
@@ -6361,9 +6560,9 @@
     lastReminderAction = 'edit';
     if (ws && ws.readyState === WebSocket.OPEN) {
       if (editingReminderId) {
-        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password }));
+        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || ALL_GROUP_ID }));
       } else {
-        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password }));
+        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || ALL_GROUP_ID }));
       }
     }
     // 同样不在这里关闭——等服务器广播reminder_list回来再关，密码错了会在原地提示
@@ -7635,6 +7834,161 @@
     }
   });
 
+  // ===== 群标签栏 =====
+  const groupTabsScroll = document.getElementById('group-tabs-scroll');
+  const groupManageBtn = document.getElementById('group-manage-btn');
+
+  function sortedGroups() {
+    // 置顶的在前；同为置顶/非置顶时全员群最前，其余按最近有消息的排
+    return [...groupsData].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      if (a.isAll !== b.isAll) return a.isAll ? -1 : 1;
+      return (b.lastTime || 0) - (a.lastTime || 0);
+    });
+  }
+  function renderGroupTabs() {
+    groupTabsScroll.innerHTML = '';
+    sortedGroups().forEach((g) => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'group-tab' + (g.id === currentGroupId ? ' active' : '') + (g.memberOfIt ? '' : ' not-member');
+      tab.title = g.memberOfIt ? `${g.name} · ${g.members.length} 人` : `${g.name}（你不在这个群里，只能管理）`;
+      tab.innerHTML = `<span class="gt-name">${escapeHtml(g.name)}</span>`
+        + `<span class="gt-pin${g.pinned ? ' on' : ''}" title="${g.pinned ? '取消置顶' : '置顶'}"><i class="ti ${g.pinned ? 'ti-pin-filled' : 'ti-pin'}"></i></span>`
+        + `<span class="gt-unread">${g.unread > 0 ? (g.unread > 99 ? '99+' : g.unread) : ''}</span>`;
+      tab.querySelector('.gt-pin').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_pin', groupId: g.id, pinned: !g.pinned }));
+      });
+      tab.addEventListener('click', () => {
+        if (!g.memberOfIt) { if (myRole === 'admin') openGroupManage(g.id); return; }
+        switchGroup(g.id);
+      });
+      groupTabsScroll.appendChild(tab);
+    });
+    updateTitleUnread();
+  }
+  function switchGroup(groupId) {
+    if (groupId === currentGroupId) return;
+    currentGroupId = groupId;
+    try { localStorage.setItem(LAST_GROUP_KEY, groupId); } catch (e) { /* 忽略 */ }
+    renderGroupTabs();
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_switch', groupId }));
+    closeChatSearch();
+  }
+  // 告诉服务器"这个群我看到第几条了"，并把本地红点清零
+  function markGroupRead(groupId, lastId) {
+    if (!lastId) return;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_read', groupId, lastId }));
+    const g = findGroupLocal(groupId);
+    if (g && g.unread) { g.unread = 0; renderGroupTabs(); }
+  }
+  function bumpGroupUnread(groupId) {
+    const g = findGroupLocal(groupId);
+    if (!g) return;
+    g.unread = (g.unread || 0) + 1;
+    g.lastTime = Date.now();
+    renderGroupTabs();
+  }
+  // 标题栏也带上未读总数，切到别的程序也看得见
+  function updateTitleUnread() {
+    const total = groupsData.reduce((n, g) => n + (g.unread || 0), 0);
+    const base = 'CC';
+    document.title = total > 0 ? `(${total}) ${base}` : base;
+  }
+
+  // ===== 群管理（管理员）=====
+  const groupManagePanel = document.getElementById('group-manage-panel');
+  const groupManageList = document.getElementById('group-manage-list');
+  const groupFormTitle = document.getElementById('group-form-title');
+  const groupFormName = document.getElementById('group-form-name');
+  const groupFormMembers = document.getElementById('group-form-members');
+  const groupFormSelectAll = document.getElementById('group-form-select-all');
+  const groupFormError = document.getElementById('group-form-error');
+  const groupFormDeleteBtn = document.getElementById('group-form-delete-btn');
+  const groupFormCancelBtn = document.getElementById('group-form-cancel-btn');
+  const groupFormSaveBtn = document.getElementById('group-form-save-btn');
+  let editingGroupId = null; // null = 新建
+  let allUsersForGroups = [];
+
+  async function openGroupManage(selectId) {
+    groupFormError.textContent = '';
+    groupManagePanel.classList.add('active');
+    try {
+      const res = await authFetch('/api/admin/users', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '读取账号失败');
+      allUsersForGroups = (data.users || []).filter((u) => !u.disabled);
+    } catch (err) {
+      groupFormError.textContent = err.message;
+      allUsersForGroups = [];
+    }
+    renderGroupManageList();
+    selectGroupForEdit(selectId || null);
+  }
+  function closeGroupManage() { groupManagePanel.classList.remove('active'); }
+  function renderGroupManageList() {
+    groupManageList.innerHTML = '';
+    groupsData.filter((g) => !g.isAll).forEach((g) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'gm-chip' + (editingGroupId === g.id ? ' active' : '');
+      chip.innerHTML = `${escapeHtml(g.name)} <span class="gm-count">${g.members.length}人</span>`;
+      chip.addEventListener('click', () => selectGroupForEdit(g.id));
+      groupManageList.appendChild(chip);
+    });
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'gm-chip new' + (editingGroupId === null ? ' active' : '');
+    add.innerHTML = '<i class="ti ti-plus"></i> 新建群';
+    add.addEventListener('click', () => selectGroupForEdit(null));
+    groupManageList.appendChild(add);
+  }
+  function selectGroupForEdit(id) {
+    editingGroupId = id;
+    const g = id ? findGroupLocal(id) : null;
+    groupFormTitle.textContent = g ? `编辑：${g.name}` : '新建群';
+    groupFormName.value = g ? g.name : '';
+    groupFormDeleteBtn.classList.toggle('hidden', !g);
+    groupFormError.textContent = '';
+    groupFormMembers.innerHTML = '';
+    const chosen = new Set(g ? g.members : []);
+    allUsersForGroups.forEach((u) => {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" value="${escapeHtml(u.username)}" ${chosen.has(u.username) ? 'checked' : ''}> ${escapeHtml(u.username)} <span class="gm-role">${escapeHtml(u.roleLabel || '')}</span>`;
+      groupFormMembers.appendChild(label);
+    });
+    renderGroupManageList();
+    if (!g) groupFormName.focus();
+  }
+  function saveGroupForm() {
+    const name = groupFormName.value.trim();
+    if (!name) { groupFormError.textContent = '请填群名'; groupFormName.focus(); return; }
+    const members = Array.from(groupFormMembers.querySelectorAll('input:checked')).map((i) => i.value);
+    if (members.length === 0) { groupFormError.textContent = '至少勾一个人'; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { groupFormError.textContent = '连接已断开，请稍后重试'; return; }
+    groupFormError.textContent = '';
+    ws.send(JSON.stringify(editingGroupId
+      ? { type: 'group_update', id: editingGroupId, name, members }
+      : { type: 'group_create', name, members }));
+  }
+  groupManageBtn.addEventListener('click', () => openGroupManage(null));
+  groupFormCancelBtn.addEventListener('click', closeGroupManage);
+  groupFormSaveBtn.addEventListener('click', saveGroupForm);
+  groupFormSelectAll.addEventListener('click', () => {
+    const boxes = Array.from(groupFormMembers.querySelectorAll('input'));
+    const allOn = boxes.every((b) => b.checked);
+    boxes.forEach((b) => { b.checked = !allOn; });
+  });
+  groupFormDeleteBtn.addEventListener('click', () => {
+    const g = editingGroupId ? findGroupLocal(editingGroupId) : null;
+    if (!g) return;
+    if (!window.confirm(`确定删除群「${g.name}」？群里的聊天记录会保留在数据库里，但页面上看不到了。`)) return;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_delete', id: g.id }));
+  });
+  groupManagePanel.addEventListener('click', (e) => { if (e.target === groupManagePanel) closeGroupManage(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && groupManagePanel.classList.contains('active')) closeGroupManage(); });
+
   // ===== 右侧栏收起/展开：默认展开，收起后聊天区变宽；记在本机，下次打开还是那样 =====
   const rightSidebarToggle = document.getElementById('right-sidebar-toggle');
   const RIGHT_SIDEBAR_KEY = 'ccRightSidebarCollapsed';
@@ -7701,7 +8055,7 @@
     chatSearchResults.innerHTML = '';
     let data;
     try {
-      const res = await fetch('/api/messages/search?q=' + encodeURIComponent(q), { cache: 'no-store' });
+      const res = await authFetch('/api/messages/search?q=' + encodeURIComponent(q) + '&groupId=' + encodeURIComponent(currentGroupId), { cache: 'no-store' });
       data = await res.json();
       if (!res.ok) throw new Error(data.error || '搜索失败');
     } catch (err) {
@@ -7710,7 +8064,7 @@
     }
     const results = data.results || [];
     chatSearchSummary.textContent = results.length === 0
-      ? '没搜到'
+      ? `「${currentGroupName()}」里没搜到`
       : `找到 ${data.more ? results.length + '+' : results.length} 条` + (data.scope === 'memory' ? '（未连数据库，只搜了最近的消息）' : '') + '，点一条跳过去';
     results.forEach((m) => {
       const btn = document.createElement('button');
@@ -7732,7 +8086,7 @@
     chatSearchContextList.innerHTML = '<div class="ctx-msg">读取中…</div>';
     let data;
     try {
-      const res = await fetch('/api/messages/context?id=' + encodeURIComponent(messageId), { cache: 'no-store' });
+      const res = await authFetch('/api/messages/context?id=' + encodeURIComponent(messageId) + '&groupId=' + encodeURIComponent(currentGroupId), { cache: 'no-store' });
       data = await res.json();
       if (!res.ok) throw new Error(data.error || '读取失败');
     } catch (err) {
@@ -10341,7 +10695,7 @@
       return;
     }
 
-    const payload = { type: 'message', text };
+    const payload = { type: 'message', text, groupId: currentGroupId };
     if (readyImages.length > 0) payload.images = readyImages.map((p) => p.uploadedUrl);
     if (readyFiles.length > 0) {
       payload.files = readyFiles.map((p) => ({ url: p.uploadedUrl, name: p.uploadedName, size: p.uploadedSize }));
@@ -10605,7 +10959,7 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
-          ws.send(JSON.stringify({ type: 'typing' }));
+          ws.send(JSON.stringify({ type: 'typing', groupId: currentGroupId }));
         }, 200);
       }
     }

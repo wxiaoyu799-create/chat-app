@@ -224,10 +224,15 @@ const SEARCH_MAX_RESULTS = 60;
 app.get('/api/messages/search', async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   if (!q) return res.json({ results: [], total: 0 });
+  // 只能搜自己所在的群
+  const actor = verifyToken(tokenFromReq(req));
+  if (!actor) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  const gid = String(req.query.groupId || ALL_GROUP_ID);
+  if (!isGroupMember(gid, actor.username)) return res.status(403).json({ error: '你不在这个群里' });
   const pick = (m) => ({ id: m.id, username: m.username, text: m.text || '', time: m.time, hasImages: (m.images || []).length > 0, hasFiles: (m.files || []).length > 0 });
   if (!dbPool) {
     const lower = q.toLowerCase();
-    const hits = history.filter((m) => m.type === 'message' && !m.deletedAt && String(m.text || '').toLowerCase().includes(lower));
+    const hits = history.filter((m) => m.type === 'message' && !m.deletedAt && (m.groupId || ALL_GROUP_ID) === gid && String(m.text || '').toLowerCase().includes(lower));
     return res.json({ results: hits.slice(-SEARCH_MAX_RESULTS).reverse().map(pick), total: hits.length, scope: 'memory' });
   }
   try {
@@ -235,8 +240,8 @@ app.get('/api/messages/search', async (req, res) => {
     const BS = String.fromCharCode(92);
     const pattern = '%' + q.split('').map((ch) => (ch === '%' || ch === '_' || ch === BS ? BS + ch : ch)).join('') + '%';
     const { rows } = await dbPool.query(
-      "SELECT * FROM chat_messages WHERE deleted_at IS NULL AND text ILIKE $1 ESCAPE '" + BS + "' ORDER BY id DESC LIMIT $2;",
-      [pattern, SEARCH_MAX_RESULTS + 1]
+      "SELECT * FROM chat_messages WHERE deleted_at IS NULL AND group_id = $3 AND text ILIKE $1 ESCAPE '" + BS + "' ORDER BY id DESC LIMIT $2;",
+      [pattern, SEARCH_MAX_RESULTS + 1, gid]
     );
     const more = rows.length > SEARCH_MAX_RESULTS;
     res.json({ results: rows.slice(0, SEARCH_MAX_RESULTS).map((r) => pick(rowToChatMessage(r))), total: rows.length, more, scope: 'db' });
@@ -249,14 +254,19 @@ app.get('/api/messages/search', async (req, res) => {
 app.get('/api/messages/context', async (req, res) => {
   const id = Number(req.query.id);
   if (!Number.isFinite(id)) return res.status(400).json({ error: '缺少消息ID' });
+  const actor = verifyToken(tokenFromReq(req));
+  if (!actor) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  const gid = String(req.query.groupId || ALL_GROUP_ID);
+  if (!isGroupMember(gid, actor.username)) return res.status(403).json({ error: '你不在这个群里' });
   if (!dbPool) {
-    const idx = history.findIndex((m) => m.id === id);
+    const inGroup = history.filter((m) => m.type === 'message' && (m.groupId || ALL_GROUP_ID) === gid);
+    const idx = inGroup.findIndex((m) => m.id === id);
     if (idx === -1) return res.json({ messages: [] });
-    return res.json({ messages: history.slice(Math.max(0, idx - 15), idx + 16).filter((m) => m.type === 'message' && !m.deletedAt) });
+    return res.json({ messages: inGroup.slice(Math.max(0, idx - 15), idx + 16).filter((m) => !m.deletedAt) });
   }
   try {
-    const before = await dbPool.query('SELECT * FROM chat_messages WHERE id <= $1 AND deleted_at IS NULL ORDER BY id DESC LIMIT 16;', [id]);
-    const after = await dbPool.query('SELECT * FROM chat_messages WHERE id > $1 AND deleted_at IS NULL ORDER BY id ASC LIMIT 15;', [id]);
+    const before = await dbPool.query('SELECT * FROM chat_messages WHERE id <= $1 AND group_id = $2 AND deleted_at IS NULL ORDER BY id DESC LIMIT 16;', [id, gid]);
+    const after = await dbPool.query('SELECT * FROM chat_messages WHERE id > $1 AND group_id = $2 AND deleted_at IS NULL ORDER BY id ASC LIMIT 15;', [id, gid]);
     res.json({ messages: before.rows.reverse().concat(after.rows).map(rowToChatMessage) });
   } catch (err) {
     res.status(500).json({ error: '读取失败：' + err.message });
@@ -566,8 +576,9 @@ const clients = new Map();
 // 最近消息历史——内存里始终保留最近MAX_HISTORY条，用于日常渲染/查找（快，不用每次都查数据库）；
 // 如果数据库连上了，这些消息也会异步写入数据库，服务器重启后能从数据库把最近的消息读回来，
 // 不会变成空白聊天室。没配置数据库的话，行为跟以前完全一样，纯内存，重启就清空。
-const MAX_HISTORY = 100;
+const MAX_HISTORY = 600; // 所有群共用一份内存历史，每个群发给客户端时各取最近 100 条
 let history = [];
+const HISTORY_PER_GROUP = 100;
 
 async function ensureChatMessagesTable() {
   if (!dbPool) return;
@@ -592,6 +603,8 @@ async function ensureChatMessagesTable() {
   // deleted_at记录删除时间(没删就是NULL，删除时同时会清空text/images/files，只留这个时间戳当"墓碑标记")
   await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;`);
   await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;`);
+  // 群组：每条消息属于一个群，老消息默认都算全员群
+  await dbPool.query(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS group_id TEXT NOT NULL DEFAULT 'all';`);
 }
 
 function rowToChatMessage(row) {
@@ -610,6 +623,7 @@ function rowToChatMessage(row) {
     time: Number(row.msg_time),
     editedAt: row.edited_at ? new Date(row.edited_at).getTime() : null,
     deletedAt: row.deleted_at ? new Date(row.deleted_at).getTime() : null,
+    groupId: row.group_id || 'all',
   };
 }
 
@@ -639,8 +653,8 @@ async function loadChatHistoryFromDB() {
 function saveChatMessageToDB(msg) {
   if (!dbPool) return;
   dbPool.query(
-    `INSERT INTO chat_messages (id, username, text, images, files, mentions, mentions_all, quote, reactions, pending, msg_time)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `INSERT INTO chat_messages (id, username, text, images, files, mentions, mentions_all, quote, reactions, pending, msg_time, group_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (id) DO NOTHING;`,
     [
       msg.id, msg.username, msg.text,
@@ -650,6 +664,7 @@ function saveChatMessageToDB(msg) {
       JSON.stringify(msg.reactions || {}),
       msg.pending ? JSON.stringify(msg.pending) : null,
       msg.time,
+      msg.groupId || 'all',
     ]
   ).catch((err) => console.error('[聊天消息写入数据库失败]', err.message));
 }
@@ -975,6 +990,7 @@ app.post('/api/admin/users', express.json(), async (req, res) => {
   if (findUserByName(username)) return res.status(400).json({ error: '这个名字已经有账号了' });
   try {
     const u = await createUser(username, password, role, true);
+    sendGroupsToEveryone();
     res.json({ user: publicUser(u) });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1017,6 +1033,7 @@ app.post('/api/admin/users/delete', express.json(), async (req, res) => {
   if (target === admin) return res.status(400).json({ error: '不能删自己' });
   await deleteUser(target);
   kickUserSessions(target.username, '你的账号已被删除');
+  sendGroupsToEveryone();
   res.json({ ok: true });
 });
 
@@ -1701,6 +1718,199 @@ function getOnlineUsers() {
   return Array.from(clients.values()).map((c) => c.username);
 }
 
+// ==================== 群组 ====================
+// "全员群"（id = all）不落库，成员永远是全部账号；其他群由管理员建、拉人。
+// 每人各自置顶自己的群、各自记"看到哪条了"（算未读用），都存数据库。
+const ALL_GROUP_ID = 'all';
+const ALL_GROUP_NAME = '全员';
+let groups = []; // { id(string), name, members:[username], createdBy, createdAt }
+const groupPins = new Map();  // username -> Set(groupId)
+const groupReads = new Map(); // username -> Map(groupId -> lastReadId)
+
+async function ensureGroupTables() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS group_members (
+      group_id BIGINT NOT NULL,
+      username TEXT NOT NULL,
+      PRIMARY KEY (group_id, username)
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS group_pins (
+      username TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      PRIMARY KEY (username, group_id)
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS group_reads (
+      username TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      last_read_id BIGINT NOT NULL DEFAULT 0,
+      PRIMARY KEY (username, group_id)
+    );
+  `);
+}
+async function loadGroupsFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureGroupTables();
+    const g = await dbPool.query('SELECT * FROM groups ORDER BY id ASC;');
+    const mem = await dbPool.query('SELECT * FROM group_members;');
+    groups = g.rows.map((r) => ({
+      id: String(r.id), name: r.name, createdBy: r.created_by || '', createdAt: new Date(r.created_at).getTime(),
+      members: mem.rows.filter((x) => String(x.group_id) === String(r.id)).map((x) => x.username),
+    }));
+    const pins = await dbPool.query('SELECT * FROM group_pins;');
+    pins.rows.forEach((r) => {
+      if (!groupPins.has(r.username)) groupPins.set(r.username, new Set());
+      groupPins.get(r.username).add(String(r.group_id));
+    });
+    const reads = await dbPool.query('SELECT * FROM group_reads;');
+    reads.rows.forEach((r) => {
+      if (!groupReads.has(r.username)) groupReads.set(r.username, new Map());
+      groupReads.get(r.username).set(String(r.group_id), Number(r.last_read_id));
+    });
+    console.log(`已从数据库加载群组，共 ${groups.length} 个`);
+  } catch (err) {
+    console.error('[加载群组失败]', err.message);
+  }
+}
+function findGroup(id) { return groups.find((g) => g.id === String(id)) || null; }
+function getGroupMembers(groupId) {
+  if (groupId === ALL_GROUP_ID) return users.map((u) => u.username);
+  const g = findGroup(groupId);
+  return g ? g.members : [];
+}
+function isGroupMember(groupId, username) {
+  if (groupId === ALL_GROUP_ID) return true;
+  const g = findGroup(groupId);
+  return !!g && g.members.includes(username);
+}
+function isGroupPinned(username, groupId) {
+  const set = groupPins.get(username);
+  return !!set && set.has(String(groupId));
+}
+function getLastRead(username, groupId) {
+  const m = groupReads.get(username);
+  return m ? (m.get(String(groupId)) || 0) : 0;
+}
+function countUnread(username, groupId) {
+  const last = getLastRead(username, groupId);
+  return history.filter((m) => m.type === 'message' && !m.deletedAt && (m.groupId || ALL_GROUP_ID) === groupId && m.id > last && m.username !== username).length;
+}
+function lastActivity(groupId) {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (m.type === 'message' && (m.groupId || ALL_GROUP_ID) === groupId) return m.time;
+  }
+  return 0;
+}
+// 某个人看到的群列表：全员群永远在，其他只列她在里面的；管理员额外能看到所有群（管理用）
+function groupsForUser(username, role) {
+  const view = (id, name, members, isAll) => ({
+    id, name, members, isAll,
+    memberOfIt: isAll || members.includes(username),
+    pinned: isGroupPinned(username, id),
+    unread: (isAll || members.includes(username)) ? countUnread(username, id) : 0,
+    lastTime: lastActivity(id),
+  });
+  const out = [view(ALL_GROUP_ID, ALL_GROUP_NAME, getGroupMembers(ALL_GROUP_ID), true)];
+  groups.forEach((g) => {
+    if (role === 'admin' || g.members.includes(username)) out.push(view(g.id, g.name, g.members, false));
+  });
+  return out;
+}
+function sendGroupsTo(ws, client) {
+  try { ws.send(JSON.stringify({ type: 'groups', groups: groupsForUser(client.username, client.role) })); } catch (e) { /* 忽略 */ }
+}
+function sendGroupsToEveryone() {
+  for (const [sock, c] of clients.entries()) {
+    if (sock.readyState === WebSocket.OPEN) sendGroupsTo(sock, c);
+  }
+}
+function broadcastToGroup(groupId, data, exclude) {
+  const members = new Set(getGroupMembers(groupId));
+  const msg = JSON.stringify(data);
+  for (const [sock, c] of clients.entries()) {
+    if (sock === exclude || sock.readyState !== WebSocket.OPEN) continue;
+    if (groupId === ALL_GROUP_ID || members.has(c.username)) sock.send(msg);
+  }
+}
+function groupHistoryPayload(groupId) {
+  const list = history.filter((m) => m.type === 'message' && (m.groupId || ALL_GROUP_ID) === groupId);
+  return { type: 'history', groupId, messages: list.slice(-HISTORY_PER_GROUP) };
+}
+async function setGroupRead(username, groupId, lastId) {
+  if (!groupReads.has(username)) groupReads.set(username, new Map());
+  const prev = groupReads.get(username).get(String(groupId)) || 0;
+  if (lastId <= prev) return;
+  groupReads.get(username).set(String(groupId), lastId);
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'INSERT INTO group_reads (username, group_id, last_read_id) VALUES ($1,$2,$3) ON CONFLICT (username, group_id) DO UPDATE SET last_read_id = EXCLUDED.last_read_id;',
+        [username, String(groupId), lastId]
+      );
+    } catch (err) { console.error('[已读位置写入失败]', err.message); }
+  }
+}
+async function setGroupPin(username, groupId, pinned) {
+  if (!groupPins.has(username)) groupPins.set(username, new Set());
+  if (pinned) groupPins.get(username).add(String(groupId)); else groupPins.get(username).delete(String(groupId));
+  if (dbPool) {
+    try {
+      if (pinned) await dbPool.query('INSERT INTO group_pins (username, group_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [username, String(groupId)]);
+      else await dbPool.query('DELETE FROM group_pins WHERE username=$1 AND group_id=$2;', [username, String(groupId)]);
+    } catch (err) { console.error('[置顶写入失败]', err.message); }
+  }
+}
+function sanitizeMembers(list) {
+  const names = new Set(users.map((u) => u.username));
+  return Array.from(new Set((Array.isArray(list) ? list : []).map((x) => String(x).trim()).filter((x) => names.has(x))));
+}
+async function createGroup(name, members, byUsername) {
+  const g = { id: `mem-g-${Date.now()}`, name, members, createdBy: byUsername, createdAt: Date.now() };
+  if (dbPool) {
+    try {
+      const r = await dbPool.query('INSERT INTO groups (name, created_by) VALUES ($1,$2) RETURNING id;', [name, byUsername]);
+      g.id = String(r.rows[0].id);
+      for (const u of members) await dbPool.query('INSERT INTO group_members (group_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [g.id, u]);
+    } catch (err) { console.error('[建群写入失败]', err.message); }
+  }
+  groups.push(g);
+  return g;
+}
+async function updateGroup(g, name, members) {
+  g.name = name;
+  g.members = members;
+  if (dbPool && !String(g.id).startsWith('mem-')) {
+    try {
+      await dbPool.query('UPDATE groups SET name=$1 WHERE id=$2;', [name, g.id]);
+      await dbPool.query('DELETE FROM group_members WHERE group_id=$1;', [g.id]);
+      for (const u of members) await dbPool.query('INSERT INTO group_members (group_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [g.id, u]);
+    } catch (err) { console.error('[改群写入失败]', err.message); }
+  }
+}
+async function deleteGroup(g) {
+  groups = groups.filter((x) => x !== g);
+  if (dbPool && !String(g.id).startsWith('mem-')) {
+    try {
+      await dbPool.query('DELETE FROM group_members WHERE group_id=$1;', [g.id]);
+      await dbPool.query('DELETE FROM groups WHERE id=$1;', [g.id]);
+      await dbPool.query('DELETE FROM group_pins WHERE group_id=$1;', [String(g.id)]);
+    } catch (err) { console.error('[删群写入失败]', err.message); }
+  }
+}
+
 function pushHistory(entry) {
   history.push(entry);
   if (history.length > MAX_HISTORY) history.shift();
@@ -1796,7 +2006,11 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'me', user: publicUser(user), roles: ROLES }));
 
       // 发送历史消息 + 当前在线列表给新用户
-      ws.send(JSON.stringify({ type: 'history', messages: history }));
+      // 先发群列表，再发她上次停留的那个群的历史（不在那个群里了就退回全员群）
+      const wantGroup = String(data.groupId || ALL_GROUP_ID);
+      const startGroup = isGroupMember(wantGroup, username) ? wantGroup : ALL_GROUP_ID;
+      sendGroupsTo(ws, { username, role: user.role });
+      ws.send(JSON.stringify(groupHistoryPayload(startGroup)));
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
@@ -1857,7 +2071,11 @@ wss.on('connection', (ws) => {
         }
       }
 
+      // 发到哪个群：不是这个群的成员就当没发
+      const groupId = String(data.groupId || ALL_GROUP_ID);
+      if (!isGroupMember(groupId, client.username)) return;
       const { mentioned, isAll } = extractMentions(text);
+      const members = getGroupMembers(groupId);
       const msg = {
         type: 'message',
         id: nextMessageId++,
@@ -1865,16 +2083,18 @@ wss.on('connection', (ws) => {
         text,
         images,
         files,
-        mentions: mentioned,
+        // @ 只对群里的人有效，群外的人看不到这条消息，@ 了也没意义
+        mentions: mentioned.filter((u) => members.includes(u)),
         mentionsAll: isAll,
         quote,
         reactions: {},
         pending: null, // 待处理标记：null=没标记，{by, at}=有人标了还没处理完
         time: Date.now(),
+        groupId,
       };
       pushHistory(msg);
       saveChatMessageToDB(msg);
-      broadcast(msg); // 包括发送者自己（用于统一渲染顺序）
+      broadcastToGroup(groupId, msg); // 包括发送者自己（用于统一渲染顺序）
       scheduleMentionReminder(msg);
       return;
     }
@@ -1899,7 +2119,7 @@ wss.on('connection', (ws) => {
       } else {
         list.splice(idx, 1);
       }
-      broadcast({ type: 'reaction_update', messageId, emoji, users: list });
+      broadcastToGroup(msg.groupId || ALL_GROUP_ID, { type: 'reaction_update', messageId, emoji, users: list, groupId: msg.groupId || ALL_GROUP_ID });
       updateMessageReactionsInDB(messageId, msg.reactions);
       return;
     }
@@ -1915,7 +2135,7 @@ wss.on('connection', (ws) => {
       // 待处理是个开关：谁都能标、谁都能取消，不需要密码——这是团队协作用的，
       // 跟置顶公告那种"内容管理"性质不一样，越轻量越好用
       msg.pending = msg.pending ? null : { by: client.username, at: Date.now() };
-      broadcast({ type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username });
+      broadcastToGroup(msg.groupId || ALL_GROUP_ID, { type: 'pending_update', messageId, pending: msg.pending, text: msg.text, username: msg.username, groupId: msg.groupId || ALL_GROUP_ID });
       updateMessagePendingInDB(messageId, msg.pending);
       return;
     }
@@ -1939,7 +2159,7 @@ wss.on('connection', (ws) => {
       const editedAt = Date.now();
       msg.text = newText;
       msg.editedAt = editedAt;
-      broadcast({ type: 'message_edited', messageId, text: newText, editedAt });
+      broadcastToGroup(msg.groupId || ALL_GROUP_ID, { type: 'message_edited', messageId, text: newText, editedAt, groupId: msg.groupId || ALL_GROUP_ID });
       updateMessageTextInDB(messageId, newText, editedAt);
       return;
     }
@@ -1962,7 +2182,7 @@ wss.on('connection', (ws) => {
       msg.images = [];
       msg.files = [];
       msg.deletedAt = deletedAt;
-      broadcast({ type: 'message_deleted', messageId, deletedAt });
+      broadcastToGroup(msg.groupId || ALL_GROUP_ID, { type: 'message_deleted', messageId, deletedAt, groupId: msg.groupId || ALL_GROUP_ID });
       deleteMessageInDB(messageId, deletedAt);
       return;
     }
@@ -2281,10 +2501,11 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      const reminderGroup = (data.groupId === ALL_GROUP_ID || findGroup(data.groupId)) ? String(data.groupId) : ALL_GROUP_ID;
       if (data.type === 'reminder_add') {
-        await addReminder(hour, minute, weekdays, text);
+        await addReminder(hour, minute, weekdays, text, reminderGroup);
       } else {
-        const ok = await updateReminder(data.id, hour, minute, weekdays, text);
+        const ok = await updateReminder(data.id, hour, minute, weekdays, text, reminderGroup);
         if (!ok) {
           ws.send(JSON.stringify({ type: 'reminder_error', message: '没找到这条提醒，可能已经被删除了' }));
           return;
@@ -2609,10 +2830,72 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ---- 群组 ----
+    if (data.type === 'group_switch') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const gid = String(data.groupId || ALL_GROUP_ID);
+      if (!isGroupMember(gid, client.username)) {
+        ws.send(JSON.stringify({ type: 'group_error', message: '你不在这个群里' }));
+        return;
+      }
+      ws.send(JSON.stringify(groupHistoryPayload(gid)));
+      return;
+    }
+    if (data.type === 'group_read') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const gid = String(data.groupId || ALL_GROUP_ID);
+      const lastId = Number(data.lastId);
+      if (Number.isFinite(lastId) && lastId > 0) await setGroupRead(client.username, gid, lastId);
+      return;
+    }
+    if (data.type === 'group_pin') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const gid = String(data.groupId || ALL_GROUP_ID);
+      if (gid !== ALL_GROUP_ID && !findGroup(gid)) return;
+      await setGroupPin(client.username, gid, !!data.pinned);
+      sendGroupsTo(ws, client);
+      return;
+    }
+    if (data.type === 'group_create' || data.type === 'group_update' || data.type === 'group_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (client.role !== 'admin') {
+        ws.send(JSON.stringify({ type: 'group_error', message: '只有管理员能建群、改群' }));
+        return;
+      }
+      if (data.type === 'group_delete') {
+        const g = findGroup(data.id);
+        if (!g) { ws.send(JSON.stringify({ type: 'group_error', message: '没找到这个群' })); return; }
+        await deleteGroup(g);
+        sendGroupsToEveryone();
+        ws.send(JSON.stringify({ type: 'group_saved', id: null }));
+        return;
+      }
+      const name = String(data.name || '').trim().slice(0, 30);
+      if (!name) { ws.send(JSON.stringify({ type: 'group_error', message: '请填群名' })); return; }
+      const members = sanitizeMembers(data.members);
+      if (members.length === 0) { ws.send(JSON.stringify({ type: 'group_error', message: '至少拉一个人进群' })); return; }
+      let saved;
+      if (data.type === 'group_create') {
+        saved = await createGroup(name, members, client.username);
+      } else {
+        saved = findGroup(data.id);
+        if (!saved) { ws.send(JSON.stringify({ type: 'group_error', message: '没找到这个群' })); return; }
+        await updateGroup(saved, name, members);
+      }
+      sendGroupsToEveryone();
+      ws.send(JSON.stringify({ type: 'group_saved', id: saved.id }));
+      return;
+    }
+
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
-      broadcast({ type: 'typing', username: client.username }, ws);
+      const typingGroup = String(data.groupId || ALL_GROUP_ID);
+      if (isGroupMember(typingGroup, client.username)) broadcastToGroup(typingGroup, { type: 'typing', username: client.username, groupId: typingGroup }, ws);
       return;
     }
   });
@@ -2665,6 +2948,7 @@ function rowToReminder(row) {
     minute: row.minute,
     weekdays: row.weekdays ? row.weekdays.split(',').map(Number) : null,
     text: row.text,
+    groupId: row.group_id || 'all',
   };
 }
 
@@ -2680,6 +2964,7 @@ async function ensureRemindersTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await dbPool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS group_id TEXT NOT NULL DEFAULT 'all';`);
 }
 
 async function loadRemindersFromDB() {
@@ -2710,14 +2995,14 @@ async function loadRemindersFromDB() {
   }
 }
 
-async function addReminder(hour, minute, weekdays, text) {
-  const newReminder = { id: `mem-${Date.now()}`, hour, minute, weekdays, text };
+async function addReminder(hour, minute, weekdays, text, groupId) {
+  const newReminder = { id: `mem-${Date.now()}`, hour, minute, weekdays, text, groupId: groupId || 'all' };
   reminders.push(newReminder);
   if (!dbPool) return newReminder;
   try {
     const inserted = await dbPool.query(
-      'INSERT INTO reminders (hour, minute, weekdays, text) VALUES ($1,$2,$3,$4) RETURNING id;',
-      [hour, minute, weekdays ? weekdays.join(',') : null, text]
+      'INSERT INTO reminders (hour, minute, weekdays, text, group_id) VALUES ($1,$2,$3,$4,$5) RETURNING id;',
+      [hour, minute, weekdays ? weekdays.join(',') : null, text, newReminder.groupId]
     );
     newReminder.id = inserted.rows[0].id;
   } catch (err) {
@@ -2726,15 +3011,15 @@ async function addReminder(hour, minute, weekdays, text) {
   return newReminder;
 }
 
-async function updateReminder(id, hour, minute, weekdays, text) {
+async function updateReminder(id, hour, minute, weekdays, text, groupId) {
   const idx = reminders.findIndex((r) => String(r.id) === String(id));
   if (idx === -1) return false;
-  reminders[idx] = { ...reminders[idx], hour, minute, weekdays, text };
+  reminders[idx] = { ...reminders[idx], hour, minute, weekdays, text, groupId: groupId || 'all' };
   if (!dbPool) return true;
   try {
     await dbPool.query(
-      'UPDATE reminders SET hour=$1, minute=$2, weekdays=$3, text=$4 WHERE id=$5;',
-      [hour, minute, weekdays ? weekdays.join(',') : null, text, id]
+      'UPDATE reminders SET hour=$1, minute=$2, weekdays=$3, text=$4, group_id=$6 WHERE id=$5;',
+      [hour, minute, weekdays ? weekdays.join(',') : null, text, id, groupId || 'all']
     );
   } catch (err) {
     console.error('[更新定时提醒写入数据库失败]', err.message);
@@ -2757,8 +3042,10 @@ async function deleteReminder(id) {
 
 // 提醒触发时，用跟"@所有人"完全一样的方式广播——让所有在线的人都弹全屏提示框+收到系统通知，
 // 不是安安静静发一条系统消息就完事，避免被刷屏的聊天记录淹没错过
-function fireReminderBroadcast(text) {
-  const onlineUsernames = getOnlineUsers();
+function fireReminderBroadcast(text, groupId) {
+  const gid = (groupId && (groupId === ALL_GROUP_ID || findGroup(groupId))) ? String(groupId) : ALL_GROUP_ID;
+  const members = getGroupMembers(gid);
+  const onlineUsernames = getOnlineUsers().filter((u) => members.includes(u));
   const msg = {
     type: 'message',
     id: nextMessageId++,
@@ -2772,10 +3059,11 @@ function fireReminderBroadcast(text) {
     reactions: {},
     pending: null,
     time: Date.now(),
+    groupId: gid,
   };
   pushHistory(msg);
   saveChatMessageToDB(msg);
-  broadcast(msg);
+  broadcastToGroup(gid, msg);
 }
 
 function checkReminders() {
@@ -2786,7 +3074,7 @@ function checkReminders() {
     const key = String(r.id);
     if (reminderLastFiredDate[key] === dateStr) return; // 今天已经发过了，不重复发
     reminderLastFiredDate[key] = dateStr;
-    fireReminderBroadcast(r.text);
+    fireReminderBroadcast(r.text, r.groupId);
     console.log(`[定时提醒] 已发送: ${r.text}`);
   });
 }
@@ -3443,6 +3731,7 @@ async function startServer() {
   await verifyDatabaseConnection();
   await loadChatHistoryFromDB();
   await loadUsersFromDB();
+  await loadGroupsFromDB();
   await loadCaseLibraryFromDB();
   await loadSpecialRequirementsFromDB();
   await loadDriveIndexFromDB();

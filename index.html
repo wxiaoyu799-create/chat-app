@@ -1206,6 +1206,18 @@
   #online-list.collapsed { display: none; }
   #online-list li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3ddc84; flex-shrink: 0; }
+  .dot.off { background: var(--border); }
+  #online-list li { cursor: pointer; border-radius: 6px; padding: 5px 4px; }
+  #online-list li.is-me { cursor: default; }
+  #online-list li:not(.is-me):hover { background: var(--hover-dark); }
+  #online-list li.is-offline .ol-name { color: var(--muted); }
+  #online-list .ol-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #online-list .ol-role { font-size: 10.5px; color: var(--muted); background: var(--panel-alt); border-radius: 999px; padding: 1px 6px; flex-shrink: 0; }
+  #online-list .ol-dm { color: var(--muted); font-size: 13px; opacity: 0; flex-shrink: 0; }
+  #online-list li:hover .ol-dm { opacity: 1; color: var(--accent); }
+  .group-tab .gt-dm-icon { font-size: 13px; opacity: 0.8; }
+  .group-tabs-empty { font-size: 12px; color: var(--muted); padding: 5px 4px; }
+  body.role-manager #group-manage-btn { display: inline-flex !important; }
   .mention-all-icon { font-size: 12px; flex-shrink: 0; }
 
   /* 常用语弹出面板：挂在输入框旁边，点按钮弹出，点一条就填进输入框 */
@@ -1777,8 +1789,15 @@
   #group-manage-form { border-top: 1px solid var(--border); padding-top: 14px; }
   #group-form-name { width: 100%; box-sizing: border-box; margin: 8px 0 10px; }
   #group-form-members-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  #group-form-members { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 10px; max-height: 40vh; overflow-y: auto; margin-bottom: 8px; }
-  #group-form-members label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; padding: 3px 0; }
+  /* 选人：名字横着排、像一排小标签，勾中的变蓝 */
+  #group-form-members { display: flex; flex-wrap: wrap; gap: 6px; max-height: 40vh; overflow-y: auto; margin-bottom: 8px; }
+  #group-form-members label {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 10px 4px 7px; font-size: 13px; cursor: pointer;
+    white-space: nowrap; flex: 0 0 auto; width: auto; margin: 0; color: var(--text);
+  }
+  #group-form-members label:has(input:checked) { border-color: var(--accent); background: rgba(63, 111, 214, 0.1); color: var(--accent); }
   #group-form-members label input { accent-color: var(--accent); }
   #group-form-members label .gm-role { font-size: 11px; color: var(--muted); }
   #group-form-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 6px; }
@@ -3587,7 +3606,7 @@
   <div id="drawer-backdrop"></div>
   <div id="sidebar">
     <button id="online-list-toggle" class="sidebar-toggle collapsed" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-users"></i></span> 检品达人 (<span id="online-count">0</span>)</span>
+      <span><span class="module-icon-badge"><i class="ti ti-users"></i></span> 达人广场 (<span id="online-count">0</span>)</span>
       <span class="sidebar-toggle-arrow">▶</span>
     </button>
     <ul id="online-list" class="collapsed"></ul>
@@ -4150,7 +4169,7 @@
 <div id="group-manage-panel">
   <div id="group-manage-card">
     <div class="problem-item-options-edit-title">群管理</div>
-    <div class="problem-item-options-edit-desc">全员群自动包含所有账号，不用管。下面是建的群：点一个改名字、改成员，或者新建一个。</div>
+    <div class="problem-item-options-edit-desc">点一个群改名字、改成员，或者新建一个。管理员能改所有群；现场管理只能改自己在里面的群。私聊不在这里管。</div>
     <div id="group-manage-list"></div>
     <div id="group-manage-form">
       <div class="problem-item-options-edit-title" id="group-form-title" style="font-size:14px">新建群</div>
@@ -4796,10 +4815,9 @@
   const REMOVED_QUICK_CATEGORIES = ['代拍', '代购', '煤炉'];
 
   // ===== 群组：当前在哪个群、群列表、每个群的未读数 =====
-  const ALL_GROUP_ID = 'all';
   const LAST_GROUP_KEY = 'ccLastGroup';
-  let currentGroupId = ALL_GROUP_ID;
-  try { currentGroupId = localStorage.getItem(LAST_GROUP_KEY) || ALL_GROUP_ID; } catch (e) { /* 忽略 */ }
+  let currentGroupId = ''; // '' = 一个群都没有（新账号还没被拉进任何群）
+  try { currentGroupId = localStorage.getItem(LAST_GROUP_KEY) || ''; } catch (e) { /* 忽略 */ }
   let groupsData = []; // 服务器给的：{ id, name, members, isAll, memberOfIt, pinned, unread, lastTime }
   let lastSeenMessageId = 0; // 当前群里已经渲染到的最大消息ID，切群/新消息时报给服务器当"看到哪了"
 
@@ -4824,6 +4842,7 @@
     myUser = user;
     myRole = user ? user.role : '';
     document.body.classList.toggle('role-admin', myRole === 'admin');
+    document.body.classList.toggle('role-manager', myRole === 'manager');
     document.body.classList.toggle('role-readonly', !!myRole && !isEditRole(myRole));
     const tag = document.getElementById('my-role-tag');
     tag.textContent = user ? (user.roleLabel || roleLabels[user.role] || '') : '';
@@ -4888,12 +4907,10 @@
         }
       } else if (data.type === 'groups') {
         groupsData = Array.isArray(data.groups) ? data.groups : [];
-        // 当前群不见了（被踢出群/群被删）就退回全员群
+        // 当前群不见了（被踢出群/群被删）：让服务器挑一个我在的群发历史过来
         const cur = findGroupLocal(currentGroupId);
-        if (!cur || !cur.memberOfIt) {
-          currentGroupId = ALL_GROUP_ID;
-          try { localStorage.setItem(LAST_GROUP_KEY, ALL_GROUP_ID); } catch (e) { /* 忽略 */ }
-          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_switch', groupId: ALL_GROUP_ID }));
+        if (currentGroupId && (!cur || !cur.memberOfIt)) {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_switch', groupId: '' }));
         }
         renderGroupTabs();
         renderReminderGroupOptions();
@@ -4903,18 +4920,27 @@
         }
       } else if (data.type === 'group_saved') {
         groupFormError.textContent = '';
-        if (data.id) { editingGroupId = data.id; groupFormTitle.textContent = '✓ 已保存'; setTimeout(() => { const g = findGroupLocal(editingGroupId); if (g) groupFormTitle.textContent = `编辑：${g.name}`; }, 900); }
+        if (data.switchTo && data.id) {
+          // 打开私聊：直接切过去
+          switchGroup(data.id, true);
+        } else if (data.id) { editingGroupId = data.id; groupFormTitle.textContent = '✓ 已保存'; setTimeout(() => { const g = findGroupLocal(editingGroupId); if (g) groupFormTitle.textContent = `编辑：${g.name}`; }, 900); }
         else selectGroupForEdit(null);
       } else if (data.type === 'group_error') {
         groupFormError.textContent = data.message || '操作失败';
       } else if (data.type === 'history') {
         joinBtn.disabled = false;
-        if (data.groupId) {
-          currentGroupId = data.groupId;
+        if (data.groupId !== undefined) {
+          currentGroupId = data.groupId || '';
           try { localStorage.setItem(LAST_GROUP_KEY, currentGroupId); } catch (e) { /* 忽略 */ }
           renderGroupTabs();
         }
         messagesEl.innerHTML = '';
+        if (!currentGroupId) {
+          const empty = document.createElement('div');
+          empty.className = 'system-msg';
+          empty.textContent = '你还没有加入任何群。找管理员或现场管理把你拉进群，或者在左边「达人广场」点一个人开始私聊。';
+          messagesEl.appendChild(empty);
+        }
         data.messages.forEach((m) => renderMessage(m, { live: false }));
         scrollToBottom();
         lastSeenMessageId = data.messages.reduce((mx, m) => (typeof m.id === 'number' && m.id > mx ? m.id : mx), 0);
@@ -4942,7 +4968,7 @@
           lastSeenMessageId = data.id;
           if (data.groupId && data.username !== username) markGroupRead(data.groupId, data.id);
         }
-        const gl = findGroupLocal(data.groupId || ALL_GROUP_ID);
+        const gl = findGroupLocal(data.groupId);
         if (gl) { gl.lastTime = Date.now(); renderGroupTabs(); }
         notifyIfMentioned(data);
         maybeShowAnnounceOverlay(data);
@@ -4950,7 +4976,7 @@
         renderMessage(data, { live: true });
         scrollToBottom();
       } else if (data.type === 'online') {
-        renderOnlineList(data.users);
+        renderOnlineList(data.users, data.directory);
       } else if (data.type === 'special_req_list') {
         specialReqData = Array.isArray(data.items) ? data.items : [];
         renderSpecialCountBadge();
@@ -6161,15 +6187,39 @@
   document.addEventListener('click', clearWindowMentionSettled);
   document.addEventListener('keydown', clearWindowMentionSettled);
 
-  function renderOnlineList(users) {
+  let userDirectory = []; // 所有账号 [{username, role, roleLabel}]，服务器随在线列表一起发
+  function renderOnlineList(users, directory) {
     onlineUsers = users;
+    if (Array.isArray(directory)) userDirectory = directory;
     onlineList.innerHTML = '';
     onlineCount.textContent = users.length;
-    users.forEach((u) => {
+    // 在线的排前面，其余按名字；点自己以外的人 -> 私聊
+    const onlineSet = new Set(users);
+    const list = userDirectory.length ? [...userDirectory] : users.map((u) => ({ username: u, roleLabel: '' }));
+    list.sort((x, y) => {
+      const ox = onlineSet.has(x.username) ? 0 : 1;
+      const oy = onlineSet.has(y.username) ? 0 : 1;
+      return ox !== oy ? ox - oy : x.username.localeCompare(y.username, 'zh-Hans-CN');
+    });
+    list.forEach((u) => {
       const li = document.createElement('li');
-      li.innerHTML = `<span class="dot"></span>${escapeHtml(u)}`;
+      const isOnline = onlineSet.has(u.username);
+      const isMe = u.username === username;
+      li.className = (isOnline ? 'is-online' : 'is-offline') + (isMe ? ' is-me' : '');
+      li.innerHTML = `<span class="dot${isOnline ? '' : ' off'}"></span><span class="ol-name">${escapeHtml(u.username)}</span>`
+        + (u.roleLabel ? `<span class="ol-role">${escapeHtml(u.roleLabel)}</span>` : '')
+        + (isMe ? '' : '<span class="ol-dm" title="私聊"><i class="ti ti-message-2"></i></span>');
+      if (!isMe) {
+        li.title = `和 ${u.username} 私聊`;
+        li.addEventListener('click', () => openDirectMessage(u.username));
+      }
       onlineList.appendChild(li);
     });
+  }
+  function openDirectMessage(otherName) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'group_dm_open', username: otherName }));
+    if (typeof closeDrawer === 'function') closeDrawer();
   }
 
   onlineListToggle.addEventListener('click', () => {
@@ -6427,18 +6477,25 @@
   function renderReminderGroupOptions() {
     const keep = reminderGroupSelect.value;
     reminderGroupSelect.innerHTML = '';
-    groupsData.filter((g) => g.memberOfIt || myRole === 'admin').forEach((g) => {
+    const candidates = groupsData.filter((g) => !g.isDm && (g.memberOfIt || myRole === 'admin'));
+    if (candidates.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '（还没有群，先建一个）';
+      reminderGroupSelect.appendChild(opt);
+    }
+    candidates.forEach((g) => {
       const opt = document.createElement('option');
       opt.value = g.id;
-      opt.textContent = g.isAll ? '全员群' : g.name;
+      opt.textContent = g.name;
       reminderGroupSelect.appendChild(opt);
     });
     if (keep && findGroupLocal(keep)) reminderGroupSelect.value = keep;
   }
   function reminderGroupLabel(r) {
-    if (!r.groupId || r.groupId === ALL_GROUP_ID) return '';
+    if (!r.groupId) return '';
     const g = findGroupLocal(r.groupId);
-    return g ? g.name : '（群已删除）';
+    return g ? (g.isDm ? '私聊' : g.name) : '（群已删除）';
   }
 
   function renderReminderList(list) {
@@ -6499,7 +6556,7 @@
       reminderTimeInput.value = `${String(existing.hour).padStart(2, '0')}:${String(existing.minute).padStart(2, '0')}`;
       reminderTextInput.value = existing.text;
       renderReminderGroupOptions();
-      reminderGroupSelect.value = (existing.groupId && findGroupLocal(existing.groupId)) ? existing.groupId : ALL_GROUP_ID;
+      if (existing.groupId && findGroupLocal(existing.groupId)) reminderGroupSelect.value = existing.groupId;
       const selectedDays = existing.weekdays || [0, 1, 2, 3, 4, 5, 6];
       reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
         cb.checked = selectedDays.includes(Number(cb.value));
@@ -6509,7 +6566,8 @@
       reminderTextInput.value = '';
       reminderWeekdayPicker.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
       renderReminderGroupOptions();
-      reminderGroupSelect.value = currentGroupId; // 默认发到现在正开着的群
+      const curG = findGroupLocal(currentGroupId);
+      if (curG && !curG.isDm) reminderGroupSelect.value = currentGroupId; // 默认发到现在正开着的群
     }
     reminderPasswordInput.value = '';
     reminderErrorMsg.classList.remove('active');
@@ -6560,9 +6618,9 @@
     lastReminderAction = 'edit';
     if (ws && ws.readyState === WebSocket.OPEN) {
       if (editingReminderId) {
-        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || ALL_GROUP_ID }));
+        ws.send(JSON.stringify({ type: 'reminder_update', id: editingReminderId, hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || '' }));
       } else {
-        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || ALL_GROUP_ID }));
+        ws.send(JSON.stringify({ type: 'reminder_add', hour, minute, weekdays, text, password, groupId: reminderGroupSelect.value || '' }));
       }
     }
     // 同样不在这里关闭——等服务器广播reminder_list回来再关，密码错了会在原地提示
@@ -7842,7 +7900,6 @@
     // 置顶的在前；同为置顶/非置顶时全员群最前，其余按最近有消息的排
     return [...groupsData].sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      if (a.isAll !== b.isAll) return a.isAll ? -1 : 1;
       return (b.lastTime || 0) - (a.lastTime || 0);
     });
   }
@@ -7852,8 +7909,8 @@
       const tab = document.createElement('button');
       tab.type = 'button';
       tab.className = 'group-tab' + (g.id === currentGroupId ? ' active' : '') + (g.memberOfIt ? '' : ' not-member');
-      tab.title = g.memberOfIt ? `${g.name} · ${g.members.length} 人` : `${g.name}（你不在这个群里，只能管理）`;
-      tab.innerHTML = `<span class="gt-name">${escapeHtml(g.name)}</span>`
+      tab.title = g.isDm ? `和 ${g.name} 的私聊` : (g.memberOfIt ? `${g.name} · ${g.members.length} 人` : `${g.name}（你不在这个群里，只能管理）`);
+      tab.innerHTML = (g.isDm ? '<i class="ti ti-user gt-dm-icon"></i>' : '') + `<span class="gt-name">${escapeHtml(g.name)}</span>`
         + `<span class="gt-pin${g.pinned ? ' on' : ''}" title="${g.pinned ? '取消置顶' : '置顶'}"><i class="ti ${g.pinned ? 'ti-pin-filled' : 'ti-pin'}"></i></span>`
         + `<span class="gt-unread">${g.unread > 0 ? (g.unread > 99 ? '99+' : g.unread) : ''}</span>`;
       tab.querySelector('.gt-pin').addEventListener('click', (e) => {
@@ -7861,15 +7918,22 @@
         if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'group_pin', groupId: g.id, pinned: !g.pinned }));
       });
       tab.addEventListener('click', () => {
-        if (!g.memberOfIt) { if (myRole === 'admin') openGroupManage(g.id); return; }
+        if (!g.memberOfIt) { if (canManageGroupsLocal()) openGroupManage(g.id); return; }
         switchGroup(g.id);
       });
       groupTabsScroll.appendChild(tab);
     });
+    if (groupsData.length === 0) {
+      const hint = document.createElement('span');
+      hint.className = 'group-tabs-empty';
+      hint.textContent = '还没有群';
+      groupTabsScroll.appendChild(hint);
+    }
     updateTitleUnread();
   }
-  function switchGroup(groupId) {
-    if (groupId === currentGroupId) return;
+  function canManageGroupsLocal() { return myRole === 'admin' || myRole === 'manager'; }
+  function switchGroup(groupId, force) {
+    if (groupId === currentGroupId && !force) return;
     currentGroupId = groupId;
     try { localStorage.setItem(LAST_GROUP_KEY, groupId); } catch (e) { /* 忽略 */ }
     renderGroupTabs();
@@ -7914,22 +7978,15 @@
   async function openGroupManage(selectId) {
     groupFormError.textContent = '';
     groupManagePanel.classList.add('active');
-    try {
-      const res = await authFetch('/api/admin/users', { cache: 'no-store' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '读取账号失败');
-      allUsersForGroups = (data.users || []).filter((u) => !u.disabled);
-    } catch (err) {
-      groupFormError.textContent = err.message;
-      allUsersForGroups = [];
-    }
+    // 选人的名单直接用达人广场那份（所有账号），现场管理没有账号管理接口的权限，这样两种角色都能用
+    allUsersForGroups = userDirectory.map((u) => ({ username: u.username, roleLabel: u.roleLabel }));
     renderGroupManageList();
     selectGroupForEdit(selectId || null);
   }
   function closeGroupManage() { groupManagePanel.classList.remove('active'); }
   function renderGroupManageList() {
     groupManageList.innerHTML = '';
-    groupsData.filter((g) => !g.isAll).forEach((g) => {
+    groupsData.filter((g) => !g.isDm).forEach((g) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'gm-chip' + (editingGroupId === g.id ? ' active' : '');
@@ -10695,6 +10752,10 @@
       return;
     }
 
+    if (!currentGroupId) {
+      imagePreviewStatus.textContent = '你还没有加入任何群，没法发消息';
+      return;
+    }
     const payload = { type: 'message', text, groupId: currentGroupId };
     if (readyImages.length > 0) payload.images = readyImages.map((p) => p.uploadedUrl);
     if (readyFiles.length > 0) {

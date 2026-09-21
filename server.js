@@ -227,7 +227,7 @@ app.get('/api/messages/search', async (req, res) => {
   // 只能搜自己所在的群
   const actor = verifyToken(tokenFromReq(req));
   if (!actor) return res.status(401).json({ error: '登录已失效，请重新登录' });
-  const gid = String(req.query.groupId || ALL_GROUP_ID);
+  const gid = String(req.query.groupId || '');
   if (!isGroupMember(gid, actor.username)) return res.status(403).json({ error: '你不在这个群里' });
   const pick = (m) => ({ id: m.id, username: m.username, text: m.text || '', time: m.time, hasImages: (m.images || []).length > 0, hasFiles: (m.files || []).length > 0 });
   if (!dbPool) {
@@ -256,7 +256,7 @@ app.get('/api/messages/context', async (req, res) => {
   if (!Number.isFinite(id)) return res.status(400).json({ error: '缺少消息ID' });
   const actor = verifyToken(tokenFromReq(req));
   if (!actor) return res.status(401).json({ error: '登录已失效，请重新登录' });
-  const gid = String(req.query.groupId || ALL_GROUP_ID);
+  const gid = String(req.query.groupId || '');
   if (!isGroupMember(gid, actor.username)) return res.status(403).json({ error: '你不在这个群里' });
   if (!dbPool) {
     const inGroup = history.filter((m) => m.type === 'message' && (m.groupId || ALL_GROUP_ID) === gid);
@@ -1717,6 +1717,10 @@ function broadcast(data, exclude) {
 function getOnlineUsers() {
   return Array.from(clients.values()).map((c) => c.username);
 }
+// 达人广场：所有账号（不含停用的）+ 角色，前端配合在线名单显示谁在线，点谁就能私聊
+function getDirectory() {
+  return users.filter((u) => !u.disabled).map((u) => ({ username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role }));
+}
 
 // ==================== 群组 ====================
 // "全员群"（id = all）不落库，成员永远是全部账号；其他群由管理员建、拉人。
@@ -1736,6 +1740,7 @@ async function ensureGroupTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await dbPool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_dm BOOLEAN NOT NULL DEFAULT false;`);
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS group_members (
       group_id BIGINT NOT NULL,
@@ -1766,7 +1771,7 @@ async function loadGroupsFromDB() {
     const g = await dbPool.query('SELECT * FROM groups ORDER BY id ASC;');
     const mem = await dbPool.query('SELECT * FROM group_members;');
     groups = g.rows.map((r) => ({
-      id: String(r.id), name: r.name, createdBy: r.created_by || '', createdAt: new Date(r.created_at).getTime(),
+      id: String(r.id), name: r.name, createdBy: r.created_by || '', createdAt: new Date(r.created_at).getTime(), isDm: !!r.is_dm,
       members: mem.rows.filter((x) => String(x.group_id) === String(r.id)).map((x) => x.username),
     }));
     const pins = await dbPool.query('SELECT * FROM group_pins;');
@@ -1785,15 +1790,24 @@ async function loadGroupsFromDB() {
   }
 }
 function findGroup(id) { return groups.find((g) => g.id === String(id)) || null; }
+// 全员群已经取消：所有沟通都在建的群里（含一对一私聊，私聊也是一个只有两个人的群）
 function getGroupMembers(groupId) {
-  if (groupId === ALL_GROUP_ID) return users.map((u) => u.username);
   const g = findGroup(groupId);
   return g ? g.members : [];
 }
 function isGroupMember(groupId, username) {
-  if (groupId === ALL_GROUP_ID) return true;
   const g = findGroup(groupId);
   return !!g && g.members.includes(username);
+}
+// 谁能建群/改群：管理员和现场管理。改/删只能动自己在里面的群（管理员不限）；私聊不能改
+function canManageGroups(role) { return role === 'admin' || role === 'manager'; }
+function canEditGroup(g, client) {
+  if (!g || g.isDm) return false;
+  if (client.role === 'admin') return true;
+  return canManageGroups(client.role) && g.members.includes(client.username);
+}
+function findDm(a, b) {
+  return groups.find((g) => g.isDm && g.members.length === 2 && g.members.includes(a) && g.members.includes(b)) || null;
 }
 function isGroupPinned(username, groupId) {
   const set = groupPins.get(username);
@@ -1823,11 +1837,25 @@ function groupsForUser(username, role) {
     unread: (isAll || members.includes(username)) ? countUnread(username, id) : 0,
     lastTime: lastActivity(id),
   });
-  const out = [view(ALL_GROUP_ID, ALL_GROUP_NAME, getGroupMembers(ALL_GROUP_ID), true)];
+  const out = [];
   groups.forEach((g) => {
-    if (role === 'admin' || g.members.includes(username)) out.push(view(g.id, g.name, g.members, false));
+    if (g.isDm) {
+      // 私聊：只有这两个人看得到，标签上显示对方的名字
+      if (!g.members.includes(username)) return;
+      const other = g.members.find((m) => m !== username) || username;
+      out.push({ ...view(g.id, other, g.members, false), isDm: true });
+      return;
+    }
+    if (role === 'admin' || g.members.includes(username)) out.push({ ...view(g.id, g.name, g.members, false), isDm: false });
   });
   return out;
+}
+// 某人"默认该停在哪个群"：上次的那个还在就用它，否则置顶的/最近有动静的第一个，一个群都没有就是空
+function pickStartGroup(username, role, wanted) {
+  if (wanted && isGroupMember(wanted, username)) return wanted;
+  const mine = groupsForUser(username, role).filter((g) => g.memberOfIt)
+    .sort((a, b) => (a.pinned !== b.pinned) ? (a.pinned ? -1 : 1) : (b.lastTime - a.lastTime));
+  return mine.length ? mine[0].id : '';
 }
 function sendGroupsTo(ws, client) {
   try { ws.send(JSON.stringify({ type: 'groups', groups: groupsForUser(client.username, client.role) })); } catch (e) { /* 忽略 */ }
@@ -1842,12 +1870,25 @@ function broadcastToGroup(groupId, data, exclude) {
   const msg = JSON.stringify(data);
   for (const [sock, c] of clients.entries()) {
     if (sock === exclude || sock.readyState !== WebSocket.OPEN) continue;
-    if (groupId === ALL_GROUP_ID || members.has(c.username)) sock.send(msg);
+    if (members.has(c.username)) sock.send(msg);
   }
 }
 function groupHistoryPayload(groupId) {
+  if (!groupId) return { type: 'history', groupId: '', messages: [] };
   const list = history.filter((m) => m.type === 'message' && (m.groupId || ALL_GROUP_ID) === groupId);
   return { type: 'history', groupId, messages: list.slice(-HISTORY_PER_GROUP) };
+}
+async function createGroupRecord(name, members, byUsername, isDm) {
+  const g = { id: `mem-g-${Date.now()}-${Math.round(Math.random() * 1e6)}`, name, members, createdBy: byUsername, createdAt: Date.now(), isDm: !!isDm };
+  if (dbPool) {
+    try {
+      const r = await dbPool.query('INSERT INTO groups (name, created_by, is_dm) VALUES ($1,$2,$3) RETURNING id;', [name, byUsername, !!isDm]);
+      g.id = String(r.rows[0].id);
+      for (const u of members) await dbPool.query('INSERT INTO group_members (group_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [g.id, u]);
+    } catch (err) { console.error('[建群写入失败]', err.message); }
+  }
+  groups.push(g);
+  return g;
 }
 async function setGroupRead(username, groupId, lastId) {
   if (!groupReads.has(username)) groupReads.set(username, new Map());
@@ -1878,16 +1919,7 @@ function sanitizeMembers(list) {
   return Array.from(new Set((Array.isArray(list) ? list : []).map((x) => String(x).trim()).filter((x) => names.has(x))));
 }
 async function createGroup(name, members, byUsername) {
-  const g = { id: `mem-g-${Date.now()}`, name, members, createdBy: byUsername, createdAt: Date.now() };
-  if (dbPool) {
-    try {
-      const r = await dbPool.query('INSERT INTO groups (name, created_by) VALUES ($1,$2) RETURNING id;', [name, byUsername]);
-      g.id = String(r.rows[0].id);
-      for (const u of members) await dbPool.query('INSERT INTO group_members (group_id, username) VALUES ($1,$2) ON CONFLICT DO NOTHING;', [g.id, u]);
-    } catch (err) { console.error('[建群写入失败]', err.message); }
-  }
-  groups.push(g);
-  return g;
+  return createGroupRecord(name, members, byUsername, false);
 }
 async function updateGroup(g, name, members) {
   g.name = name;
@@ -2007,11 +2039,10 @@ wss.on('connection', (ws) => {
 
       // 发送历史消息 + 当前在线列表给新用户
       // 先发群列表，再发她上次停留的那个群的历史（不在那个群里了就退回全员群）
-      const wantGroup = String(data.groupId || ALL_GROUP_ID);
-      const startGroup = isGroupMember(wantGroup, username) ? wantGroup : ALL_GROUP_ID;
+      const startGroup = pickStartGroup(username, user.role, String(data.groupId || ''));
       sendGroupsTo(ws, { username, role: user.role });
       ws.send(JSON.stringify(groupHistoryPayload(startGroup)));
-      ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers() }));
+      ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers(), directory: getDirectory() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
@@ -2023,7 +2054,7 @@ wss.on('connection', (ws) => {
 
       // 不再广播"XX加入了聊天室"这类系统提示——人多的时候刷屏，把正常聊天内容顶上去，
       // 谁在线直接看左侧在线列表就够了
-      broadcast({ type: 'online', users: getOnlineUsers() });
+      broadcast({ type: 'online', users: getOnlineUsers(), directory: getDirectory() });
       return;
     }
 
@@ -2072,7 +2103,7 @@ wss.on('connection', (ws) => {
       }
 
       // 发到哪个群：不是这个群的成员就当没发
-      const groupId = String(data.groupId || ALL_GROUP_ID);
+      const groupId = String(data.groupId || '');
       if (!isGroupMember(groupId, client.username)) return;
       const { mentioned, isAll } = extractMentions(text);
       const members = getGroupMembers(groupId);
@@ -2501,7 +2532,11 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      const reminderGroup = (data.groupId === ALL_GROUP_ID || findGroup(data.groupId)) ? String(data.groupId) : ALL_GROUP_ID;
+      const reminderGroup = findGroup(data.groupId) ? String(data.groupId) : '';
+      if (!reminderGroup) {
+        ws.send(JSON.stringify({ type: 'reminder_error', message: '请选一个要发到的群' }));
+        return;
+      }
       if (data.type === 'reminder_add') {
         await addReminder(hour, minute, weekdays, text, reminderGroup);
       } else {
@@ -2834,9 +2869,10 @@ wss.on('connection', (ws) => {
     if (data.type === 'group_switch') {
       const client = clients.get(ws);
       if (!client) return;
-      const gid = String(data.groupId || ALL_GROUP_ID);
+      const gid = String(data.groupId || '');
       if (!isGroupMember(gid, client.username)) {
         ws.send(JSON.stringify({ type: 'group_error', message: '你不在这个群里' }));
+        ws.send(JSON.stringify(groupHistoryPayload(pickStartGroup(client.username, client.role, ''))));
         return;
       }
       ws.send(JSON.stringify(groupHistoryPayload(gid)));
@@ -2845,7 +2881,8 @@ wss.on('connection', (ws) => {
     if (data.type === 'group_read') {
       const client = clients.get(ws);
       if (!client) return;
-      const gid = String(data.groupId || ALL_GROUP_ID);
+      const gid = String(data.groupId || '');
+      if (!gid) return;
       const lastId = Number(data.lastId);
       if (Number.isFinite(lastId) && lastId > 0) await setGroupRead(client.username, gid, lastId);
       return;
@@ -2853,22 +2890,42 @@ wss.on('connection', (ws) => {
     if (data.type === 'group_pin') {
       const client = clients.get(ws);
       if (!client) return;
-      const gid = String(data.groupId || ALL_GROUP_ID);
-      if (gid !== ALL_GROUP_ID && !findGroup(gid)) return;
+      const gid = String(data.groupId || '');
+      if (!findGroup(gid)) return;
       await setGroupPin(client.username, gid, !!data.pinned);
       sendGroupsTo(ws, client);
       return;
     }
+    // 一对一私聊：点达人广场里的人 -> 找到已有的私聊群，没有就建一个（两个人都会收到新的群列表）
+    if (data.type === 'group_dm_open') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const other = String(data.username || '').trim();
+      const target = findUserByName(other);
+      if (!target || target.username === client.username) {
+        ws.send(JSON.stringify({ type: 'group_error', message: '没找到这个人' }));
+        return;
+      }
+      let dm = findDm(client.username, target.username);
+      if (!dm) dm = await createGroupRecord(`${client.username}·${target.username}`, [client.username, target.username], client.username, true);
+      for (const [sock, c] of clients.entries()) {
+        if (sock.readyState === WebSocket.OPEN && (c.username === client.username || c.username === target.username)) sendGroupsTo(sock, c);
+      }
+      ws.send(JSON.stringify({ type: 'group_saved', id: dm.id, switchTo: true }));
+      return;
+    }
+
     if (data.type === 'group_create' || data.type === 'group_update' || data.type === 'group_delete') {
       const client = clients.get(ws);
       if (!client) return;
-      if (client.role !== 'admin') {
-        ws.send(JSON.stringify({ type: 'group_error', message: '只有管理员能建群、改群' }));
+      if (!canManageGroups(client.role)) {
+        ws.send(JSON.stringify({ type: 'group_error', message: '只有管理员和现场管理能建群、改群' }));
         return;
       }
       if (data.type === 'group_delete') {
         const g = findGroup(data.id);
         if (!g) { ws.send(JSON.stringify({ type: 'group_error', message: '没找到这个群' })); return; }
+        if (!canEditGroup(g, client)) { ws.send(JSON.stringify({ type: 'group_error', message: '只能删自己在里面的群' })); return; }
         await deleteGroup(g);
         sendGroupsToEveryone();
         ws.send(JSON.stringify({ type: 'group_saved', id: null }));
@@ -2880,10 +2937,12 @@ wss.on('connection', (ws) => {
       if (members.length === 0) { ws.send(JSON.stringify({ type: 'group_error', message: '至少拉一个人进群' })); return; }
       let saved;
       if (data.type === 'group_create') {
+        if (client.role !== 'admin' && !members.includes(client.username)) members.push(client.username);
         saved = await createGroup(name, members, client.username);
       } else {
         saved = findGroup(data.id);
         if (!saved) { ws.send(JSON.stringify({ type: 'group_error', message: '没找到这个群' })); return; }
+        if (!canEditGroup(saved, client)) { ws.send(JSON.stringify({ type: 'group_error', message: '只能改自己在里面的群' })); return; }
         await updateGroup(saved, name, members);
       }
       sendGroupsToEveryone();
@@ -2894,7 +2953,7 @@ wss.on('connection', (ws) => {
     if (data.type === 'typing') {
       const client = clients.get(ws);
       if (!client) return;
-      const typingGroup = String(data.groupId || ALL_GROUP_ID);
+      const typingGroup = String(data.groupId || '');
       if (isGroupMember(typingGroup, client.username)) broadcastToGroup(typingGroup, { type: 'typing', username: client.username, groupId: typingGroup }, ws);
       return;
     }
@@ -2905,7 +2964,7 @@ wss.on('connection', (ws) => {
     if (client) {
       clients.delete(ws);
       // 同样不再广播"XX离开了聊天室"
-      broadcast({ type: 'online', users: getOnlineUsers() });
+      broadcast({ type: 'online', users: getOnlineUsers(), directory: getDirectory() });
     }
   });
 });
@@ -3043,7 +3102,8 @@ async function deleteReminder(id) {
 // 提醒触发时，用跟"@所有人"完全一样的方式广播——让所有在线的人都弹全屏提示框+收到系统通知，
 // 不是安安静静发一条系统消息就完事，避免被刷屏的聊天记录淹没错过
 function fireReminderBroadcast(text, groupId) {
-  const gid = (groupId && (groupId === ALL_GROUP_ID || findGroup(groupId))) ? String(groupId) : ALL_GROUP_ID;
+  if (!groupId || !findGroup(groupId)) { console.log(`[定时提醒] 群不存在，跳过: ${text}`); return; }
+  const gid = String(groupId);
   const members = getGroupMembers(gid);
   const onlineUsernames = getOnlineUsers().filter((u) => members.includes(u));
   const msg = {

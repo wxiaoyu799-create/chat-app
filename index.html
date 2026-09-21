@@ -1702,6 +1702,109 @@
   .problem-item-badge.show { display: block; }
 
   /* ===== 问题件列表全屏面板 ===== */
+  /* ===== 账号 / 角色 ===== */
+  #password-input { margin-top: 10px; }
+  #my-role-tag {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--panel-alt);
+    border-radius: 999px;
+    padding: 2px 8px;
+    white-space: nowrap;
+  }
+  #my-role-tag:empty { display: none; }
+  #account-menu-btn {
+    width: 30px; height: 30px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--muted); font-size: 16px; cursor: pointer;
+  }
+  #account-menu-btn:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  /* 只有管理员看得到的入口 */
+  .admin-only { display: none !important; }
+  body.role-admin .admin-only { display: flex !important; }
+  /* 只读角色：把改数据的按钮藏起来（服务器那边也会拦，这里只是不让人白点） */
+  body.role-readonly .problem-item-card-actions .resolve-btn,
+  body.role-readonly .problem-item-card-actions .transfer-btn,
+  body.role-readonly .problem-item-card-actions .result-btn,
+  body.role-readonly #problem-item-options-gear-btn,
+  body.role-readonly #case-add-btn,
+  body.role-readonly .case-card-actions,
+  body.role-readonly #special-add-btn,
+  body.role-readonly #reminder-add-open-btn,
+  body.role-readonly .reminder-actions,
+  body.role-readonly #inspection-edit-open-btn,
+  body.role-readonly #timeclock-unlock-btn,
+  body.role-readonly #timeclock-work-edit-btn,
+  body.role-readonly .timeclock-row-edit-btn,
+  body.role-readonly .timeclock-row-del-btn,
+  body.role-readonly .timeclock-name-chip button,
+  body.role-readonly #staff-unlock-btn,
+  body.role-readonly #staff-import-btn { display: none !important; }
+  body.role-readonly .problem-item-stamp { pointer-events: none; }
+  body.role-readonly .problem-item-stamp:not(.stamped) { opacity: 0.25; }
+  /* 我的账号弹层 */
+  #account-panel {
+    display: none; position: fixed; inset: 0; z-index: 10003;
+    background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px;
+  }
+  #account-panel.active { display: flex; }
+  #account-card { background: var(--bg); border-radius: 14px; padding: 24px; width: 100%; max-width: 400px; }
+  #account-card .case-field input { width: 100%; box-sizing: border-box; }
+  #account-must-change-hint {
+    display: none; font-size: 12.5px; color: #b8562f; background: rgba(245, 196, 179, 0.3);
+    border-radius: 8px; padding: 8px 10px; margin-bottom: 12px;
+  }
+  #account-must-change-hint.active { display: block; }
+  #account-old-field.hidden { display: none; }
+  #account-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 8px; }
+  #account-error.ok { color: #2e9e5b; }
+  #account-error:empty { display: none; }
+  #account-logout-btn { color: #e5534b; }
+  /* 账号管理 */
+  #accounts-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
+  #accounts-overlay.active { display: flex; }
+  #accounts-overlay-close-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
+  #accounts-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #accounts-body { flex: 1; overflow-y: auto; padding: 20px 28px 40px; max-width: 900px; width: 100%; box-sizing: border-box; margin: 0 auto; }
+  #accounts-add-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px 10px; margin-bottom: 18px; }
+  #accounts-add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  #accounts-add-row input, #accounts-add-row select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+    font-family: inherit; font-size: 13px; padding: 8px 10px;
+  }
+  #accounts-add-name { flex: 1 1 160px; }
+  #accounts-add-role { flex: 0 0 120px; }
+  #accounts-add-password { flex: 1 1 140px; }
+  #accounts-add-btn { font-size: 13px; padding: 8px 14px; }
+  #accounts-add-error { color: #e5534b; font-size: 12px; min-height: 16px; }
+  #accounts-add-error.ok { color: #2e9e5b; }
+  #accounts-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  #accounts-count { font-size: 12px; color: var(--muted); }
+  #accounts-search-wrap { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 0 8px; color: var(--muted); }
+  #accounts-search { border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13px; padding: 7px 0; width: 160px; }
+  #accounts-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+  #accounts-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  #accounts-table th, #accounts-table td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  #accounts-table thead th { background: var(--bg); color: var(--muted); font-weight: 600; font-size: 12px; }
+  #accounts-table tbody tr:last-child td { border-bottom: none; }
+  #accounts-table select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: inherit; font-size: 12.5px; padding: 4px 6px; }
+  #accounts-table .acc-actions { display: flex; gap: 6px; }
+  #accounts-table .acc-actions button {
+    background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 6px;
+    font-size: 12px; padding: 4px 9px; cursor: pointer; font-family: inherit;
+  }
+  #accounts-table .acc-actions button:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  #accounts-table .acc-actions button.danger:hover { color: #e5534b; border-color: #e5534b; }
+  .acc-status-on { color: #2e9e5b; font-weight: 600; }
+  .acc-status-off { color: #e5534b; font-weight: 600; }
+  .acc-me { font-size: 11px; color: var(--muted); margin-left: 4px; }
+  #accounts-reset-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
+  #accounts-reset-panel.active { display: flex; }
+  #accounts-reset-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 380px; }
+  #accounts-reset-card input { width: 100%; box-sizing: border-box; }
+  #accounts-reset-error { color: #e5534b; font-size: 12px; min-height: 16px; margin: 6px 0 4px; }
+
   /* ===== 特殊要求 ===== */
   #special-overlay {
     display: none;
@@ -3387,9 +3490,10 @@
 <div id="login">
   <div class="card">
     <h1><i class="ti ti-message-circle icon-soft"></i> CC</h1>
-    <p>输入昵称加入聊天</p>
-    <input id="username-input" type="text" placeholder="你的昵称" maxlength="20" />
-    <button id="join-btn">加入 CC</button>
+    <p>用管理员给你的账号登录</p>
+    <input id="username-input" type="text" placeholder="用户名（你的名字）" maxlength="20" autocomplete="username" />
+    <input id="password-input" type="password" placeholder="密码" autocomplete="current-password" />
+    <button id="join-btn">登录</button>
     <div id="login-error"></div>
   </div>
 </div>
@@ -3456,6 +3560,9 @@
     <button id="staff-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
+    <button id="accounts-open-btn" class="sidebar-toggle admin-only" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-user-cog"></i></span> 账号管理</span>
+    </button>
   </div>
   <div id="chat-col">
     <header>
@@ -3468,7 +3575,9 @@
       </div>
       <div class="header-right">
         <span class="status" id="conn-status">连接中...</span>
+        <span id="my-role-tag"></span>
         <button id="chat-search-btn" type="button" title="搜索聊天记录"><i class="ti ti-search"></i></button>
+        <button id="account-menu-btn" type="button" title="修改密码 / 退出登录"><i class="ti ti-user-circle"></i></button>
         <button id="right-sidebar-toggle" type="button" title="收起右侧栏，聊天区更宽"><i class="ti ti-layout-sidebar-right-collapse"></i></button>
       </div>
     </header>
@@ -3943,6 +4052,83 @@
   </div>
 </div>
 
+<!-- ===== 我的账号：改密码 / 退出 ===== -->
+<div id="account-panel">
+  <div id="account-card">
+    <div class="problem-item-options-edit-title">我的账号</div>
+    <div class="problem-item-options-edit-desc" id="account-desc"></div>
+    <div id="account-must-change-hint">管理员给的是初始密码，建议改一个自己的（不改也能用）。</div>
+    <div class="case-field" id="account-old-field">
+      <label class="problem-item-field-label">原密码</label>
+      <input id="account-old-password" type="password" autocomplete="current-password" />
+    </div>
+    <div class="case-field">
+      <label class="problem-item-field-label">新密码（至少 4 位）</label>
+      <input id="account-new-password" type="password" autocomplete="new-password" />
+    </div>
+    <div class="case-field">
+      <label class="problem-item-field-label">再输一遍新密码</label>
+      <input id="account-new-password2" type="password" autocomplete="new-password" />
+    </div>
+    <div id="account-error"></div>
+    <div class="problem-item-options-edit-actions">
+      <button id="account-logout-btn" type="button" class="pin-edit-btn"><i class="ti ti-logout"></i> 退出登录</button>
+      <span style="flex:1"></span>
+      <button id="account-cancel-btn" type="button" class="pin-edit-btn">关闭</button>
+      <button id="account-save-btn" type="button">改密码</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 账号管理（管理员）===== -->
+<div id="accounts-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-user-cog"></i> 账号管理</span>
+    <div class="case-header-actions">
+      <button id="accounts-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="accounts-body">
+    <div id="accounts-add-card">
+      <div class="problem-item-options-edit-title">新建账号</div>
+      <div id="accounts-add-row">
+        <input id="accounts-add-name" type="text" maxlength="20" placeholder="用户名（中文姓名）" autocomplete="off" />
+        <select id="accounts-add-role"></select>
+        <input id="accounts-add-password" type="text" maxlength="40" placeholder="初始密码" autocomplete="off" />
+        <button id="accounts-add-btn" type="button"><i class="ti ti-plus"></i> 建立</button>
+      </div>
+      <div id="accounts-add-error"></div>
+      <div class="problem-item-options-edit-desc">
+        管理员：什么都能改，还能管账号 · 现场管理：除了管账号什么都能改 · 质检员 / 代购 / 客服：只能聊天和提问题件，其他只读。
+        新账号第一次登录会提示改密码，不改也能用。
+      </div>
+    </div>
+    <div id="accounts-list-head">
+      <span id="accounts-count"></span>
+      <div id="accounts-search-wrap"><i class="ti ti-search"></i><input id="accounts-search" type="search" placeholder="搜名字" autocomplete="off" /></div>
+    </div>
+    <div id="accounts-table-wrap">
+      <table id="accounts-table">
+        <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>建立时间</th><th>操作</th></tr></thead>
+        <tbody id="accounts-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- 重置密码 -->
+  <div id="accounts-reset-panel">
+    <div id="accounts-reset-card">
+      <div class="problem-item-options-edit-title" id="accounts-reset-title">重置密码</div>
+      <div class="problem-item-options-edit-desc">设一个新的初始密码告诉对方，她在线的话会被退出重新登录。</div>
+      <input id="accounts-reset-password" type="text" maxlength="40" placeholder="新密码（至少 4 位）" autocomplete="off" />
+      <div id="accounts-reset-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="accounts-reset-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+        <button id="accounts-reset-ok-btn" type="button">重置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 特殊要求（部分用户的特殊检品要求，按入库码查，App内全屏）===== -->
 <div id="special-overlay">
   <div class="tool-overlay-header-bar">
@@ -4318,6 +4504,7 @@
   const appEl = document.getElementById('app');
   const faviconEl = document.getElementById('favicon');
   const usernameInput = document.getElementById('username-input');
+  const passwordInput = document.getElementById('password-input');
   const joinBtn = document.getElementById('join-btn');
   const loginErrorEl = document.getElementById('login-error');
   // 名字被占用时服务器会拒绝登录，这时候要拦住自动重连，
@@ -4492,13 +4679,41 @@
   ];
   const REMOVED_QUICK_CATEGORIES = ['代拍', '代购', '煤炉'];
 
+  // ===== 登录状态：令牌记在本机，刷新不用重登；角色决定页面上哪些按钮显示 =====
+  const AUTH_TOKEN_KEY = 'ccAuthToken';
+  let authToken = '';
+  let myRole = '';
+  let myUser = null;
+  let roleLabels = {};
+  try { authToken = localStorage.getItem(AUTH_TOKEN_KEY) || ''; } catch (e) { /* 忽略 */ }
+  function saveAuthToken(t) {
+    authToken = t || '';
+    try {
+      if (authToken) localStorage.setItem(AUTH_TOKEN_KEY, authToken); else localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch (e) { /* 忽略 */ }
+  }
+  function isEditRole(role) { return role === 'admin' || role === 'manager'; }
+  function applyRole(user) {
+    myUser = user;
+    myRole = user ? user.role : '';
+    document.body.classList.toggle('role-admin', myRole === 'admin');
+    document.body.classList.toggle('role-readonly', !!myRole && !isEditRole(myRole));
+    const tag = document.getElementById('my-role-tag');
+    tag.textContent = user ? (user.roleLabel || roleLabels[user.role] || '') : '';
+  }
+  async function authFetch(url, options) {
+    const opts = Object.assign({ headers: {} }, options || {});
+    opts.headers = Object.assign({ Authorization: 'Bearer ' + authToken }, opts.headers || {});
+    return fetch(url, opts);
+  }
+
   function connect() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${location.host}`);
 
     ws.onopen = () => {
       connStatus.textContent = '已连接';
-      ws.send(JSON.stringify({ type: 'join', username }));
+      ws.send(JSON.stringify({ type: 'join', token: authToken }));
     };
 
     ws.onclose = () => {
@@ -4515,25 +4730,35 @@
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'kicked') {
-        // 同名在别处登录了，这个窗口被挤下线：停掉自动重连，退回登录页说明原因
+        // 同名在别处登录了 / 被管理员停用或重置密码：停掉自动重连，退回登录页说明原因
         joinRejected = true;
         try { ws.close(); } catch (e) { /* 忽略 */ }
         appEl.classList.remove('active');
         loginEl.style.display = '';
+        passwordInput.value = '';
         loginErrorEl.textContent = data.message || '你的账号在别处登录了，这个窗口已经下线';
         loginErrorEl.classList.add('active');
         joinBtn.disabled = false;
       } else if (data.type === 'join_error') {
-        // 名字已经有人在用：退回登录页，让他换一个
+        // 令牌失效（密码被重置、账号停用、过期）：清掉本机令牌，退回登录页
         joinRejected = true;
         try { ws.close(); } catch (e) { /* 忽略 */ }
+        if (data.code === 'auth') saveAuthToken('');
         appEl.classList.remove('active');
         loginEl.style.display = '';
-        loginErrorEl.textContent = data.message || '这个名字已经有人在用了，换一个吧';
+        loginErrorEl.textContent = data.message || '登录已失效，请重新登录';
         loginErrorEl.classList.add('active');
         joinBtn.disabled = false;
+        passwordInput.value = '';
         usernameInput.focus();
-        usernameInput.select();
+      } else if (data.type === 'me') {
+        roleLabels = data.roles || roleLabels;
+        applyRole(data.user);
+        // 初始密码没改过：登录后提示一次，可以关掉不改
+        if (data.user && data.user.mustChangePassword && !sessionStorage.getItem('ccPwHintShown')) {
+          try { sessionStorage.setItem('ccPwHintShown', '1'); } catch (e) { /* 忽略 */ }
+          openAccountPanel();
+        }
       } else if (data.type === 'history') {
         joinBtn.disabled = false;
         messagesEl.innerHTML = '';
@@ -7551,6 +7776,233 @@
     }
   });
 
+  // ===== 我的账号：改密码 / 退出登录 =====
+  const accountPanel = document.getElementById('account-panel');
+  const accountMenuBtn = document.getElementById('account-menu-btn');
+  const accountDesc = document.getElementById('account-desc');
+  const accountMustChangeHint = document.getElementById('account-must-change-hint');
+  const accountOldField = document.getElementById('account-old-field');
+  const accountOldPassword = document.getElementById('account-old-password');
+  const accountNewPassword = document.getElementById('account-new-password');
+  const accountNewPassword2 = document.getElementById('account-new-password2');
+  const accountError = document.getElementById('account-error');
+  const accountSaveBtn = document.getElementById('account-save-btn');
+  const accountCancelBtn = document.getElementById('account-cancel-btn');
+  const accountLogoutBtn = document.getElementById('account-logout-btn');
+
+  function openAccountPanel() {
+    accountDesc.textContent = myUser ? `${myUser.username} · ${myUser.roleLabel || ''}` : '';
+    const mustChange = !!(myUser && myUser.mustChangePassword);
+    accountMustChangeHint.classList.toggle('active', mustChange);
+    accountOldField.classList.toggle('hidden', mustChange);
+    accountOldPassword.value = '';
+    accountNewPassword.value = '';
+    accountNewPassword2.value = '';
+    accountError.textContent = '';
+    accountError.classList.remove('ok');
+    accountPanel.classList.add('active');
+    (mustChange ? accountNewPassword : accountOldPassword).focus();
+  }
+  function closeAccountPanel() { accountPanel.classList.remove('active'); }
+  async function saveNewPassword() {
+    const np = accountNewPassword.value;
+    if (np.length < 4) { accountError.textContent = '新密码至少 4 位'; accountNewPassword.focus(); return; }
+    if (np !== accountNewPassword2.value) { accountError.textContent = '两次输的新密码不一样'; accountNewPassword2.focus(); return; }
+    const mustChange = !!(myUser && myUser.mustChangePassword);
+    if (!mustChange && !accountOldPassword.value) { accountError.textContent = '请输入原密码'; accountOldPassword.focus(); return; }
+    accountError.classList.remove('ok');
+    accountError.textContent = '保存中…';
+    try {
+      const res = await authFetch('/api/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPassword: accountOldPassword.value, newPassword: np }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '修改失败');
+      // 改完密码令牌换新的，当前连接不用断
+      saveAuthToken(data.token);
+      applyRole(data.user);
+      accountError.classList.add('ok');
+      accountError.textContent = '✓ 密码已修改';
+      accountMustChangeHint.classList.remove('active');
+      accountOldField.classList.remove('hidden');
+      accountOldPassword.value = ''; accountNewPassword.value = ''; accountNewPassword2.value = '';
+      setTimeout(closeAccountPanel, 900);
+    } catch (err) {
+      accountError.textContent = err.message;
+    }
+  }
+  function logout() {
+    saveAuthToken('');
+    joinRejected = true;
+    try { if (ws) ws.close(); } catch (e) { /* 忽略 */ }
+    closeAccountPanel();
+    appEl.classList.remove('active');
+    loginEl.style.display = '';
+    loginErrorEl.classList.remove('active');
+    joinBtn.disabled = false;
+    passwordInput.value = '';
+    usernameInput.value = username || '';
+    passwordInput.focus();
+  }
+  accountMenuBtn.addEventListener('click', openAccountPanel);
+  accountCancelBtn.addEventListener('click', closeAccountPanel);
+  accountSaveBtn.addEventListener('click', saveNewPassword);
+  accountLogoutBtn.addEventListener('click', logout);
+  accountNewPassword2.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNewPassword(); });
+  accountPanel.addEventListener('click', (e) => { if (e.target === accountPanel) closeAccountPanel(); });
+
+  // ===== 账号管理（管理员）：建账号、改角色、重置密码、停用、删除 =====
+  const accountsOverlay = document.getElementById('accounts-overlay');
+  const accountsOpenBtn = document.getElementById('accounts-open-btn');
+  const accountsCloseBtn = document.getElementById('accounts-overlay-close-btn');
+  const accountsAddName = document.getElementById('accounts-add-name');
+  const accountsAddRole = document.getElementById('accounts-add-role');
+  const accountsAddPassword = document.getElementById('accounts-add-password');
+  const accountsAddBtn = document.getElementById('accounts-add-btn');
+  const accountsAddError = document.getElementById('accounts-add-error');
+  const accountsCount = document.getElementById('accounts-count');
+  const accountsSearch = document.getElementById('accounts-search');
+  const accountsTbody = document.getElementById('accounts-tbody');
+  const accountsResetPanel = document.getElementById('accounts-reset-panel');
+  const accountsResetTitle = document.getElementById('accounts-reset-title');
+  const accountsResetPassword = document.getElementById('accounts-reset-password');
+  const accountsResetError = document.getElementById('accounts-reset-error');
+  const accountsResetOkBtn = document.getElementById('accounts-reset-ok-btn');
+  const accountsResetCancelBtn = document.getElementById('accounts-reset-cancel-btn');
+  let accountsData = [];
+  let accountsRoles = {};
+  let resettingUserId = null;
+
+  function fillRoleSelect(sel, current) {
+    sel.innerHTML = '';
+    Object.keys(accountsRoles).forEach((key) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = accountsRoles[key];
+      sel.appendChild(opt);
+    });
+    sel.value = current || 'inspector';
+  }
+  async function loadAccounts() {
+    const res = await authFetch('/api/admin/users', { cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '读取失败');
+    accountsData = data.users || [];
+    accountsRoles = data.roles || {};
+    if (!accountsAddRole.options.length) fillRoleSelect(accountsAddRole, 'inspector');
+    renderAccounts();
+  }
+  function renderAccounts() {
+    const key = accountsSearch.value.trim().toLowerCase();
+    const list = accountsData.filter((u) => !key || u.username.toLowerCase().includes(key));
+    accountsTbody.innerHTML = '';
+    list.forEach((u) => {
+      const tr = document.createElement('tr');
+      const isMe = myUser && String(u.id) === String(myUser.id);
+      tr.innerHTML = `<td>${escapeHtml(u.username)}${isMe ? '<span class="acc-me">（我）</span>' : ''}</td>`
+        + `<td></td>`
+        + `<td>${u.disabled ? '<span class="acc-status-off">已停用</span>' : '<span class="acc-status-on">正常</span>'}${u.mustChangePassword ? ' <span class="acc-me">初始密码未改</span>' : ''}</td>`
+        + `<td>${formatCaseTime(u.createdAt)}</td>`
+        + `<td><div class="acc-actions"></div></td>`;
+      const roleSel = document.createElement('select');
+      fillRoleSelect(roleSel, u.role);
+      roleSel.addEventListener('change', () => updateAccount(u, { role: roleSel.value }, () => { roleSel.value = u.role; }));
+      tr.children[1].appendChild(roleSel);
+      const actions = tr.querySelector('.acc-actions');
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button'; resetBtn.innerHTML = '<i class="ti ti-key"></i> 重置密码';
+      resetBtn.addEventListener('click', () => { resettingUserId = u.id; accountsResetTitle.textContent = `重置密码 · ${u.username}`; accountsResetPassword.value = ''; accountsResetError.textContent = ''; accountsResetPanel.classList.add('active'); accountsResetPassword.focus(); });
+      actions.appendChild(resetBtn);
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button'; toggleBtn.innerHTML = u.disabled ? '<i class="ti ti-user-check"></i> 启用' : '<i class="ti ti-user-off"></i> 停用';
+      toggleBtn.addEventListener('click', () => updateAccount(u, { disabled: !u.disabled }));
+      actions.appendChild(toggleBtn);
+      if (!isMe) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'danger'; delBtn.innerHTML = '<i class="ti ti-trash"></i> 删除';
+        delBtn.addEventListener('click', () => {
+          if (!window.confirm(`确定删除账号「${u.username}」？她的聊天记录会保留，只是登不上了。`)) return;
+          authFetch('/api/admin/users/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id }) })
+            .then((r) => r.json().then((d) => { if (!r.ok) throw new Error(d.error || '删除失败'); }))
+            .then(loadAccounts)
+            .catch((err) => { accountsAddError.classList.remove('ok'); accountsAddError.textContent = err.message; });
+        });
+        actions.appendChild(delBtn);
+      }
+      accountsTbody.appendChild(tr);
+    });
+    accountsCount.textContent = key ? `${list.length} / 共 ${accountsData.length} 个账号` : `共 ${accountsData.length} 个账号`;
+  }
+  async function updateAccount(u, fields, onFail) {
+    try {
+      const res = await authFetch('/api/admin/users/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, ...fields }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '修改失败');
+      await loadAccounts();
+    } catch (err) {
+      if (onFail) onFail();
+      accountsAddError.classList.remove('ok');
+      accountsAddError.textContent = err.message;
+    }
+  }
+  async function addAccount() {
+    const name = accountsAddName.value.trim();
+    const pw = accountsAddPassword.value;
+    accountsAddError.classList.remove('ok');
+    if (!name) { accountsAddError.textContent = '请填用户名'; accountsAddName.focus(); return; }
+    if (pw.length < 4) { accountsAddError.textContent = '初始密码至少 4 位'; accountsAddPassword.focus(); return; }
+    try {
+      const res = await authFetch('/api/admin/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: name, role: accountsAddRole.value, password: pw }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '建立失败');
+      accountsAddError.classList.add('ok');
+      accountsAddError.textContent = `✓ 已建立「${name}」，把初始密码告诉她就行`;
+      accountsAddName.value = '';
+      accountsAddPassword.value = '';
+      await loadAccounts();
+      accountsAddName.focus();
+    } catch (err) {
+      accountsAddError.textContent = err.message;
+    }
+  }
+  accountsOpenBtn.addEventListener('click', () => {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    accountsAddError.textContent = '';
+    accountsOverlay.classList.add('active');
+    loadAccounts().catch((err) => { accountsAddError.textContent = err.message; });
+  });
+  accountsCloseBtn.addEventListener('click', () => accountsOverlay.classList.remove('active'));
+  accountsAddBtn.addEventListener('click', addAccount);
+  accountsAddPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') addAccount(); });
+  accountsSearch.addEventListener('input', renderAccounts);
+  accountsResetCancelBtn.addEventListener('click', () => accountsResetPanel.classList.remove('active'));
+  accountsResetPanel.addEventListener('click', (e) => { if (e.target === accountsResetPanel) accountsResetPanel.classList.remove('active'); });
+  async function submitReset() {
+    const pw = accountsResetPassword.value;
+    if (pw.length < 4) { accountsResetError.textContent = '新密码至少 4 位'; return; }
+    const target = accountsData.find((u) => String(u.id) === String(resettingUserId));
+    try {
+      const res = await authFetch('/api/admin/users/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: resettingUserId, newPassword: pw }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '重置失败');
+      accountsResetPanel.classList.remove('active');
+      accountsAddError.classList.add('ok');
+      accountsAddError.textContent = `✓ 已重置「${target ? target.username : ''}」的密码`;
+      await loadAccounts();
+    } catch (err) {
+      accountsResetError.textContent = err.message;
+    }
+  }
+  accountsResetOkBtn.addEventListener('click', submitReset);
+  accountsResetPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitReset(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (accountsResetPanel.classList.contains('active')) accountsResetPanel.classList.remove('active');
+    else if (accountPanel.classList.contains('active')) closeAccountPanel();
+    else if (accountsOverlay.classList.contains('active')) accountsOverlay.classList.remove('active');
+  });
+
   // ===== 特殊要求（部分用户的特殊检品要求；所有人可看，增删改要编辑密码） =====
   const specialOverlay = document.getElementById('special-overlay');
   const specialOverlayCloseBtn = document.getElementById('special-overlay-close-btn');
@@ -8490,7 +8942,7 @@
   });
   toolDriveBtn.addEventListener('click', () => {
     // 把聊天昵称带过去当"上传人"，云盘页面自己不再另外问名字
-    openToolOverlay('/cloud-drive.html?user=' + encodeURIComponent(username || ''), '云盘（共享文件）');
+    openToolOverlay('/cloud-drive.html?user=' + encodeURIComponent(username || '') + '&token=' + encodeURIComponent(authToken), '云盘（共享文件）');
   });
   // 内存面板是装在每台电脑本机上的小服务（MemGuard，端口 8765），这里只是个入口。
   // 聊天室是 https、面板是 http://localhost，浏览器不允许把它嵌进 iframe，也不让页面先去探测它有没有装，
@@ -9809,18 +10261,44 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  function joinChat() {
+  // 点"登录"：账号密码换令牌，成功了再进聊天室
+  async function joinChat() {
     const val = usernameInput.value.trim();
     if (!val) { usernameInput.focus(); return; }
-    // 名字不能含字母和数字（服务器那边也会再挡一次）
-    if (/[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]/.test(val)) {
-      loginErrorEl.textContent = '名字里不能有字母和数字，请填中文姓名';
+    const pw = passwordInput.value;
+    if (!pw) { passwordInput.focus(); return; }
+    joinBtn.disabled = true;
+    loginErrorEl.classList.remove('active');
+    try {
+      const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: val, password: pw }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '登录失败');
+      saveAuthToken(data.token);
+      passwordInput.value = '';
+      enterApp(data.user);
+    } catch (err) {
+      joinBtn.disabled = false;
+      loginErrorEl.textContent = err.message;
       loginErrorEl.classList.add('active');
-      usernameInput.focus();
-      usernameInput.select();
-      return;
+      passwordInput.focus();
+      passwordInput.select();
     }
-    username = val;
+  }
+  // 页面刚打开：本机有令牌就先试着直接进，令牌失效再显示登录页
+  async function tryAutoLogin() {
+    if (!authToken) return;
+    try {
+      const res = await authFetch('/api/session', { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '');
+      enterApp(data.user);
+    } catch (e) {
+      saveAuthToken('');
+    }
+  }
+  function enterApp(user) {
+    username = user.username;
+    applyRole(user);
     joinRejected = false;
     loginErrorEl.classList.remove('active');
     joinBtn.disabled = true;
@@ -10089,6 +10567,8 @@
   });
 
   joinBtn.addEventListener('click', joinChat);
+  passwordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinChat(); });
+  tryAutoLogin();
   usernameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinChat(); });
 
 

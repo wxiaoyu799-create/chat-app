@@ -531,6 +531,8 @@ app.get('/api/drive/download/:id', (req, res) => {
 // 改名/换分类和删除都要编辑密码（跟公告栏/提醒事项共用同一个），避免共享文件被随手删掉
 app.post('/api/drive/rename', express.json(), (req, res) => {
   const { id, name, folder, password } = req.body || {};
+  const actor = verifyToken(tokenFromReq(req));
+  if (!actor || !isEditRole(actor.role)) return res.status(403).json({ error: '你的账号没有这个权限' });
   if (String(password || '') !== PIN_EDIT_PASSWORD) return res.status(403).json({ error: '密码错误' });
   const f = driveFiles.find((x) => x.id === id);
   if (!f) return res.status(404).json({ error: '文件不存在或已被删除' });
@@ -545,6 +547,8 @@ app.post('/api/drive/rename', express.json(), (req, res) => {
 
 app.post('/api/drive/delete', express.json(), (req, res) => {
   const { id, password } = req.body || {};
+  const actor = verifyToken(tokenFromReq(req));
+  if (!actor || !isEditRole(actor.role)) return res.status(403).json({ error: '你的账号没有这个权限' });
   if (String(password || '') !== PIN_EDIT_PASSWORD) return res.status(403).json({ error: '密码错误，无法删除' });
   const idx = driveFiles.findIndex((x) => x.id === id);
   if (idx === -1) return res.status(404).json({ error: '文件不存在或已被删除' });
@@ -744,6 +748,277 @@ function scheduleMentionReminder(msg) {
 // 置顶公告编辑密码：优先读取环境变量 PIN_EDIT_PASSWORD（部署到Render时在后台设置），
 // 本地没配置环境变量时用这个默认值兜底，方便本地测试，正式使用务必在Render上单独设置
 const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
+
+// ==================== 账号 / 角色 / 登录 ====================
+// 每个人一个账号（用户名就是聊天里显示的名字），由管理员建；密码 scrypt 加盐存，
+// 登录后发一个带签名的令牌，浏览器记着，刷新不用重登。改密码/重置密码后旧令牌全部作废。
+// 角色决定能改什么：admin/manager 能改所有模块，其余三种只能聊天 + 提问题件，别的只读。
+const ROLES = { admin: '管理员', manager: '现场管理', inspector: '质检员', buyer: '代购', service: '客服' };
+const EDIT_ROLES = ['admin', 'manager'];
+const TOKEN_TTL_MS = 90 * 24 * 3600 * 1000;
+const SESSION_SECRET = process.env.SESSION_SECRET
+  || crypto.createHash('sha256').update('cc-session:' + PIN_EDIT_PASSWORD + ':' + DATABASE_URL).digest('hex');
+// 第一次启动、用户表还是空的时候，自动建一个管理员账号，密码默认跟编辑密码一样（可用 ADMIN_PASSWORD 单独指定）
+const SEED_ADMIN_USERNAME = process.env.ADMIN_USERNAME || '管理员';
+const SEED_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || PIN_EDIT_PASSWORD;
+
+let users = []; // { id, username, role, passwordHash, salt, pwVersion, disabled, mustChangePassword, createdAt }
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(String(password), salt, 64).toString('hex');
+}
+function newSalt() { return crypto.randomBytes(16).toString('hex'); }
+function verifyPassword(user, password) {
+  const h = hashPassword(password, user.salt);
+  const a1 = Buffer.from(h, 'hex');
+  const b1 = Buffer.from(user.passwordHash, 'hex');
+  return a1.length === b1.length && crypto.timingSafeEqual(a1, b1);
+}
+function isEditRole(role) { return EDIT_ROLES.includes(role); }
+function publicUser(u) {
+  return { id: u.id, username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role, disabled: !!u.disabled, mustChangePassword: !!u.mustChangePassword, createdAt: u.createdAt };
+}
+function findUserByName(name) {
+  const key = String(name || '').trim().toLowerCase();
+  return users.find((u) => u.username.toLowerCase() === key) || null;
+}
+function findUserById(id) { return users.find((u) => String(u.id) === String(id)) || null; }
+
+// 令牌 = base64(用户ID.密码版本.签发时间) + "." + HMAC。密码版本变了（改密码/重置）令牌就失效
+function signToken(user) {
+  const payload = Buffer.from(`${user.id}.${user.pwVersion}.${Date.now()}`).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+function verifyToken(token) {
+  if (typeof token !== 'string') return null;
+  const dot = token.lastIndexOf('.');
+  if (dot === -1) return null;
+  const payload = token.slice(0, dot);
+  const sig = token.slice(dot + 1);
+  const expect = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const a1 = Buffer.from(sig);
+  const b1 = Buffer.from(expect);
+  if (a1.length !== b1.length || !crypto.timingSafeEqual(a1, b1)) return null;
+  const [id, ver, iat] = Buffer.from(payload, 'base64url').toString().split('.');
+  const user = findUserById(id);
+  if (!user || user.disabled) return null;
+  if (String(user.pwVersion) !== String(ver)) return null;
+  if (Date.now() - Number(iat) > TOKEN_TTL_MS) return null;
+  return user;
+}
+function tokenFromReq(req) {
+  const h = String(req.headers.authorization || '');
+  if (h.startsWith('Bearer ')) return h.slice(7);
+  if (req.body && req.body.token) return String(req.body.token);
+  if (req.query && req.query.token) return String(req.query.token);
+  return '';
+}
+
+async function ensureUsersTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'inspector',
+      password_hash TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      pw_version INT NOT NULL DEFAULT 1,
+      disabled BOOLEAN NOT NULL DEFAULT false,
+      must_change_password BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+function rowToUser(r) {
+  return {
+    id: r.id, username: r.username, role: ROLES[r.role] ? r.role : 'inspector',
+    passwordHash: r.password_hash, salt: r.salt, pwVersion: Number(r.pw_version),
+    disabled: !!r.disabled, mustChangePassword: !!r.must_change_password,
+    createdAt: new Date(r.created_at).getTime(),
+  };
+}
+async function loadUsersFromDB() {
+  if (dbPool) {
+    try {
+      await ensureUsersTable();
+      const { rows } = await dbPool.query('SELECT * FROM users ORDER BY id ASC;');
+      users = rows.map(rowToUser);
+      console.log(`已从数据库加载账号，共 ${users.length} 个`);
+    } catch (err) {
+      console.error('[加载账号失败]', err.message);
+    }
+  }
+  if (users.length === 0) {
+    await createUser(SEED_ADMIN_USERNAME, SEED_ADMIN_PASSWORD, 'admin', false);
+    console.log(`用户表是空的，已自动建立管理员账号「${SEED_ADMIN_USERNAME}」（密码见 ADMIN_PASSWORD / PIN_EDIT_PASSWORD）`);
+  }
+}
+async function createUser(username, password, role, mustChange) {
+  const salt = newSalt();
+  const u = {
+    id: `mem-u-${Date.now()}-${Math.round(Math.random() * 1e6)}`, username, role,
+    passwordHash: hashPassword(password, salt), salt, pwVersion: 1,
+    disabled: false, mustChangePassword: !!mustChange, createdAt: Date.now(),
+  };
+  if (dbPool) {
+    try {
+      const r = await dbPool.query(
+        'INSERT INTO users (username, role, password_hash, salt, must_change_password) VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at;',
+        [username, role, u.passwordHash, salt, u.mustChangePassword]
+      );
+      u.id = r.rows[0].id;
+      u.createdAt = new Date(r.rows[0].created_at).getTime();
+    } catch (err) {
+      console.error('[账号写入数据库失败]', err.message);
+      throw new Error('写入数据库失败：' + err.message);
+    }
+  }
+  users.push(u);
+  return u;
+}
+async function setUserPassword(user, password, mustChange) {
+  user.salt = newSalt();
+  user.passwordHash = hashPassword(password, user.salt);
+  user.pwVersion += 1;
+  user.mustChangePassword = !!mustChange;
+  if (dbPool) {
+    try {
+      await dbPool.query(
+        'UPDATE users SET password_hash=$1, salt=$2, pw_version=$3, must_change_password=$4, updated_at=now() WHERE id=$5;',
+        [user.passwordHash, user.salt, user.pwVersion, user.mustChangePassword, user.id]
+      );
+    } catch (err) {
+      console.error('[密码写入数据库失败]', err.message);
+    }
+  }
+}
+async function updateUserFields(user, fields) {
+  Object.assign(user, fields);
+  if (dbPool) {
+    try {
+      await dbPool.query('UPDATE users SET role=$1, disabled=$2, updated_at=now() WHERE id=$3;', [user.role, user.disabled, user.id]);
+    } catch (err) {
+      console.error('[账号更新数据库失败]', err.message);
+    }
+  }
+}
+async function deleteUser(user) {
+  users = users.filter((u) => u !== user);
+  if (dbPool) {
+    try {
+      await dbPool.query('DELETE FROM users WHERE id=$1;', [user.id]);
+    } catch (err) {
+      console.error('[账号删除数据库失败]', err.message);
+    }
+  }
+}
+// 某人被停用/删除/重置密码后，把她在线的连接踢掉，让她重新登录
+function kickUserSessions(username, message) {
+  Array.from(clients.entries()).forEach(([sock, c]) => {
+    if (c.username !== username) return;
+    try { sock.send(JSON.stringify({ type: 'kicked', message })); } catch (e) { /* 忽略 */ }
+    clients.delete(sock);
+    setTimeout(() => { try { sock.close(); } catch (e) { /* 忽略 */ } }, 300);
+  });
+}
+
+// ---- 登录 / 改密码 ----
+app.post('/api/login', express.json(), async (req, res) => {
+  const username = String((req.body || {}).username || '').trim();
+  const password = String((req.body || {}).password || '');
+  const user = findUserByName(username);
+  if (!user || !verifyPassword(user, password)) {
+    return res.status(401).json({ error: '用户名或密码不对' });
+  }
+  if (user.disabled) return res.status(403).json({ error: '这个账号已停用，找管理员' });
+  res.json({ token: signToken(user), user: publicUser(user) });
+});
+app.get('/api/session', (req, res) => {
+  const user = verifyToken(tokenFromReq(req));
+  if (!user) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  res.json({ user: publicUser(user) });
+});
+app.post('/api/change-password', express.json(), async (req, res) => {
+  const user = verifyToken(tokenFromReq(req));
+  if (!user) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  const oldPassword = String(req.body.oldPassword || '');
+  const newPassword = String(req.body.newPassword || '');
+  if (newPassword.length < 4) return res.status(400).json({ error: '新密码至少 4 位' });
+  if (!user.mustChangePassword && !verifyPassword(user, oldPassword)) {
+    return res.status(400).json({ error: '原密码不对' });
+  }
+  await setUserPassword(user, newPassword, false);
+  res.json({ token: signToken(user), user: publicUser(user) });
+});
+
+// ---- 管理员：账号管理 ----
+function requireAdmin(req, res) {
+  const user = verifyToken(tokenFromReq(req));
+  if (!user) { res.status(401).json({ error: '登录已失效，请重新登录' }); return null; }
+  if (user.role !== 'admin') { res.status(403).json({ error: '只有管理员能管账号' }); return null; }
+  return user;
+}
+app.get('/api/admin/users', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.json({ users: users.map(publicUser), roles: ROLES });
+});
+app.post('/api/admin/users', express.json(), async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const username = String(req.body.username || '').trim().slice(0, 20);
+  const role = ROLES[req.body.role] ? req.body.role : 'inspector';
+  const password = String(req.body.password || '');
+  if (!username) return res.status(400).json({ error: '请填用户名' });
+  if (/[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]/.test(username)) return res.status(400).json({ error: '用户名只能用中文姓名，不能有字母和数字' });
+  if (password.length < 4) return res.status(400).json({ error: '初始密码至少 4 位' });
+  if (findUserByName(username)) return res.status(400).json({ error: '这个名字已经有账号了' });
+  try {
+    const u = await createUser(username, password, role, true);
+    res.json({ user: publicUser(u) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+app.post('/api/admin/users/update', express.json(), async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const target = findUserById(req.body.id);
+  if (!target) return res.status(404).json({ error: '没找到这个账号' });
+  const fields = {};
+  if (req.body.role !== undefined) {
+    if (!ROLES[req.body.role]) return res.status(400).json({ error: '角色不对' });
+    fields.role = req.body.role;
+  }
+  if (req.body.disabled !== undefined) fields.disabled = !!req.body.disabled;
+  // 最后一个管理员不能把自己降级/停用，不然没人能管账号了
+  const adminsLeft = users.filter((u) => u.role === 'admin' && !u.disabled && u !== target).length;
+  if (target.role === 'admin' && adminsLeft === 0 && ((fields.role && fields.role !== 'admin') || fields.disabled)) {
+    return res.status(400).json({ error: '这是最后一个管理员，不能降级或停用' });
+  }
+  await updateUserFields(target, fields);
+  if (req.body.newPassword !== undefined) {
+    const np = String(req.body.newPassword || '');
+    if (np.length < 4) return res.status(400).json({ error: '新密码至少 4 位' });
+    await setUserPassword(target, np, true);
+    kickUserSessions(target.username, '管理员重置了你的密码，请用新密码重新登录');
+  } else if (fields.disabled) {
+    kickUserSessions(target.username, '你的账号已被停用');
+  } else if (fields.role) {
+    kickUserSessions(target.username, '你的账号角色变了，请重新登录');
+  }
+  res.json({ user: publicUser(target) });
+});
+app.post('/api/admin/users/delete', express.json(), async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const target = findUserById(req.body.id);
+  if (!target) return res.status(404).json({ error: '没找到这个账号' });
+  if (target === admin) return res.status(400).json({ error: '不能删自己' });
+  await deleteUser(target);
+  kickUserSessions(target.username, '你的账号已被删除');
+  res.json({ ok: true });
+});
 
 // ==================== 案例库（原来的公告栏换成了这个，编辑密码不变） ====================
 // 一条案例 = 平台类别（煤炉/代拍/代购，代购要写清楚是哪个网站）+ 问题 + 图片 + 处理结果 + 改善举措。
@@ -1467,18 +1742,38 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (data.type === 'join') {
-      const username = String(data.username || '匿名用户').slice(0, 20).trim() || '匿名用户';
-
-      // 名字里不能有字母和数字（半角全角都算），只能用中文姓名，
-      // 避免出现"abc""123""test"这种临时名字，也方便跟班表、管理人员名单对上
-      if (/[A-Za-z0-9Ａ-Ｚａ-ｚ０-９]/.test(username)) {
-        ws.send(JSON.stringify({
-          type: 'join_error',
-          message: '名字里不能有字母和数字，请填中文姓名',
-        }));
+    // 只读角色（质检员/代购/客服）只能聊天和提问题件；下面这些改数据的操作一律挡掉，
+    // 不管她知不知道编辑密码。错误按各模块自己的错误类型回，前端现成的提示位置能直接显示
+    const EDITOR_ONLY_TYPES = {
+      case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
+      special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
+      inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
+      problem_item_result: 'problem_item_error', problem_item_stamp: 'problem_item_error',
+      problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
+      problem_item_options_update: 'problem_item_options_error',
+      reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
+      timeclock_verify_password: 'timeclock_error', timeclock_update_times: 'timeclock_error', timeclock_delete: 'timeclock_error',
+      timeclock_name_delete: 'timeclock_error', timeclock_name_add: 'timeclock_error', work_items_update: 'timeclock_error',
+      shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
+      staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
+    };
+    if (EDITOR_ONLY_TYPES[data.type]) {
+      const c = clients.get(ws);
+      if (!c) return;
+      if (!isEditRole(c.role)) {
+        ws.send(JSON.stringify({ type: EDITOR_ONLY_TYPES[data.type], message: '你的账号没有这个权限（只读）', category: data.category }));
         return;
       }
+    }
+
+    if (data.type === 'join') {
+      // 只认登录令牌：名字和角色都从令牌里取，前端说自己叫什么不算数
+      const user = verifyToken(data.token);
+      if (!user) {
+        ws.send(JSON.stringify({ type: 'join_error', code: 'auth', message: '登录已失效，请重新登录' }));
+        return;
+      }
+      const username = user.username;
 
       // 名字唯一，但改成"后来者把先来的挤掉"：
       // 换台电脑/换个浏览器登录时，旧的那边可能是已经离开的会话（或者忘了关的窗口），
@@ -1497,7 +1792,8 @@ wss.on('connection', (ws) => {
         setTimeout(() => { try { sock.close(); } catch (e) { /* 忽略 */ } }, 300);
       });
 
-      clients.set(ws, { username });
+      clients.set(ws, { username, role: user.role });
+      ws.send(JSON.stringify({ type: 'me', user: publicUser(user), roles: ROLES }));
 
       // 发送历史消息 + 当前在线列表给新用户
       ws.send(JSON.stringify({ type: 'history', messages: history }));
@@ -2023,6 +2319,10 @@ wss.on('connection', (ws) => {
       if (!action) return;
 
       const target = String(data.username || '').slice(0, 20).trim() || client.username;
+      if (target !== client.username && !isEditRole(client.role)) {
+        ws.send(JSON.stringify({ type: 'timeclock_error', message: '你的账号没有代别人提交的权限' }));
+        return;
+      }
       if (target !== client.username && String(data.password || '') !== PIN_EDIT_PASSWORD) {
         ws.send(JSON.stringify({ type: 'timeclock_error', message: '代别人提交需要输入正确的编辑密码' }));
         return;
@@ -3142,6 +3442,7 @@ app.get('/api/timeclock/export', (req, res) => {
 async function startServer() {
   await verifyDatabaseConnection();
   await loadChatHistoryFromDB();
+  await loadUsersFromDB();
   await loadCaseLibraryFromDB();
   await loadSpecialRequirementsFromDB();
   await loadDriveIndexFromDB();

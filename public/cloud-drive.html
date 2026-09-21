@@ -149,6 +149,7 @@
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const me = (params.get('user') || '').trim().slice(0, 20) || '匿名';
+  const authToken = params.get('token') || ''; // 聊天室带过来的登录令牌，改名/删除时服务器要看角色
   $('me').textContent = me;
 
   let files = [];
@@ -298,7 +299,7 @@
   $('modal-ok').onclick = async () => {
     const password = $('modal-pass').value;
     if (!password) { $('modal-err').textContent = '请输入编辑密码'; return; }
-    const body = { id: modalFile.id, password };
+    const body = { id: modalFile.id, password, token: authToken };
     if (modalMode === 'rename') { body.name = $('modal-name').value.trim(); body.folder = $('modal-folder').value.trim(); }
     try {
       const r = await fetch('/api/drive/' + modalMode, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

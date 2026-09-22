@@ -692,22 +692,115 @@
 
   #input-row {
     display: flex;
-    gap: 8px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     border-top: 1px solid var(--border);
   }
-  #input-row { align-items: flex-end; }
-  #input-row textarea {
+  /* 一个大框：上面是输入，下面一排靠右的小图标 + 发送箭头，图标都框在里面，显得宽敞 */
+  #composer {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px 10px 6px;
+    transition: border-color 0.15s;
+  }
+  #composer:focus-within { border-color: var(--accent); }
+  #composer textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    padding: 4px 4px 2px;
     resize: none;
     font-family: inherit;
-    line-height: 1.4;
-    max-height: 120px;
+    line-height: 1.5;
+    min-height: 66px;
+    max-height: 220px;
     overflow-y: auto;
   }
-  /* 输入行图标变多了，发送按钮收窄一点，避免把输入框挤没 */
-  #input-row button#send-btn { flex-shrink: 0; padding: 10px 14px; font-size: 13px; }
-  #input-row button#image-pick-btn { flex-shrink: 0; align-self: flex-end; }
+  #composer textarea:focus { border-color: transparent; }
+  #composer-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    margin-top: 2px;
+  }
+  /* 工具栏里的小图标：统一 26px、淡灰色，悬停才上色 */
+  #attach-wrap, #quick-insert-wrap, #quicktext-wrap { position: relative; flex-shrink: 0; align-self: auto; }
+  #attach-btn, #quick-insert-btn, #quicktext-btn {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    color: var(--muted);
+    opacity: 0.6;
+    font-size: 15px;
+    padding: 0;
+    cursor: pointer;
+  }
+  #attach-btn:hover, #quick-insert-btn:hover, #quicktext-btn:hover { opacity: 1; color: var(--accent); background: var(--hover-dark); filter: none; }
+  #attach-btn.active, #quick-insert-btn.active, #quicktext-btn.active { opacity: 1; color: var(--accent); }
+  /* 发送：邮件那种纸飞机箭头 */
+  #composer-toolbar #send-btn {
+    width: 30px;
+    height: 30px;
+    margin-left: 6px;
+    padding: 0;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  #composer-toolbar #send-btn:hover { background: var(--accent-dark); }
+  /* 附件菜单：往上弹，三项竖排 */
+  #attach-menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    min-width: 120px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    padding: 4px;
+    z-index: 30;
+    flex-direction: column;
+  }
+  #attach-menu.active { display: flex; }
+  #attach-menu button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 10px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #attach-menu button i { color: var(--muted); font-size: 15px; }
+  #attach-menu button:hover { background: var(--hover-dark); color: var(--accent); }
+  #attach-menu button:hover i { color: var(--accent); }
+  /* 模板/常用语的弹层现在在框的右下角，从右边往上弹 */
+  #quick-insert-wrap #quick-insert-menu { left: auto; right: 0; }
+  #quicktext-wrap #quicktext-popover { left: auto; right: 0; }
 
   /* 引用回复 */
   .msg .reply-btn {
@@ -1040,56 +1133,9 @@
   #file-preview-status { flex-shrink: 0; font-size: 12px; color: var(--muted); }
 
   /* 图片上传按钮 */
-  #image-pick-btn {
-    flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #B5D4F4;
-    border: none;
-    border-radius: 9px;
-    color: var(--muted);
-    font-size: 16px;
-    padding: 0;
-  }
-  #image-pick-btn:hover { filter: brightness(0.95); }
 
-  /* 文件上传按钮 */
-  #file-pick-btn {
-    flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #9FE1CB;
-    border: none;
-    border-radius: 9px;
-    color: var(--muted);
-    font-size: 16px;
-    padding: 0;
-  }
-  #file-pick-btn:hover { filter: brightness(0.95); }
 
   /* 常用文本下拉（放在附件按钮后面，配色沿用同一套柔和色板：图片蓝 / 文件绿 / 这里用紫） */
-  #quick-insert-wrap { position: relative; flex-shrink: 0; align-self: flex-end; }
-  #quick-insert-btn {
-    flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #CECBF6;
-    border: none;
-    border-radius: 9px;
-    color: var(--muted);
-    font-size: 16px;
-    padding: 0;
-  }
-  #quick-insert-btn:hover { filter: brightness(0.95); }
   #quick-insert-menu {
     display: none;
     position: absolute;
@@ -1261,22 +1307,6 @@
   .mention-all-icon { font-size: 12px; flex-shrink: 0; }
 
   /* 常用语弹出面板：挂在输入框旁边，点按钮弹出，点一条就填进输入框 */
-  #quicktext-wrap { position: relative; flex-shrink: 0; align-self: flex-end; }
-  #quicktext-btn {
-    flex-shrink: 0;
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #F5C4B3;
-    border: none;
-    border-radius: 9px;
-    color: var(--muted);
-    font-size: 16px;
-    padding: 0;
-  }
-  #quicktext-btn:hover { filter: brightness(0.95); }
   #quicktext-popover {
     display: none;
     position: absolute;
@@ -3587,12 +3617,12 @@
     #staff-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
 
     /* 输入行图标多了，手机上按钮收小一圈，把宽度让给输入框 */
-    #input-row { gap: 6px; }
-    #image-pick-btn, #file-pick-btn, #quick-insert-btn, #quicktext-btn { width: 30px; height: 30px; font-size: 15px; }
-    #input-row button#send-btn { padding: 8px 10px; font-size: 12px; }
+    #input-row { padding: 8px 10px; }
+    #composer { padding: 6px 8px 4px; }
+    #composer textarea { min-height: 44px; }
 
     /* 常用语面板改成贴着屏幕左右边，避免按钮靠右时弹层跑出屏幕 */
-    #quicktext-popover {
+    #quicktext-wrap #quicktext-popover {
       position: fixed;
       left: 8px;
       right: 8px;
@@ -3776,10 +3806,20 @@
       <button class="reply-cancel-btn" id="file-cancel-btn" title="清空全部"><i class="ti ti-x"></i></button>
     </div>
     <div id="input-row">
-      <button id="image-pick-btn" type="button" title="发送图片（可多选）"><i class="ti ti-photo"></i></button>
-      <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
-      <button id="file-pick-btn" type="button" title="发送文件（安装包/文档等，最大100MB）"><i class="ti ti-paperclip"></i></button>
-      <input id="file-file-input" type="file" multiple style="display:none" />
+      <div id="composer">
+        <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
+        <div id="composer-toolbar">
+          <!-- 附件：图片 / 文件 / 截图 收进一个 + 号里 -->
+          <div id="attach-wrap">
+            <button id="attach-btn" type="button" title="图片 / 文件 / 截图"><i class="ti ti-plus"></i></button>
+            <div id="attach-menu">
+              <button id="image-pick-btn" type="button"><i class="ti ti-photo"></i> 图片</button>
+              <button id="file-pick-btn" type="button"><i class="ti ti-paperclip"></i> 文件</button>
+              <button id="screenshot-btn" type="button"><i class="ti ti-capture"></i> 截图</button>
+            </div>
+          </div>
+          <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
+          <input id="file-file-input" type="file" multiple style="display:none" />
       <div id="quick-insert-wrap">
         <button id="quick-insert-btn" type="button" title="固定模板"><i class="ti ti-template"></i></button>
         <div id="quick-insert-menu"></div>
@@ -3818,8 +3858,9 @@
     </div>
         </div>
       </div>
-      <textarea id="text-input" placeholder="输入消息，输入 @ 可提醒某人，Enter 发送，Shift+Enter 换行..." maxlength="2000" rows="1" autocomplete="off"></textarea>
-      <button id="send-btn">发送</button>
+          <button id="send-btn" type="button" title="发送（Enter）"><i class="ti ti-send"></i></button>
+        </div>
+      </div>
     </div>
   </div>
   <div id="quick-sidebar">
@@ -11042,9 +11083,57 @@
     });
   }
 
+  // ===== 附件菜单（图片 / 文件 / 截图） =====
+  const attachWrap = document.getElementById('attach-wrap');
+  const attachBtn = document.getElementById('attach-btn');
+  const attachMenu = document.getElementById('attach-menu');
+  const screenshotBtn = document.getElementById('screenshot-btn');
+  function closeAttachMenu() { attachMenu.classList.remove('active'); attachBtn.classList.remove('active'); }
+  attachBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const on = attachMenu.classList.toggle('active');
+    attachBtn.classList.toggle('active', on);
+  });
+  document.addEventListener('click', (e) => { if (!attachWrap.contains(e.target)) closeAttachMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAttachMenu(); });
+  attachMenu.addEventListener('click', () => setTimeout(closeAttachMenu, 0));
+  // 截图：浏览器弹出"选择要共享的屏幕/窗口"，选完抓一帧当图片塞进待发送区。
+  // 拿不到（没权限、手机浏览器不支持）就提示用系统截图再 Ctrl+V 粘贴——粘贴本来就支持
+  screenshotBtn.addEventListener('click', async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      imagePreviewStatus.textContent = '这个浏览器不支持直接截图：用系统截图（Win+Shift+S）后在输入框 Ctrl+V 粘贴即可';
+      return;
+    }
+    let stream = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'never' }, audio: false, preferCurrentTab: false });
+      const track = stream.getVideoTracks()[0];
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      // 等第一帧真的画出来再抓，不然拿到的是黑图
+      await new Promise((r) => setTimeout(r, 250));
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      track.stop();
+      const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('抓帧失败');
+      handleImageFiles([new File([blob], `截图-${Date.now()}.png`, { type: 'image/png' })]);
+      textInput.focus();
+    } catch (err) {
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (err && err.name === 'NotAllowedError') imagePreviewStatus.textContent = '取消了截图';
+      else imagePreviewStatus.textContent = '截图失败：' + (err && err.message ? err.message : '未知原因') + '。可以用系统截图后 Ctrl+V 粘贴';
+    }
+  });
+
   quickInsertBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     quickInsertMenu.classList.toggle('active');
+    quickInsertBtn.classList.toggle('active', quickInsertMenu.classList.contains('active'));
   });
   document.addEventListener('click', (e) => {
     if (!quickInsertWrap.contains(e.target)) quickInsertMenu.classList.remove('active');
@@ -11126,7 +11215,7 @@
 
   function autoResizeTextInput() {
     textInput.style.height = 'auto';
-    textInput.style.height = Math.min(textInput.scrollHeight, 120) + 'px';
+    textInput.style.height = Math.min(Math.max(textInput.scrollHeight, 66), 220) + 'px';
   }
 
   textInput.addEventListener('input', () => {

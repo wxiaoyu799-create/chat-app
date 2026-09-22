@@ -1982,6 +1982,89 @@
   #accounts-reset-card input { width: 100%; box-sizing: border-box; }
   #accounts-reset-error { color: #e5534b; font-size: 12px; min-height: 16px; margin: 6px 0 4px; }
 
+  /* ===== 商城到货统计 ===== */
+  #mall-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
+  #mall-overlay.active { display: flex; }
+  #mall-import-btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 12px; padding: 7px 12px; font-weight: 600; }
+  #mall-overlay-close-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
+  #mall-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #mall-overlay-body { flex: 1; display: flex; min-height: 0; }
+  #mall-sidebar { flex-shrink: 0; width: 150px; background: var(--panel); border-right: 1px solid var(--border); padding: 12px 8px; overflow-y: auto; }
+  .mall-supplier-btn {
+    position: relative; width: 100%; background: transparent; border: none; border-radius: 8px; padding: 10px 10px;
+    text-align: left; margin-bottom: 4px; cursor: pointer; font-family: inherit; color: var(--muted);
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .mall-supplier-btn .ms-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .mall-supplier-btn .ms-code { font-size: 11px; color: var(--muted); }
+  .mall-supplier-btn:hover { background: var(--hover-dark); }
+  .mall-supplier-btn.active { background: var(--accent); }
+  .mall-supplier-btn.active .ms-name, .mall-supplier-btn.active .ms-code { color: #fff; }
+  .mall-supplier-btn .ms-badge { position: absolute; top: 8px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #e5534b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+  .mall-supplier-btn .ms-badge:empty { display: none; }
+  #mall-content { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 22px 40px; }
+  #mall-scan-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+  #mall-scan-wrap { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; border: 1px solid var(--border); background: var(--bg); border-radius: 9px; padding: 0 10px; color: var(--muted); }
+  #mall-scan-wrap:focus-within { border-color: var(--accent); }
+  #mall-scan-wrap i { font-size: 18px; }
+  #mall-scan-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 15px; letter-spacing: 1px; padding: 9px 0; }
+  #mall-scan-qty-wrap { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  #mall-scan-qty { width: 64px; padding: 7px 8px; font-size: 14px; text-align: center; }
+  #mall-scan-btn { font-size: 13px; padding: 8px 14px; }
+  #mall-scan-msg { font-size: 12.5px; color: var(--muted); flex-basis: 100%; min-height: 0; }
+  #mall-scan-msg.ok { color: #2e9e5b; }
+  #mall-scan-msg.err { color: #e5534b; }
+  #mall-scan-msg:empty { display: none; }
+  #mall-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  #mall-search-wrap { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; max-width: 320px; border: 1px solid var(--border); background: var(--panel); border-radius: 8px; padding: 0 8px; color: var(--muted); }
+  #mall-search { flex: 1; border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13px; padding: 7px 0; }
+  #mall-summary { font-size: 12px; color: var(--muted); }
+  .mall-section { margin-bottom: 20px; }
+  .mall-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .mall-section-title { font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+  .mall-section-title.pending { color: #b8562f; }
+  .mall-section-title.arrived { color: #2e9e5b; }
+  .mall-section-title.cancelled { color: var(--muted); }
+  .mall-section-count { font-size: 12px; color: var(--muted); }
+  .mall-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+  .mall-table { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
+  .mall-table th, .mall-table td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .mall-table thead th { background: var(--bg); color: var(--muted); font-weight: 600; font-size: 12px; position: sticky; top: 0; }
+  .mall-table tbody tr:last-child td { border-bottom: none; }
+  .mall-table td.mall-name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  .mall-table td.mall-jan { font-family: Consolas, Menlo, monospace; letter-spacing: 0.5px; }
+  .mall-table tr.partial td { background: rgba(255, 244, 179, 0.45); } /* 到了一部分：跟 Excel 里标黄一个意思 */
+  .mall-table tr.just-arrived td { animation: mall-flash 1.6s ease; }
+  @keyframes mall-flash { 0% { background: rgba(159, 225, 203, 0.7); } 100% { background: transparent; } }
+  .mall-table .mall-qty-input { width: 56px; padding: 4px 6px; font-size: 12.5px; text-align: center; }
+  .mall-table .mall-row-actions { display: flex; gap: 5px; align-items: center; }
+  .mall-table .mall-row-actions button { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; font-size: 12px; padding: 4px 9px; cursor: pointer; font-family: inherit; }
+  .mall-table .mall-row-actions button:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  .mall-table .mall-row-actions button.arrive { color: #2e9e5b; border-color: rgba(46, 158, 91, 0.5); }
+  .mall-table .mall-row-actions button.arrive:hover { background: rgba(46, 158, 91, 0.1); color: #2e9e5b; border-color: #2e9e5b; }
+  .mall-table .mall-row-actions button.danger:hover { color: #e5534b; border-color: #e5534b; }
+  .mall-empty { display: none; color: var(--muted); font-size: 12.5px; padding: 14px 12px; }
+  .mall-empty.active { display: block; }
+  .mall-table-wrap:has(.mall-empty.active) table { display: none; }
+  /* 只读角色看不到操作列和扫码条 */
+  body.role-readonly #mall-overlay .editor-only { display: none !important; }
+  #mall-import-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
+  #mall-import-panel.active { display: flex; }
+  #mall-import-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto; }
+  #mall-import-preview { max-height: 40vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; margin: 8px 0 10px; }
+  #mall-import-preview table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+  #mall-import-preview th, #mall-import-preview td { padding: 5px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+  #mall-import-preview th { background: var(--panel); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  #mall-import-preview tr.st-arrived td { background: rgba(159, 225, 203, 0.35); }
+  #mall-import-preview tr.st-cancelled td { color: var(--muted); text-decoration: line-through; }
+  #mall-import-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 6px; }
+  @media (max-width: 640px) {
+    #mall-sidebar { width: 96px; padding: 8px 4px; }
+    .mall-supplier-btn { padding: 8px 6px; }
+    .mall-supplier-btn .ms-name { font-size: 13px; }
+    #mall-content { padding: 10px 10px 40px; }
+  }
+
   /* ===== 特殊要求 ===== */
   #special-overlay {
     display: none;
@@ -3936,6 +4019,11 @@
     <div class="sidebar-divider"></div>
 
 <h3>实用工具</h3>
+    <button id="tool-mall-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span>
+      <span class="tool-entry-label">商城到货统计</span>
+      <span class="case-count-badge" id="mall-count-badge"></span>
+    </button>
     <button id="tool-drive-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-cloud-upload"></i></span>
       <span class="tool-entry-label">云盘（共享文件）</span>
@@ -4343,6 +4431,85 @@
       <div class="problem-item-options-edit-actions">
         <button id="accounts-reset-cancel-btn" type="button" class="pin-edit-btn">取消</button>
         <button id="accounts-reset-ok-btn" type="button">重置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 商城到货统计 ===== -->
+<div id="mall-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-truck-loading"></i> 商城到货统计</span>
+    <div class="case-header-actions">
+      <button id="mall-import-btn" type="button" class="editor-only"><i class="ti ti-file-spreadsheet"></i> 导入 Excel</button>
+      <input type="file" id="mall-import-input" accept=".xlsx,.xls,.csv" style="display:none" />
+      <button id="mall-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="mall-overlay-body">
+    <div id="mall-sidebar"></div>
+    <div id="mall-content">
+      <!-- 扫码 / 手动入库 -->
+      <div id="mall-scan-bar" class="editor-only">
+        <div id="mall-scan-wrap">
+          <i class="ti ti-barcode"></i>
+          <input id="mall-scan-input" type="text" inputmode="numeric" placeholder="扫 JAN 条码，或手输后按回车 → 记一笔到货" autocomplete="off" />
+        </div>
+        <label id="mall-scan-qty-wrap">数量 <input id="mall-scan-qty" type="number" min="1" value="1" /></label>
+        <button id="mall-scan-btn" type="button"><i class="ti ti-package-import"></i> 到货</button>
+        <span id="mall-scan-msg"></span>
+      </div>
+      <div id="mall-toolbar">
+        <div id="mall-search-wrap"><i class="ti ti-search"></i><input id="mall-search" type="search" placeholder="搜 JAN / 商品名" autocomplete="off" /></div>
+        <span id="mall-summary"></span>
+      </div>
+
+      <div class="mall-section">
+        <div class="mall-section-head"><span class="mall-section-title pending"><i class="ti ti-clock"></i> 待到货</span><span id="mall-pending-count" class="mall-section-count"></span></div>
+        <div class="mall-table-wrap">
+          <table class="mall-table" id="mall-pending-table">
+            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>日语名</th><th>订货数</th><th>已到</th><th>备注</th><th class="editor-only">操作</th></tr></thead>
+            <tbody id="mall-pending-tbody"></tbody>
+          </table>
+          <div id="mall-pending-empty" class="mall-empty">这家还没有待到货的商品</div>
+        </div>
+      </div>
+
+      <div class="mall-section">
+        <div class="mall-section-head"><span class="mall-section-title arrived"><i class="ti ti-package-import"></i> 已入库</span><span id="mall-arrived-count" class="mall-section-count"></span></div>
+        <div class="mall-table-wrap">
+          <table class="mall-table" id="mall-arrived-table">
+            <thead><tr><th>到货时间</th><th>JAN</th><th>商品名</th><th>数量</th><th>操作人</th><th>订货日期</th><th class="editor-only">操作</th></tr></thead>
+            <tbody id="mall-arrived-tbody"></tbody>
+          </table>
+          <div id="mall-arrived-empty" class="mall-empty">还没有到货记录</div>
+        </div>
+      </div>
+
+      <div class="mall-section">
+        <div class="mall-section-head"><span class="mall-section-title cancelled"><i class="ti ti-ban"></i> 订不到 / 已取消</span><span id="mall-cancelled-count" class="mall-section-count"></span></div>
+        <div class="mall-table-wrap">
+          <table class="mall-table" id="mall-cancelled-table">
+            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>订货数</th><th>备注</th><th class="editor-only">操作</th></tr></thead>
+            <tbody id="mall-cancelled-tbody"></tbody>
+          </table>
+          <div id="mall-cancelled-empty" class="mall-empty">没有</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入预览 -->
+  <div id="mall-import-panel">
+    <div id="mall-import-card">
+      <div class="problem-item-options-edit-title">导入订货明细</div>
+      <div class="problem-item-options-edit-desc" id="mall-import-desc"></div>
+      <div id="mall-import-preview"></div>
+      <div class="problem-item-options-edit-desc">识别规则：13 位数字那列当 JAN，紧跟的两列文字当中文名 / 日语名，小于 1000 的数字当数量；A 列写着「9月7日」这种当订货日期。备注里有「已到库/已到」的直接进已入库，「订不到/取消」进订不到。<b>Excel 里的黄色底色读不出来</b>——到货请在这里扫码或点「到货」记录。</div>
+      <div id="mall-import-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <button id="mall-import-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+        <button id="mall-import-ok-btn" type="button">导入</button>
       </div>
     </div>
   </div>
@@ -5107,6 +5274,23 @@
           specialEditError.textContent = data.message || '保存失败';
           if (/密码/.test(specialEditError.textContent)) specialEditPassword.focus();
         }
+      } else if (data.type === 'mall_data') {
+        mallData = { suppliers: data.suppliers || [], items: data.items || [], arrivals: data.arrivals || [] };
+        renderMallCountBadge();
+        if (mallOverlay.classList.contains('active')) renderMall();
+      } else if (data.type === 'mall_imported') {
+        mallImportPanel.classList.remove('active');
+        setMallScanMsg(`✓ 导入 ${data.count} 条` + (data.skipped ? `，跳过 ${data.skipped} 条没有 JAN 的` : ''), 'ok');
+      } else if (data.type === 'mall_arrived') {
+        mallJustArrivedId = data.item ? data.item.id : null;
+        if (mallOverlay.classList.contains('active')) renderMall();
+        if (data.item) {
+          const done = data.item.qtyArrived >= data.item.qty;
+          setMallScanMsg(`✓ ${data.item.nameCn || data.item.nameJp || data.item.jan} 到货 ${data.arrival.qty} 件` + (done ? '，已到齐 → 已入库' : `，累计 ${data.item.qtyArrived}/${data.item.qty}`), 'ok');
+        }
+      } else if (data.type === 'mall_error') {
+        setMallScanMsg(data.message || '操作失败', 'err');
+        mallImportError.textContent = mallImportPanel.classList.contains('active') ? (data.message || '') : '';
       } else if (data.type === 'case_library') {
         // 案例库全量同步：加入时发一次，之后每次增删改都会整包广播
         caseLibraryData = Array.isArray(data.cases) ? data.cases : [];
@@ -8614,6 +8798,273 @@
     if (accountsResetPanel.classList.contains('active')) accountsResetPanel.classList.remove('active');
     else if (accountPanel.classList.contains('active')) closeAccountPanel();
     else if (accountsOverlay.classList.contains('active')) accountsOverlay.classList.remove('active');
+  });
+
+  // ===== 商城到货统计 =====
+  const mallOverlay = document.getElementById('mall-overlay');
+  const mallOpenBtn = document.getElementById('tool-mall-btn');
+  const mallCountBadge = document.getElementById('mall-count-badge');
+  const mallCloseBtn = document.getElementById('mall-overlay-close-btn');
+  const mallSidebar = document.getElementById('mall-sidebar');
+  const mallImportBtn = document.getElementById('mall-import-btn');
+  const mallImportInput = document.getElementById('mall-import-input');
+  const mallImportPanel = document.getElementById('mall-import-panel');
+  const mallImportDesc = document.getElementById('mall-import-desc');
+  const mallImportPreview = document.getElementById('mall-import-preview');
+  const mallImportError = document.getElementById('mall-import-error');
+  const mallImportOkBtn = document.getElementById('mall-import-ok-btn');
+  const mallImportCancelBtn = document.getElementById('mall-import-cancel-btn');
+  const mallScanInput = document.getElementById('mall-scan-input');
+  const mallScanQty = document.getElementById('mall-scan-qty');
+  const mallScanBtn = document.getElementById('mall-scan-btn');
+  const mallScanMsg = document.getElementById('mall-scan-msg');
+  const mallSearch = document.getElementById('mall-search');
+  const mallSummary = document.getElementById('mall-summary');
+  const mallPendingTbody = document.getElementById('mall-pending-tbody');
+  const mallArrivedTbody = document.getElementById('mall-arrived-tbody');
+  const mallCancelledTbody = document.getElementById('mall-cancelled-tbody');
+
+  let mallData = { suppliers: [], items: [], arrivals: [] };
+  let mallSupplier = '';
+  let mallSearchKeyword = '';
+  let mallImportRows = [];
+  let mallJustArrivedId = null;
+
+  function mallItemsOf(supplier) { return mallData.items.filter((x) => x.supplier === supplier); }
+  function renderMallCountBadge() {
+    const pending = mallData.items.filter((x) => x.status === 'pending').length;
+    mallCountBadge.textContent = pending ? String(pending) : '';
+  }
+  function fmtMallTime(ts) {
+    const d = new Date(ts); const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function renderMallSidebar() {
+    mallSidebar.innerHTML = '';
+    mallData.suppliers.forEach((sp) => {
+      const pending = mallItemsOf(sp.key).filter((x) => x.status === 'pending').length;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mall-supplier-btn' + (sp.key === mallSupplier ? ' active' : '');
+      btn.innerHTML = `<span class="ms-name">${escapeHtml(sp.name)}</span><span class="ms-code">${escapeHtml(sp.code)}</span><span class="ms-badge">${pending || ''}</span>`;
+      btn.addEventListener('click', () => { mallSupplier = sp.key; renderMall(); mallScanInput.focus(); });
+      mallSidebar.appendChild(btn);
+    });
+  }
+  function mallMatch(item, key) {
+    if (!key) return true;
+    return `${item.jan} ${item.nameCn} ${item.nameJp} ${item.note} ${item.orderDate}`.toLowerCase().includes(key);
+  }
+  function renderMall() {
+    if (!mallSupplier && mallData.suppliers.length) mallSupplier = mallData.suppliers[0].key;
+    renderMallSidebar();
+    const key = mallSearchKeyword.trim().toLowerCase();
+    const items = mallItemsOf(mallSupplier);
+    const canEdit = isEditRole(myRole);
+
+    // 待到货：按订货日期/导入顺序
+    const pending = items.filter((x) => x.status === 'pending' && mallMatch(x, key));
+    mallPendingTbody.innerHTML = '';
+    pending.forEach((it) => {
+      const tr = document.createElement('tr');
+      if (it.qtyArrived > 0) tr.classList.add('partial');
+      if (String(it.id) === String(mallJustArrivedId)) tr.classList.add('just-arrived');
+      tr.innerHTML = `<td>${escapeHtml(it.orderDate)}</td><td class="mall-jan">${highlightCell(it.jan, key)}</td>`
+        + `<td class="mall-name" title="${escapeHtml(it.nameCn)}">${highlightCell(it.nameCn, key)}</td>`
+        + `<td class="mall-name" title="${escapeHtml(it.nameJp)}">${highlightCell(it.nameJp, key)}</td>`
+        + `<td>${it.qty}</td><td>${it.qtyArrived ? `<b>${it.qtyArrived}</b> / ${it.qty}` : '0'}</td><td>${escapeHtml(it.note)}</td>`
+        + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
+      if (canEdit) {
+        const box = tr.querySelector('.mall-row-actions');
+        const qtyIn = document.createElement('input');
+        qtyIn.type = 'number'; qtyIn.min = '1'; qtyIn.className = 'mall-qty-input'; qtyIn.value = String(Math.max(1, it.qty - it.qtyArrived));
+        const arriveBtn = document.createElement('button');
+        arriveBtn.type = 'button'; arriveBtn.className = 'arrive'; arriveBtn.innerHTML = '<i class="ti ti-package-import"></i> 到货';
+        arriveBtn.addEventListener('click', () => sendMallArrive({ itemId: it.id, qty: Number(qtyIn.value) || 1 }));
+        qtyIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') arriveBtn.click(); });
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button'; cancelBtn.innerHTML = '<i class="ti ti-ban"></i>'; cancelBtn.title = '标成订不到 / 取消';
+        cancelBtn.addEventListener('click', () => ws && ws.send(JSON.stringify({ type: 'mall_item_cancel', id: it.id })));
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'danger'; delBtn.innerHTML = '<i class="ti ti-trash"></i>'; delBtn.title = '删除这条订货';
+        delBtn.addEventListener('click', () => { if (window.confirm(`删除「${it.nameCn || it.jan}」这条订货记录？`)) ws && ws.send(JSON.stringify({ type: 'mall_item_delete', id: it.id })); });
+        box.append(qtyIn, arriveBtn, cancelBtn, delBtn);
+      }
+      mallPendingTbody.appendChild(tr);
+    });
+    document.getElementById('mall-pending-count').textContent = `${pending.length} 条`;
+    document.getElementById('mall-pending-empty').classList.toggle('active', pending.length === 0);
+
+    // 已入库：到货记录，新的在上
+    const itemById = new Map(items.map((x) => [String(x.id), x]));
+    const arrivals = mallData.arrivals
+      .filter((a) => itemById.has(String(a.itemId)))
+      .map((a) => ({ ...a, item: itemById.get(String(a.itemId)) }))
+      .filter((a) => mallMatch(a.item, key))
+      .sort((x, y) => y.at - x.at);
+    mallArrivedTbody.innerHTML = '';
+    arrivals.forEach((a) => {
+      const tr = document.createElement('tr');
+      if (String(a.item.id) === String(mallJustArrivedId)) tr.classList.add('just-arrived');
+      tr.innerHTML = `<td>${fmtMallTime(a.at)}</td><td class="mall-jan">${highlightCell(a.item.jan, key)}</td>`
+        + `<td class="mall-name" title="${escapeHtml(a.item.nameCn)}">${highlightCell(a.item.nameCn || a.item.nameJp, key)}</td>`
+        + `<td><b>${a.qty}</b>${a.item.qtyArrived < a.item.qty ? ` <span style="color:var(--muted)">（共到 ${a.item.qtyArrived}/${a.item.qty}）</span>` : ''}</td>`
+        + `<td>${escapeHtml(a.by)}</td><td>${escapeHtml(a.item.orderDate)}</td>`
+        + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
+      if (canEdit) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'danger'; delBtn.innerHTML = '<i class="ti ti-trash"></i> 删除';
+        delBtn.title = '删掉这笔到货，数量退回待到货';
+        delBtn.addEventListener('click', () => { if (window.confirm(`删掉这笔到货（${a.item.nameCn || a.item.jan} × ${a.qty}）？数量会退回待到货。`)) ws && ws.send(JSON.stringify({ type: 'mall_arrival_delete', id: a.id })); });
+        tr.querySelector('.mall-row-actions').appendChild(delBtn);
+      }
+      mallArrivedTbody.appendChild(tr);
+    });
+    document.getElementById('mall-arrived-count').textContent = `${arrivals.length} 笔`;
+    document.getElementById('mall-arrived-empty').classList.toggle('active', arrivals.length === 0);
+
+    // 订不到
+    const cancelled = items.filter((x) => x.status === 'cancelled' && mallMatch(x, key));
+    mallCancelledTbody.innerHTML = '';
+    cancelled.forEach((it) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(it.orderDate)}</td><td class="mall-jan">${highlightCell(it.jan, key)}</td>`
+        + `<td class="mall-name">${highlightCell(it.nameCn || it.nameJp, key)}</td><td>${it.qty}</td><td>${escapeHtml(it.note)}</td>`
+        + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
+      if (canEdit) {
+        const back = document.createElement('button');
+        back.type = 'button'; back.innerHTML = '<i class="ti ti-arrow-back-up"></i> 恢复';
+        back.addEventListener('click', () => ws && ws.send(JSON.stringify({ type: 'mall_item_cancel', id: it.id })));
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'danger'; delBtn.innerHTML = '<i class="ti ti-trash"></i>';
+        delBtn.addEventListener('click', () => { if (window.confirm('删除这条记录？')) ws && ws.send(JSON.stringify({ type: 'mall_item_delete', id: it.id })); });
+        tr.querySelector('.mall-row-actions').append(back, delBtn);
+      }
+      mallCancelledTbody.appendChild(tr);
+    });
+    document.getElementById('mall-cancelled-count').textContent = `${cancelled.length} 条`;
+    document.getElementById('mall-cancelled-empty').classList.toggle('active', cancelled.length === 0);
+
+    const totalOrdered = items.filter((x) => x.status !== 'cancelled').reduce((n, x) => n + x.qty, 0);
+    const totalArrived = items.reduce((n, x) => n + x.qtyArrived, 0);
+    mallSummary.textContent = `订货 ${totalOrdered} 件 · 已到 ${totalArrived} 件 · 待到 ${Math.max(0, totalOrdered - totalArrived)} 件`;
+    mallJustArrivedId = null;
+  }
+  function sendMallArrive(payload) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'mall_arrive', supplier: mallSupplier, ...payload }));
+  }
+  function mallScan() {
+    const jan = mallScanInput.value.replace(/\D/g, '');
+    if (!jan) { mallScanInput.focus(); return; }
+    const qty = Math.max(1, Number(mallScanQty.value) || 1);
+    sendMallArrive({ jan, qty });
+    mallScanInput.value = '';
+    mallScanQty.value = '1';
+    mallScanInput.focus();
+  }
+  function setMallScanMsg(text, cls) {
+    mallScanMsg.textContent = text;
+    mallScanMsg.className = cls || '';
+    clearTimeout(mallScanMsg._t);
+    mallScanMsg._t = setTimeout(() => { mallScanMsg.textContent = ''; }, 5000);
+  }
+  mallScanBtn.addEventListener('click', mallScan);
+  mallScanInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); mallScan(); } });
+  mallSearch.addEventListener('input', () => { mallSearchKeyword = mallSearch.value; renderMall(); });
+  mallOpenBtn.addEventListener('click', () => {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    mallOverlay.classList.add('active');
+    renderMall();
+    if (isEditRole(myRole)) mallScanInput.focus();
+  });
+  mallCloseBtn.addEventListener('click', () => mallOverlay.classList.remove('active'));
+
+  // ---- Excel 导入：客户端解析，识别出 JAN / 名称 / 数量 / 日期 / 状态，预览后再发给服务器 ----
+  function parseMallRows(rows) {
+    const out = [];
+    let currentDate = '';
+    const isJan = (v) => /^\d{8,14}$/.test(String(v ?? '').trim().replace(/\.0$/, ''));
+    const looksDate = (v) => {
+      if (v instanceof Date) return true;
+      const t = String(v ?? '').trim();
+      return /^\d{1,2}月\d{1,2}日?$/.test(t) || /^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(t) || /^\d{1,2}[-/]\d{1,2}$/.test(t);
+    };
+    const fmtDate = (v) => {
+      if (v instanceof Date) return `${v.getMonth() + 1}月${v.getDate()}日`;
+      return String(v).trim();
+    };
+    rows.forEach((row) => {
+      if (!Array.isArray(row)) return;
+      const cells = row.map((c) => (c instanceof Date ? c : (c === null || c === undefined ? '' : c)));
+      // 日期列：一行的最左边如果是日期，后面几行没写日期的都算这一天
+      if (cells.length && looksDate(cells[0])) currentDate = fmtDate(cells[0]);
+      // 标题行写成 "0121 订货明细" 这种：把 0121 当 1月21日
+      const titleCell = cells.find((c) => /^\s*\d{4}\s*订货/.test(String(c)));
+      if (titleCell) { const m = String(titleCell).match(/(\d{2})(\d{2})/); if (m) currentDate = `${Number(m[1])}月${Number(m[2])}日`; }
+      const janIdx = cells.findIndex((c) => isJan(c));
+      if (janIdx === -1) return;
+      const jan = String(cells[janIdx]).trim().replace(/\.0$/, '');
+      const after = cells.slice(janIdx + 1);
+      const texts = [];
+      let qty = 0;
+      let note = '';
+      after.forEach((c) => {
+        if (c instanceof Date) return;
+        const t = String(c).trim();
+        if (!t) return;
+        if (/^\d{1,3}$/.test(t) && !qty) { qty = Number(t); return; }
+        if (/已到库|已到|到货|已入库/.test(t) || /订不到|缺货取消|取消|停产/.test(t)) { note = t; return; }
+        if (texts.length < 2) texts.push(t); else note = note ? note + ' ' + t : t;
+      });
+      // 一行里只有一个名字时，按有没有日文假名判断放哪列
+      let nameCn = texts[0] || '';
+      let nameJp = texts[1] || '';
+      if (texts.length === 1 && /[\u3040-\u30ff]/.test(texts[0])) { nameJp = texts[0]; nameCn = ''; }
+      // 只有一个光秃秃的 JAN、没名字没数量的行（表格底下随手记的），跳过
+      if (!nameCn && !nameJp && !qty) return;
+      const status = /订不到|缺货取消|取消|停产/.test(note) ? 'cancelled' : (/已到库|已到|到货|已入库/.test(note) ? 'arrived' : 'pending');
+      out.push({ orderDate: currentDate, jan, nameCn, nameJp, qty: qty || 1, note, status });
+    });
+    return out;
+  }
+  mallImportBtn.addEventListener('click', () => { mallImportInput.value = ''; mallImportInput.click(); });
+  mallImportInput.addEventListener('change', async () => {
+    const file = mallImportInput.files && mallImportInput.files[0];
+    if (!file) return;
+    mallImportError.textContent = '';
+    try {
+      const XLSX = await loadSheetJs();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+      let all = [];
+      wb.SheetNames.forEach((name) => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
+        all = all.concat(parseMallRows(rows));
+      });
+      mallImportRows = all;
+      const sp = mallData.suppliers.find((x) => x.key === mallSupplier);
+      mallImportDesc.textContent = `导入到「${sp ? sp.name : ''}」：识别出 ${all.length} 条（文件 ${file.name}）`;
+      mallImportPreview.innerHTML = all.length === 0 ? '<div class="mall-empty active">没识别出任何一行——确认表里有 13 位 JAN 码那一列</div>'
+        : '<table><thead><tr><th>日期</th><th>JAN</th><th>商品名</th><th>日语名</th><th>数量</th><th>备注</th></tr></thead><tbody>'
+          + all.map((r) => `<tr class="st-${r.status}"><td>${escapeHtml(r.orderDate)}</td><td>${escapeHtml(r.jan)}</td><td>${escapeHtml(r.nameCn)}</td><td>${escapeHtml(r.nameJp)}</td><td>${r.qty}</td><td>${escapeHtml(r.note)}</td></tr>`).join('')
+          + '</tbody></table>';
+      mallImportPanel.classList.add('active');
+    } catch (err) {
+      mallImportError.textContent = '读取失败：' + err.message;
+      mallImportPanel.classList.add('active');
+    }
+  });
+  mallImportCancelBtn.addEventListener('click', () => mallImportPanel.classList.remove('active'));
+  mallImportPanel.addEventListener('click', (e) => { if (e.target === mallImportPanel) mallImportPanel.classList.remove('active'); });
+  mallImportOkBtn.addEventListener('click', () => {
+    if (!mallImportRows.length) { mallImportError.textContent = '没有可导入的行'; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { mallImportError.textContent = '连接已断开'; return; }
+    ws.send(JSON.stringify({ type: 'mall_import', supplier: mallSupplier, rows: mallImportRows }));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (mallImportPanel.classList.contains('active')) mallImportPanel.classList.remove('active');
+    else if (mallOverlay.classList.contains('active')) mallOverlay.classList.remove('active');
   });
 
   // ===== 特殊要求（部分用户的特殊检品要求；所有人可看，增删改要编辑密码） =====

@@ -1264,6 +1264,148 @@ async function deleteSpecialReq(id) {
   return true;
 }
 
+// ==================== 商城到货统计 ====================
+// 三家供应商各自一份订货明细（Excel 导入），到货时扫 JAN 或手动填数量记一笔"到货"，
+// 到齐的自动从"待到货"挪到"已入库"。到货记录能删（仓库现场/管理员），删了数量退回去。
+const MALL_SUPPLIERS = [
+  { key: 'qilintang', name: '麒麟堂', code: '248074' },
+  { key: 'daguo', name: '大国', code: '371194' },
+  { key: 'fuhele', name: '福和乐', code: '371194' },
+];
+let mallItems = [];    // { id, supplier, orderDate, jan, nameCn, nameJp, qty, qtyArrived, status, note, importedBy, createdAt }
+let mallArrivals = []; // { id, itemId, qty, at, by }
+
+async function ensureMallTables() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS mall_items (
+      id BIGSERIAL PRIMARY KEY,
+      supplier TEXT NOT NULL,
+      order_date TEXT,
+      jan TEXT NOT NULL,
+      name_cn TEXT,
+      name_jp TEXT,
+      qty INT NOT NULL DEFAULT 1,
+      qty_arrived INT NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      note TEXT,
+      imported_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS mall_arrivals (
+      id BIGSERIAL PRIMARY KEY,
+      item_id BIGINT NOT NULL,
+      qty INT NOT NULL,
+      at_time BIGINT NOT NULL,
+      by_user TEXT
+    );
+  `);
+}
+function rowToMallItem(r) {
+  return {
+    id: String(r.id), supplier: r.supplier, orderDate: r.order_date || '', jan: r.jan, nameCn: r.name_cn || '', nameJp: r.name_jp || '',
+    qty: Number(r.qty), qtyArrived: Number(r.qty_arrived), status: r.status, note: r.note || '', importedBy: r.imported_by || '',
+    createdAt: new Date(r.created_at).getTime(),
+  };
+}
+async function loadMallFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensureMallTables();
+    const a = await dbPool.query('SELECT * FROM mall_items ORDER BY id ASC;');
+    mallItems = a.rows.map(rowToMallItem);
+    const b = await dbPool.query('SELECT * FROM mall_arrivals ORDER BY id ASC;');
+    mallArrivals = b.rows.map((r) => ({ id: String(r.id), itemId: String(r.item_id), qty: Number(r.qty), at: Number(r.at_time), by: r.by_user || '' }));
+    console.log(`已从数据库加载商城到货统计，商品 ${mallItems.length} 条 / 到货记录 ${mallArrivals.length} 条`);
+  } catch (err) {
+    console.error('[加载商城到货统计失败]', err.message);
+  }
+}
+function mallSnapshot() {
+  return { type: 'mall_data', suppliers: MALL_SUPPLIERS, items: mallItems, arrivals: mallArrivals };
+}
+function broadcastMall() { broadcast(mallSnapshot()); }
+function mallItemById(id) { return mallItems.find((x) => String(x.id) === String(id)) || null; }
+function recomputeMallStatus(item) {
+  if (item.status === 'cancelled') return;
+  item.status = item.qtyArrived >= item.qty ? 'arrived' : 'pending';
+}
+async function mallSaveItem(item) {
+  if (!dbPool || String(item.id).startsWith('mem-')) return;
+  try {
+    await dbPool.query('UPDATE mall_items SET qty=$1, qty_arrived=$2, status=$3, note=$4 WHERE id=$5;', [item.qty, item.qtyArrived, item.status, item.note, item.id]);
+  } catch (err) { console.error('[商城商品更新失败]', err.message); }
+}
+async function mallImport(supplier, rows, byUsername) {
+  const added = [];
+  for (const r of rows) {
+    const jan = String(r.jan || '').replace(/\D/g, '');
+    if (!/^\d{8,14}$/.test(jan)) continue;
+    const qty = Math.max(1, Math.min(9999, Math.round(Number(r.qty) || 1)));
+    const status = r.status === 'cancelled' ? 'cancelled' : (r.status === 'arrived' ? 'arrived' : 'pending');
+    const item = {
+      id: `mem-mi-${Date.now()}-${Math.round(Math.random() * 1e6)}`, supplier,
+      orderDate: String(r.orderDate || '').slice(0, 30), jan,
+      nameCn: String(r.nameCn || '').slice(0, 200), nameJp: String(r.nameJp || '').slice(0, 200),
+      qty, qtyArrived: status === 'arrived' ? qty : 0, status, note: String(r.note || '').slice(0, 200),
+      importedBy: byUsername, createdAt: Date.now(),
+    };
+    if (dbPool) {
+      try {
+        const ins = await dbPool.query(
+          'INSERT INTO mall_items (supplier, order_date, jan, name_cn, name_jp, qty, qty_arrived, status, note, imported_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id;',
+          [item.supplier, item.orderDate, item.jan, item.nameCn, item.nameJp, item.qty, item.qtyArrived, item.status, item.note, item.importedBy]
+        );
+        item.id = String(ins.rows[0].id);
+      } catch (err) { console.error('[商城商品写入失败]', err.message); }
+    }
+    mallItems.push(item);
+    // 表格里已经标了"已到库"的，补一条到货记录，方便明细里看得到
+    if (status === 'arrived') await mallAddArrival(item, qty, byUsername, true);
+    added.push(item);
+  }
+  return added;
+}
+async function mallAddArrival(item, qty, byUsername, skipStatus) {
+  const rec = { id: `mem-ma-${Date.now()}-${Math.round(Math.random() * 1e6)}`, itemId: String(item.id), qty, at: Date.now(), by: byUsername };
+  if (dbPool && !String(item.id).startsWith('mem-')) {
+    try {
+      const ins = await dbPool.query('INSERT INTO mall_arrivals (item_id, qty, at_time, by_user) VALUES ($1,$2,$3,$4) RETURNING id;', [item.id, qty, rec.at, byUsername]);
+      rec.id = String(ins.rows[0].id);
+    } catch (err) { console.error('[到货记录写入失败]', err.message); }
+  }
+  mallArrivals.push(rec);
+  if (!skipStatus) {
+    item.qtyArrived = Math.min(item.qty, item.qtyArrived + qty);
+    recomputeMallStatus(item);
+    await mallSaveItem(item);
+  }
+  return rec;
+}
+async function mallDeleteArrival(rec) {
+  mallArrivals = mallArrivals.filter((x) => x !== rec);
+  if (dbPool && !String(rec.id).startsWith('mem-')) {
+    try { await dbPool.query('DELETE FROM mall_arrivals WHERE id=$1;', [rec.id]); } catch (err) { console.error('[到货记录删除失败]', err.message); }
+  }
+  const item = mallItemById(rec.itemId);
+  if (item) {
+    item.qtyArrived = Math.max(0, item.qtyArrived - rec.qty);
+    recomputeMallStatus(item);
+    await mallSaveItem(item);
+  }
+}
+async function mallDeleteItem(item) {
+  mallItems = mallItems.filter((x) => x !== item);
+  mallArrivals = mallArrivals.filter((x) => String(x.itemId) !== String(item.id));
+  if (dbPool && !String(item.id).startsWith('mem-')) {
+    try {
+      await dbPool.query('DELETE FROM mall_arrivals WHERE item_id=$1;', [item.id]);
+      await dbPool.query('DELETE FROM mall_items WHERE id=$1;', [item.id]);
+    } catch (err) { console.error('[商城商品删除失败]', err.message); }
+  }
+}
+
 // 检品规则：5个固定分类，每个分类的内容/修改历史机制完全跟公告栏一样（共用同一个编辑密码），
 // 只是5个分类共用一张数据库表，用category字段区分，不用建5张一模一样的表
 const INSPECTION_RULE_CATEGORIES = ['煤炉', '代拍', '代购', '问题件', '增值服务'];
@@ -2036,6 +2178,7 @@ wss.on('connection', (ws) => {
       timeclock_name_delete: 'timeclock_error', timeclock_name_add: 'timeclock_error', work_items_update: 'timeclock_error',
       shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
       staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
+      mall_import: 'mall_error', mall_arrive: 'mall_error', mall_arrival_delete: 'mall_error', mall_item_delete: 'mall_error', mall_item_cancel: 'mall_error',
     };
     if (EDITOR_ONLY_TYPES[data.type]) {
       const c = clients.get(ws);
@@ -2083,6 +2226,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers(), directory: getDirectory() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
+      ws.send(JSON.stringify(mallSnapshot()));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -2354,6 +2498,64 @@ wss.on('connection', (ws) => {
       }
       const ok = await deleteSpecialReq(data.id);
       if (ok) broadcast({ type: 'special_req_list', items: specialRequirements });
+      return;
+    }
+
+    // ---- 商城到货统计 ----
+    if (data.type === 'mall_import') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const supplier = MALL_SUPPLIERS.find((x) => x.key === data.supplier);
+      if (!supplier) { ws.send(JSON.stringify({ type: 'mall_error', message: '请先选一个供应商' })); return; }
+      const rows = Array.isArray(data.rows) ? data.rows.slice(0, 2000) : [];
+      const added = await mallImport(supplier.key, rows, client.username);
+      broadcastMall();
+      ws.send(JSON.stringify({ type: 'mall_imported', count: added.length, skipped: rows.length - added.length }));
+      return;
+    }
+    if (data.type === 'mall_arrive') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const qty = Math.max(1, Math.min(9999, Math.round(Number(data.qty) || 1)));
+      let item = data.itemId ? mallItemById(data.itemId) : null;
+      if (!item && data.jan) {
+        // 扫码：在这家供应商还没到齐的商品里找这个 JAN，多条的话取最早导入的
+        const jan = String(data.jan).replace(/\D/g, '');
+        item = mallItems.find((x) => x.jan === jan && x.status === 'pending' && (!data.supplier || x.supplier === data.supplier)) || null;
+        if (!item) {
+          const anyOne = mallItems.find((x) => x.jan === jan && (!data.supplier || x.supplier === data.supplier));
+          ws.send(JSON.stringify({ type: 'mall_error', message: anyOne ? `JAN ${jan}（${anyOne.nameCn || anyOne.nameJp}）已经到齐了` : `没找到 JAN ${jan} 的订货记录` }));
+          return;
+        }
+      }
+      if (!item) { ws.send(JSON.stringify({ type: 'mall_error', message: '没找到这条商品' })); return; }
+      if (item.status === 'cancelled') { ws.send(JSON.stringify({ type: 'mall_error', message: '这条已经标成订不到了' })); return; }
+      const rec = await mallAddArrival(item, qty, client.username, false);
+      broadcastMall();
+      ws.send(JSON.stringify({ type: 'mall_arrived', item, arrival: rec }));
+      return;
+    }
+    if (data.type === 'mall_arrival_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const rec = mallArrivals.find((x) => String(x.id) === String(data.id));
+      if (!rec) { ws.send(JSON.stringify({ type: 'mall_error', message: '没找到这条到货记录' })); return; }
+      await mallDeleteArrival(rec);
+      broadcastMall();
+      return;
+    }
+    if (data.type === 'mall_item_delete' || data.type === 'mall_item_cancel') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const item = mallItemById(data.id);
+      if (!item) { ws.send(JSON.stringify({ type: 'mall_error', message: '没找到这条商品' })); return; }
+      if (data.type === 'mall_item_delete') {
+        await mallDeleteItem(item);
+      } else {
+        item.status = item.status === 'cancelled' ? (item.qtyArrived >= item.qty ? 'arrived' : 'pending') : 'cancelled';
+        await mallSaveItem(item);
+      }
+      broadcastMall();
       return;
     }
 
@@ -3860,6 +4062,7 @@ async function startServer() {
   await loadGroupsFromDB();
   await loadCaseLibraryFromDB();
   await loadSpecialRequirementsFromDB();
+  await loadMallFromDB();
   await loadDriveIndexFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();

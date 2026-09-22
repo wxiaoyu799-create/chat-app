@@ -2178,7 +2178,7 @@ wss.on('connection', (ws) => {
       timeclock_name_delete: 'timeclock_error', timeclock_name_add: 'timeclock_error', work_items_update: 'timeclock_error',
       shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
       staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
-      mall_import: 'mall_error', mall_arrive: 'mall_error', mall_arrival_delete: 'mall_error', mall_item_delete: 'mall_error', mall_item_cancel: 'mall_error',
+      mall_import: 'mall_error', mall_arrive: 'mall_error', mall_arrival_delete: 'mall_error', mall_item_delete: 'mall_error', mall_item_cancel: 'mall_error', mall_item_note: 'mall_error',
     };
     if (EDITOR_ONLY_TYPES[data.type]) {
       const c = clients.get(ws);
@@ -2541,6 +2541,16 @@ wss.on('connection', (ws) => {
       const rec = mallArrivals.find((x) => String(x.id) === String(data.id));
       if (!rec) { ws.send(JSON.stringify({ type: 'mall_error', message: '没找到这条到货记录' })); return; }
       await mallDeleteArrival(rec);
+      broadcastMall();
+      return;
+    }
+    if (data.type === 'mall_item_note') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const item = mallItemById(data.id);
+      if (!item) { ws.send(JSON.stringify({ type: 'mall_error', message: '没找到这条商品' })); return; }
+      item.note = String(data.note || '').trim().slice(0, 200);
+      await mallSaveItem(item);
       broadcastMall();
       return;
     }

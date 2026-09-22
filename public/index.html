@@ -717,7 +717,7 @@
     resize: none;
     font-family: inherit;
     line-height: 1.5;
-    min-height: 66px;
+    min-height: 24px;
     max-height: 220px;
     overflow-y: auto;
   }
@@ -770,7 +770,7 @@
     position: absolute;
     bottom: calc(100% + 6px);
     right: 0;
-    min-width: 120px;
+    min-width: 200px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -796,6 +796,9 @@
     font-family: inherit;
   }
   #attach-menu button i { color: var(--muted); font-size: 15px; }
+  #composer-hint { display: none; font-size: 12px; color: #b8562f; background: rgba(245, 196, 179, 0.3); border-radius: 8px; padding: 5px 10px; margin: 0 0 6px; }
+  #composer-hint.active { display: block; }
+  #attach-menu .attach-kbd { margin-left: auto; font-size: 10.5px; color: var(--muted); background: var(--panel-alt); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
   #attach-menu button:hover { background: var(--hover-dark); color: var(--accent); }
   #attach-menu button:hover i { color: var(--accent); }
   /* 模板/常用语的弹层现在在框的右下角，从右边往上弹 */
@@ -3619,7 +3622,7 @@
     /* 输入行图标多了，手机上按钮收小一圈，把宽度让给输入框 */
     #input-row { padding: 8px 10px; }
     #composer { padding: 6px 8px 4px; }
-    #composer textarea { min-height: 44px; }
+    #composer textarea { min-height: 24px; }
 
     /* 常用语面板改成贴着屏幕左右边，避免按钮靠右时弹层跑出屏幕 */
     #quicktext-wrap #quicktext-popover {
@@ -3815,7 +3818,7 @@
             <div id="attach-menu">
               <button id="image-pick-btn" type="button"><i class="ti ti-photo"></i> 图片</button>
               <button id="file-pick-btn" type="button"><i class="ti ti-paperclip"></i> 文件</button>
-              <button id="screenshot-btn" type="button"><i class="ti ti-capture"></i> 截图</button>
+              <button id="screenshot-btn" type="button" title="系统截图后直接粘贴进来"><i class="ti ti-capture"></i> 截图 <span class="attach-kbd">Win+Shift+S</span></button>
             </div>
           </div>
           <input id="image-file-input" type="file" accept="image/*" multiple style="display:none" />
@@ -11097,37 +11100,24 @@
   document.addEventListener('click', (e) => { if (!attachWrap.contains(e.target)) closeAttachMenu(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAttachMenu(); });
   attachMenu.addEventListener('click', () => setTimeout(closeAttachMenu, 0));
-  // 截图：浏览器弹出"选择要共享的屏幕/窗口"，选完抓一帧当图片塞进待发送区。
-  // 拿不到（没权限、手机浏览器不支持）就提示用系统截图再 Ctrl+V 粘贴——粘贴本来就支持
-  screenshotBtn.addEventListener('click', async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      imagePreviewStatus.textContent = '这个浏览器不支持直接截图：用系统截图（Win+Shift+S）后在输入框 Ctrl+V 粘贴即可';
-      return;
-    }
-    let stream = null;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'never' }, audio: false, preferCurrentTab: false });
-      const track = stream.getVideoTracks()[0];
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.muted = true;
-      await video.play();
-      // 等第一帧真的画出来再抓，不然拿到的是黑图
-      await new Promise((r) => setTimeout(r, 250));
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      track.stop();
-      const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
-      if (!blob) throw new Error('抓帧失败');
-      handleImageFiles([new File([blob], `截图-${Date.now()}.png`, { type: 'image/png' })]);
-      textInput.focus();
-    } catch (err) {
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-      if (err && err.name === 'NotAllowedError') imagePreviewStatus.textContent = '取消了截图';
-      else imagePreviewStatus.textContent = '截图失败：' + (err && err.message ? err.message : '未知原因') + '。可以用系统截图后 Ctrl+V 粘贴';
-    }
+  // 截图：浏览器自己截屏在不少电脑上用不了，改成提示用系统快捷键，截完直接 Ctrl+V 粘进输入框（粘贴一直支持）
+  // 提示条挂在输入框上方，几秒后自己消失（图片预览条平时是藏着的，提示不能写在那里）
+  const composerHint = document.createElement('div');
+  composerHint.id = 'composer-hint';
+  document.getElementById('composer').prepend(composerHint);
+  let composerHintTimer = null;
+  function showComposerHint(text) {
+    composerHint.textContent = text;
+    composerHint.classList.add('active');
+    clearTimeout(composerHintTimer);
+    composerHintTimer = setTimeout(() => composerHint.classList.remove('active'), 6000);
+  }
+  screenshotBtn.addEventListener('click', () => {
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+    showComposerHint(isMac
+      ? '按 Shift + Command + Ctrl + 4 截图，然后回到这里 Command + V 粘贴'
+      : '按 Win + Shift + S 截图，然后回到这里 Ctrl + V 粘贴');
+    textInput.focus();
   });
 
   quickInsertBtn.addEventListener('click', (e) => {
@@ -11215,7 +11205,7 @@
 
   function autoResizeTextInput() {
     textInput.style.height = 'auto';
-    textInput.style.height = Math.min(Math.max(textInput.scrollHeight, 66), 220) + 'px';
+    textInput.style.height = Math.min(Math.max(textInput.scrollHeight, 24), 220) + 'px';
   }
 
   textInput.addEventListener('input', () => {

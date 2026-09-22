@@ -315,7 +315,8 @@
     gap: 4px;
   }
   .msg { display: flex; flex-direction: column; max-width: 70%; }
-  .msg.me { align-self: flex-end; align-items: flex-end; }
+  /* 自己发的也靠左，跟别人的排成一列（只用气泡颜色区分谁发的） */
+  .msg.me { align-self: flex-start; align-items: flex-start; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
   .msg .name { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
   .msg .name-time { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; opacity: 0.75; }
@@ -328,7 +329,7 @@
     word-break: break-word;
     white-space: pre-wrap;
   }
-  .msg.me .bubble { background: var(--bubble-me); color: white; border-bottom-right-radius: 4px; }
+  .msg.me .bubble { background: var(--bubble-me); color: white; border-bottom-left-radius: 4px; }
   .msg.other .bubble { background: var(--bubble-other); color: var(--text); border-bottom-left-radius: 4px; }
   .msg .bubble a { color: inherit; text-decoration: underline; word-break: break-all; }
   .msg.other .bubble a { color: var(--link-on-bubble); }
@@ -766,14 +767,29 @@
   /* 已读/未读分界线 */
   .unread-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #e5534b; font-size: 11.5px; font-weight: 600; }
   .unread-divider::before, .unread-divider::after { content: ''; flex: 1; height: 1px; background: rgba(229, 83, 75, 0.45); }
-  /* 我发的消息下面的已读回执 */
-  .read-receipt { font-size: 10.5px; color: var(--muted); margin-top: 2px; padding: 0 4px; cursor: pointer; text-align: right; max-width: 100%; }
-  .read-receipt.all-read { color: #2e9e5b; }
-  .read-receipt .rr-names { display: none; }
-  .read-receipt.expanded .rr-summary { display: none; }
-  .read-receipt.expanded .rr-names { display: inline; white-space: normal; word-break: break-word; }
-  .read-receipt:empty { display: none; }
-  .msg.me .meta-row { flex-direction: row-reverse; }
+  /* 已读回执：放在气泡下面那一行（跟"回复"按钮同一行，不另占高度），点开两列弹层 */
+  .msg .meta-row .read-receipt {
+    background: transparent; border: 1px solid transparent; border-radius: 999px;
+    color: var(--muted); font-size: 10.5px; padding: 1px 7px; cursor: pointer; font-family: inherit; line-height: 1.4;
+    opacity: 0.85;
+  }
+  .msg .meta-row .read-receipt:hover { border-color: var(--border); background: var(--panel); opacity: 1; }
+  .msg .meta-row .read-receipt.all-read { color: #2e9e5b; }
+  .msg .meta-row .read-receipt:empty { display: none; }
+  #read-popover {
+    display: none; position: fixed; z-index: 10005;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25); padding: 10px 12px;
+    min-width: 180px; max-width: 320px; max-height: 50vh; overflow-y: auto;
+    grid-template-columns: 1fr 1fr; gap: 0 14px;
+  }
+  #read-popover.active { display: grid; }
+  #read-popover .rp-head { font-size: 11px; font-weight: 700; color: var(--muted); padding-bottom: 4px; margin-bottom: 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  #read-popover .rp-read .rp-head { color: #2e9e5b; }
+  #read-popover .rp-unread .rp-head { color: #e5534b; }
+  #read-popover .rp-name { font-size: 12.5px; color: var(--text); padding: 2px 0; white-space: nowrap; }
+  #read-popover .rp-empty { font-size: 12px; color: var(--muted); }
+  .msg.me .meta-row { flex-direction: row; }
 
   /* 消息表情回应（点赞/疑问）—— 贴在气泡角落的悬浮小徽章，像WhatsApp/iMessage那种。
      注意：锚点方向要"朝对话中间展开"而不是朝屏幕外侧——不然消息很短时（比如就几个字），
@@ -786,7 +802,7 @@
     gap: 3px;
     z-index: 2;
   }
-  .msg.me .reaction-badges { left: auto; right: 8px; } /* 自己消息(右对齐气泡)：从气泡右边往左展开，同样朝中间去 */
+  .msg.me .reaction-badges { left: 8px; right: auto; } /* 现在自己的消息也靠左，徽章一律从左边展开 */
 
   .reaction-badge {
     background: var(--panel);
@@ -4193,7 +4209,7 @@
 <div id="group-manage-panel">
   <div id="group-manage-card">
     <div class="problem-item-options-edit-title">群管理</div>
-    <div class="problem-item-options-edit-desc">点一个群改名字、改成员，或者新建一个。管理员能改所有群；现场管理只能改自己在里面的群。私聊不在这里管。</div>
+    <div class="problem-item-options-edit-desc">点一个群改名字、改成员，或者新建一个。管理员能改所有群；仓库现场只能改自己在里面的群。私聊不在这里管。</div>
     <div id="group-manage-list"></div>
     <div id="group-manage-form">
       <div class="problem-item-options-edit-title" id="group-form-title" style="font-size:14px">新建群</div>
@@ -4258,7 +4274,7 @@
       </div>
       <div id="accounts-add-error"></div>
       <div class="problem-item-options-edit-desc">
-        管理员：什么都能改，还能管账号 · 现场管理：除了管账号什么都能改 · 质检员 / 代购 / 客服：只能聊天和提问题件，其他只读。
+        管理员：什么都能改，还能管账号 · 仓库现场：除了管账号什么都能改 · 质检员 / 代购 / 客服：只能聊天和提问题件，其他只读。
         新账号第一次登录会提示改密码，不改也能用。
       </div>
     </div>
@@ -4969,7 +4985,7 @@
         if (!currentGroupId) {
           const empty = document.createElement('div');
           empty.className = 'system-msg';
-          empty.textContent = '你还没有加入任何群。找管理员或现场管理把你拉进群，或者在左边「达人广场」点一个人开始私聊。';
+          empty.textContent = '你还没有加入任何群。找管理员或仓库现场把你拉进群，或者在左边「达人广场」点一个人开始私聊。';
           messagesEl.appendChild(empty);
         }
         // "以下是新消息"横线：画在我上次看到的那条之后、第一条别人发的新消息前面
@@ -6240,7 +6256,7 @@
   document.addEventListener('keydown', clearWindowMentionSettled);
 
   let userDirectory = []; // 所有账号 [{username, role, roleLabel}]，服务器随在线列表一起发
-  const ROLE_ORDER = ['管理员', '现场管理', '质检员', '代购', '客服'];
+  const ROLE_ORDER = ['管理员', '仓库现场', '质检员', '代购', '客服'];
   const PLAZA_COLLAPSE_KEY = 'ccPlazaCollapsed';
   let plazaCollapsed = {};
   try { plazaCollapsed = JSON.parse(localStorage.getItem(PLAZA_COLLAPSE_KEY) || '{}') || {}; } catch (e) { plazaCollapsed = {}; }
@@ -8035,29 +8051,52 @@
     messagesEl.querySelectorAll('.msg.me[data-message-id]').forEach((wrap) => {
       const id = Number(wrap.dataset.messageId);
       if (!Number.isFinite(id)) return;
-      let el = wrap.querySelector('.read-receipt');
+      const metaRow = wrap.querySelector('.meta-row');
+      if (!metaRow) return;
+      let el = metaRow.querySelector('.read-receipt');
       if (!el) {
-        el = document.createElement('div');
+        el = document.createElement('button');
+        el.type = 'button';
         el.className = 'read-receipt';
-        el.addEventListener('click', () => el.classList.toggle('expanded'));
-        wrap.appendChild(el);
+        el.addEventListener('click', (e) => { e.stopPropagation(); openReadPopover(el, id); });
+        metaRow.insertBefore(el, metaRow.firstChild); // 放最前面，紧贴气泡左下角（回复按钮平时是隐形的，放后面会被它顶开）
       }
       const readers = others.filter((u) => Number(groupReadsLocal[u] || 0) >= id);
-      const unread = others.filter((u) => Number(groupReadsLocal[u] || 0) < id);
       if (others.length === 0) { el.textContent = ''; return; }
-      if (g.isDm) {
-        el.textContent = readers.length ? '已读' : '未读';
-        el.classList.toggle('all-read', readers.length > 0);
-        el.title = '';
-        return;
-      }
       const allRead = readers.length === others.length;
       el.classList.toggle('all-read', allRead);
-      el.innerHTML = `<span class="rr-summary">${allRead ? '全部已读' : (readers.length ? `已读 ${readers.length}/${others.length}` : '未读')}</span>`
-        + `<span class="rr-names">${readers.length ? '已读：' + escapeHtml(readers.join('、')) : ''}${unread.length ? (readers.length ? ' · ' : '') + '未读：' + escapeHtml(unread.join('、')) : ''}</span>`;
-      el.title = '点一下看名字';
+      el.classList.toggle('none-read', readers.length === 0);
+      el.textContent = g.isDm ? (readers.length ? '已读' : '未读') : (allRead ? '全部已读' : `已读 ${readers.length}/${others.length}`);
+      el.title = '点开看谁读了';
     });
   }
+  // 点"已读 x/y"弹出两列：左边已读的人、右边还没读的人
+  const readPopover = document.createElement('div');
+  readPopover.id = 'read-popover';
+  document.body.appendChild(readPopover);
+  function closeReadPopover() { readPopover.classList.remove('active'); }
+  function openReadPopover(anchor, messageId) {
+    const g = findGroupLocal(currentGroupId);
+    if (!g) return;
+    const others = (g.members || []).filter((u) => u !== username);
+    const readers = others.filter((u) => Number(groupReadsLocal[u] || 0) >= messageId);
+    const unread = others.filter((u) => Number(groupReadsLocal[u] || 0) < messageId);
+    const col = (title, list, cls) => `<div class="rp-col ${cls}"><div class="rp-head">${title} <span>${list.length}</span></div>`
+      + (list.length ? list.map((n) => `<div class="rp-name">${escapeHtml(n)}</div>`).join('') : '<div class="rp-empty">—</div>') + '</div>';
+    readPopover.innerHTML = col('已读', readers, 'rp-read') + col('未读', unread, 'rp-unread');
+    readPopover.classList.add('active');
+    // 贴着标签放，超出屏幕就往回收
+    const r = anchor.getBoundingClientRect();
+    const pw = readPopover.offsetWidth; const ph = readPopover.offsetHeight;
+    let left = r.left; let top = r.bottom + 6;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+    if (top + ph > window.innerHeight - 8) top = r.top - ph - 6;
+    readPopover.style.left = Math.max(8, left) + 'px';
+    readPopover.style.top = Math.max(8, top) + 'px';
+  }
+  document.addEventListener('click', (e) => { if (!readPopover.contains(e.target) && !e.target.closest('.read-receipt')) closeReadPopover(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeReadPopover(); });
+  messagesEl.addEventListener('scroll', closeReadPopover);
 
   // 告诉服务器"这个群我看到第几条了"，并把本地红点清零
   function markGroupRead(groupId, lastId) {
@@ -8097,7 +8136,7 @@
   async function openGroupManage(selectId) {
     groupFormError.textContent = '';
     groupManagePanel.classList.add('active');
-    // 选人的名单直接用达人广场那份（所有账号），现场管理没有账号管理接口的权限，这样两种角色都能用
+    // 选人的名单直接用达人广场那份（所有账号），仓库现场没有账号管理接口的权限，这样两种角色都能用
     allUsersForGroups = userDirectory.map((u) => ({ username: u.username, roleLabel: u.roleLabel }));
     renderGroupManageList();
     selectGroupForEdit(selectId || null);

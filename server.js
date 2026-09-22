@@ -768,7 +768,7 @@ const PIN_EDIT_PASSWORD = process.env.PIN_EDIT_PASSWORD || 'changeme123';
 // 每个人一个账号（用户名就是聊天里显示的名字），由管理员建；密码 scrypt 加盐存，
 // 登录后发一个带签名的令牌，浏览器记着，刷新不用重登。改密码/重置密码后旧令牌全部作废。
 // 角色决定能改什么：admin/manager 能改所有模块，其余三种只能聊天 + 提问题件，别的只读。
-const ROLES = { admin: '管理员', manager: '现场管理', inspector: '质检员', buyer: '代购', service: '客服' };
+const ROLES = { admin: '管理员', manager: '仓库现场', inspector: '质检员', buyer: '代购', service: '客服' };
 const EDIT_ROLES = ['admin', 'manager'];
 const TOKEN_TTL_MS = 90 * 24 * 3600 * 1000;
 const SESSION_SECRET = process.env.SESSION_SECRET
@@ -2985,7 +2985,7 @@ wss.on('connection', (ws) => {
       const client = clients.get(ws);
       if (!client) return;
       if (!canManageGroups(client.role)) {
-        ws.send(JSON.stringify({ type: 'group_error', message: '只有管理员和现场管理能建群、改群' }));
+        ws.send(JSON.stringify({ type: 'group_error', message: '只有管理员和仓库现场能建群、改群' }));
         return;
       }
       if (data.type === 'group_delete') {

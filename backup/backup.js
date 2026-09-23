@@ -113,6 +113,19 @@ const TABLES = [
   { name: 'drive_files', id: false },
 ];
 
+// 表的中文名，给 CSV 文件名和查看器用
+const TABLE_LABELS = {
+  users: '账号', groups: '群组', group_members: '群成员', group_pins: '群置顶',
+  group_reads: '群已读位置', group_hidden: '关掉的私聊',
+  chat_messages: '聊天记录',
+  problem_item_reports: '问题件', problem_item_options: '问题件选项',
+  case_library: '案例库', special_requirements: '特殊要求', inspection_rules_history: '检品规则历史',
+  mall_items: '商城订货', mall_arrivals: '商城到货', paypay_records: 'PayPay充值',
+  staff_shifts: '班表', staff_members: '现场管理名单', time_records: '打卡记录',
+  timeclock_names: '打卡人名单', work_items: '工作内容', reminders: '定时提醒',
+  drive_files: '云盘文件',
+};
+
 const PAGE = 1000;
 
 async function fetchTable(t) {
@@ -131,6 +144,84 @@ async function fetchTable(t) {
     if (batch.length < PAGE) break;
   }
   return rows;
+}
+
+// 生成一个离线网页：左边选表，右边看内容，能搜。数据以 JSON 直接内嵌。
+function buildViewer(all, labels) {
+  const payload = JSON.stringify({ tables: all, labels, at: new Date().toLocaleString('zh-CN') })
+    .replace(/</g, '\\u003c'); // 防止数据里出现 </script> 把页面截断
+  return `<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><title>CC 备份查看</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Microsoft YaHei", system-ui, sans-serif; background:#f6f7fb; color:#22252b; height:100vh; display:flex; flex-direction:column; }
+  header { padding:12px 18px; background:#fff; border-bottom:1px solid #e3e6ee; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  header .at { font-size:12px; color:#7a808c; }
+  header input { flex:1; min-width:200px; max-width:420px; padding:7px 10px; border:1px solid #d7dbe5; border-radius:8px; font-size:13px; outline:none; }
+  header input:focus { border-color:#3f6fd6; }
+  main { flex:1; display:flex; min-height:0; }
+  nav { width:190px; background:#fff; border-right:1px solid #e3e6ee; overflow:auto; padding:8px; }
+  nav button { display:flex; justify-content:space-between; gap:8px; width:100%; text-align:left; background:none; border:none; border-radius:7px; padding:7px 10px; font-size:13px; cursor:pointer; font-family:inherit; color:#22252b; }
+  nav button:hover { background:#eef1f8; }
+  nav button.on { background:#3f6fd6; color:#fff; }
+  nav button span { font-size:11px; opacity:.7; }
+  section { flex:1; overflow:auto; padding:14px 18px 40px; }
+  table { border-collapse:collapse; font-size:12.5px; background:#fff; white-space:nowrap; }
+  th, td { border:1px solid #e3e6ee; padding:5px 9px; text-align:left; max-width:420px; overflow:hidden; text-overflow:ellipsis; vertical-align:top; }
+  th { background:#f0f2f8; position:sticky; top:0; font-weight:600; }
+  tr:nth-child(even) td { background:#fbfcfe; }
+  .count { font-size:12px; color:#7a808c; margin-bottom:8px; }
+  mark { background:#ffe9a8; }
+</style></head><body>
+<header>
+  <h1>CC 备份查看</h1>
+  <span class="at">备份时间：__AT__</span>
+  <input id="q" type="search" placeholder="在当前这张表里搜（人名、单号、任意文字）">
+</header>
+<main><nav id="nav"></nav><section><div class="count" id="count"></div><div id="box"></div></section></main>
+<script>
+const DATA = __DATA__;
+document.querySelector('.at').textContent = '备份时间：' + DATA.at;
+const names = Object.keys(DATA.tables).filter(n => DATA.tables[n].length);
+let cur = names[0] || '';
+const nav = document.getElementById('nav'), box = document.getElementById('box'), q = document.getElementById('q'), countEl = document.getElementById('count');
+function label(n){ return (DATA.labels[n] || n); }
+function cell(v){
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  // 13 位数字大概率是时间戳，显示成日期好认
+  if (typeof v === 'number' && v > 1500000000000 && v < 4000000000000) return new Date(v).toLocaleString('zh-CN');
+  const s = String(v);
+  if (/^\\d{4}-\\d{2}-\\d{2}T/.test(s)) { const d = new Date(s); if (!isNaN(d)) return d.toLocaleString('zh-CN'); }
+  return s;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hi(s, k){ if (!k) return esc(s); return esc(s).replace(new RegExp(k.replace(/[.*+?^\\\${}()|[\\]\\\\]/g,'\\\\$&'),'gi'), m => '<mark>'+m+'</mark>'); }
+function renderNav(){
+  nav.innerHTML = '';
+  names.forEach(n => {
+    const b = document.createElement('button');
+    b.className = n === cur ? 'on' : '';
+    b.innerHTML = label(n) + '<span>' + DATA.tables[n].length + '</span>';
+    b.onclick = () => { cur = n; q.value=''; renderNav(); render(); };
+    nav.appendChild(b);
+  });
+}
+function render(){
+  const rows = DATA.tables[cur] || [];
+  const k = q.value.trim().toLowerCase();
+  const hit = k ? rows.filter(r => Object.values(r).some(v => String(typeof v === 'object' ? JSON.stringify(v) : v).toLowerCase().includes(k))) : rows;
+  countEl.textContent = label(cur) + '：' + (k ? ('搜到 ' + hit.length + ' 条 / 共 ' + rows.length + ' 条') : ('共 ' + rows.length + ' 条')) + (hit.length > 800 ? '（只显示前 800 条，想看全部请用 Excel表格 文件夹里的 csv）' : '');
+  if (!hit.length) { box.innerHTML = '<p style="color:#7a808c">没有内容</p>'; return; }
+  const cols = Object.keys(rows[0]);
+  const show = hit.slice(0, 800);
+  box.innerHTML = '<table><thead><tr>' + cols.map(c => '<th>'+esc(c)+'</th>').join('') +
+    '</tr></thead><tbody>' + show.map(r => '<tr>' + cols.map(c => '<td title="'+esc(cell(r[c]))+'">' + hi(cell(r[c]), k) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+}
+q.addEventListener('input', render);
+renderNav(); render();
+</script></body></html>`.replace('__DATA__', payload).replace('__AT__', new Date().toLocaleString('zh-CN'));
 }
 
 function stamp() {
@@ -179,7 +270,31 @@ function human(bytes) {
     }
   }
   fs.writeFileSync(path.join(dataDir, 'all.json'), JSON.stringify({ backupAt: Date.now(), tables: all }, null, 2), 'utf8');
+
+  // 同一份数据再导一份 Excel 能直接打开的 CSV
+  const csvDir = path.join(outDir, 'Excel表格');
+  fs.mkdirSync(csvDir, { recursive: true });
+  const csvCell = (v) => {
+    if (v === null || v === undefined) return '""';
+    let t;
+    if (typeof v === 'object') t = JSON.stringify(v);
+    else t = String(v);
+    return '"' + t.replace(/"/g, '""') + '"';
+  };
+  for (const name of Object.keys(all)) {
+    const rows = all[name];
+    if (!rows.length) continue;
+    const cols = Object.keys(rows[0]);
+    const lines = [cols.map(csvCell).join(',')];
+    rows.forEach((r) => lines.push(cols.map((c) => csvCell(r[c])).join(',')));
+    const label = TABLE_LABELS[name] || name;
+    fs.writeFileSync(path.join(csvDir, `${label}(${name}).csv`), '\uFEFF' + lines.join('\r\n'), 'utf8');
+  }
+
+  // 再生成一个双击就能看的网页（数据直接嵌在里面，不联网也能开）
+  fs.writeFileSync(path.join(outDir, '查看备份.html'), buildViewer(all, TABLE_LABELS), 'utf8');
   log(`  合计 ${totalRows} 条记录` + (failedTables ? `，${failedTables} 张表失败` : ''));
+  log('  想直接看：双击这次文件夹里的「查看备份.html」；想用 Excel 打开：进「Excel表格」文件夹');
   log('');
 
   // ---------- 2) 图片和文件 ----------

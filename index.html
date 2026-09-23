@@ -2129,8 +2129,8 @@
   .mall-empty.active { display: block; }
   .mall-table-wrap:has(.mall-empty.active) table { display: none; }
   /* 只读角色看不到操作列和扫码条 */
-  body.role-readonly #mall-overlay .editor-only,
-  body.role-readonly #paypay-overlay .editor-only { display: none !important; }
+  /* 只读角色（质检员/代购/客服）看不到统计这一组，也看不到两个面板里的录入按钮 */
+  body.role-readonly .editor-only { display: none !important; }
   #mall-import-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
   #mall-import-panel.active { display: flex; }
   #mall-import-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto; }
@@ -4150,15 +4150,15 @@
       </div>
     </div>
 
-    <div class="sidebar-divider"></div>
+    <div class="sidebar-divider editor-only"></div>
 
-<h3>统计</h3>
-    <button id="tool-mall-btn" class="tool-entry-btn" type="button">
+<h3 class="editor-only">统计</h3>
+    <button id="tool-mall-btn" class="tool-entry-btn editor-only" type="button">
       <span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span>
       <span class="tool-entry-label">商城到货统计</span>
       <span class="case-count-badge" id="mall-count-badge"></span>
     </button>
-    <button id="paypay-open-btn" class="tool-entry-btn" type="button">
+    <button id="paypay-open-btn" class="tool-entry-btn editor-only" type="button">
       <span class="module-icon-badge"><i class="ti ti-wallet"></i></span>
       <span class="tool-entry-label">PayPay充值记录</span>
       <span class="case-count-badge warn" id="paypay-warn-badge"></span>

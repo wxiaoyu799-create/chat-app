@@ -1311,7 +1311,7 @@ async function loadPaypayFromDB() {
 function paypaySnapshot() {
   return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, accountWarn: PAYPAY_ACCOUNT_WARN };
 }
-function broadcastPaypay() { broadcast(paypaySnapshot()); }
+function broadcastPaypay() { broadcastToEditors(paypaySnapshot()); }
 // 日期只认 YYYY-MM-DD
 function validPaypayDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')); }
 
@@ -1376,7 +1376,7 @@ async function loadMallFromDB() {
 function mallSnapshot() {
   return { type: 'mall_data', suppliers: MALL_SUPPLIERS, items: mallItems, arrivals: mallArrivals };
 }
-function broadcastMall() { broadcast(mallSnapshot()); }
+function broadcastMall() { broadcastToEditors(mallSnapshot()); }
 function mallItemById(id) { return mallItems.find((x) => String(x.id) === String(id)) || null; }
 function recomputeMallStatus(item) {
   if (item.status === 'cancelled') return;
@@ -2086,6 +2086,15 @@ function sendGroupsToEveryone() {
     if (sock.readyState === WebSocket.OPEN) sendGroupsTo(sock, c);
   }
 }
+// 统计（商城到货 / PayPay）整块只给管理员和仓库现场：数据根本不发给别人，
+// 不是前端藏起来而已
+function broadcastToEditors(data) {
+  const msg = JSON.stringify(data);
+  for (const [sock, c] of clients.entries()) {
+    if (sock.readyState === WebSocket.OPEN && isEditRole(c.role)) sock.send(msg);
+  }
+}
+
 function broadcastToGroup(groupId, data, exclude) {
   const members = new Set(getGroupMembers(groupId));
   const msg = JSON.stringify(data);
@@ -2278,8 +2287,10 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers(), directory: getDirectory() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
-      ws.send(JSON.stringify(mallSnapshot()));
-      ws.send(JSON.stringify(paypaySnapshot()));
+      if (isEditRole(user.role)) {
+        ws.send(JSON.stringify(mallSnapshot()));
+        ws.send(JSON.stringify(paypaySnapshot()));
+      }
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -3686,6 +3697,123 @@ setInterval(() => {
 
 // 每30秒检查一次，足够精确命中每分钟的提醒时间点，又不会太频繁
 setInterval(checkReminders, 30 * 1000);
+
+// ==================== 旧图片自动清理 ====================
+// Supabase 免费版只有 1GB，照片是大头。到期只删"图片文件本身"，
+// 聊天记录 / 问题件记录 / 案例本身一条都不动，列表里照样看得到，只是点开没图了。
+// 天数可以用环境变量改；填 0 = 这一类永不清理。
+const CLEAN_CHAT_DAYS = Number(process.env.CLEAN_CHAT_IMAGE_DAYS ?? 30);        // 聊天图片/附件：1个月
+const CLEAN_PROBLEM_DAYS = Number(process.env.CLEAN_PROBLEM_IMAGE_DAYS ?? 180); // 问题件照片：半年
+const CLEAN_CASE_DAYS = Number(process.env.CLEAN_CASE_IMAGE_DAYS ?? 0);         // 案例库图片：默认不清（是沉淀资料）
+
+// 从公开地址里还原出 bucket 里的路径（images/xxx.jpg）；本机 /uploads/ 的返回 null
+function storagePathFromUrl(u) {
+  if (typeof u !== 'string' || !STORAGE_ENABLED) return null;
+  if (!u.startsWith(STORAGE_PUBLIC_PREFIX)) return null;
+  const rest = u.slice(STORAGE_PUBLIC_PREFIX.length);
+  return rest ? rest.split('?')[0] : null;
+}
+// Storage 支持一次删一批，比一个个删快得多
+async function deleteFromStorageBatch(paths) {
+  if (!paths.length) return 0;
+  let done = 0;
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          apikey: SUPABASE_SERVICE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefixes: batch }),
+      });
+      if (res.ok) done += batch.length;
+      else console.error('[清理] Storage 批量删除返回', res.status);
+    } catch (err) {
+      console.error('[清理] Storage 批量删除失败', err.message);
+    }
+  }
+  return done;
+}
+// 本机 /uploads/ 下的老文件（没配 Storage 时用的那套）也顺手删掉
+function deleteLocalUpload(u) {
+  const m = typeof u === 'string' ? u.match(/^\/uploads\/([a-zA-Z0-9_\-.]+)$/) : null;
+  if (!m) return;
+  fs.unlink(path.join(UPLOADS_DIR, m[1]), () => {});
+}
+
+async function cleanupOldImages() {
+  if (!dbPool) return;
+  const started = Date.now();
+  const toDelete = [];
+  let touchedRows = 0;
+  try {
+    // ---- 聊天消息：图片 + 附件 ----
+    if (CLEAN_CHAT_DAYS > 0) {
+      const cutoff = Date.now() - CLEAN_CHAT_DAYS * 86400000;
+      const { rows } = await dbPool.query(
+        "SELECT id, images, files FROM chat_messages WHERE msg_time < $1 AND ((images IS NOT NULL AND images::text <> '[]') OR (files IS NOT NULL AND files::text <> '[]'));",
+        [cutoff]
+      );
+      for (const r of rows) {
+        (Array.isArray(r.images) ? r.images : []).forEach((u) => { const p2 = storagePathFromUrl(u); if (p2) toDelete.push(p2); else deleteLocalUpload(u); });
+        (Array.isArray(r.files) ? r.files : []).forEach((f) => { const u = f && f.url; const p2 = storagePathFromUrl(u); if (p2) toDelete.push(p2); else deleteLocalUpload(u); });
+        await dbPool.query("UPDATE chat_messages SET images = '[]', files = '[]' WHERE id = $1;", [r.id]);
+        touchedRows++;
+        // 内存里那份历史也同步清掉，不然还在的人点开是坏图
+        const inMem = history.find((m) => m.type === 'message' && m.id === Number(r.id));
+        if (inMem) { inMem.images = []; inMem.files = []; }
+      }
+    }
+    // ---- 问题件照片 ----
+    if (CLEAN_PROBLEM_DAYS > 0) {
+      const cutoff = new Date(Date.now() - CLEAN_PROBLEM_DAYS * 86400000).toISOString();
+      const { rows } = await dbPool.query(
+        "SELECT id, images FROM problem_item_reports WHERE submitted_at < $1 AND images IS NOT NULL AND images::text <> '[]';",
+        [cutoff]
+      );
+      for (const r of rows) {
+        (Array.isArray(r.images) ? r.images : []).forEach((u) => { const p2 = storagePathFromUrl(u); if (p2) toDelete.push(p2); else deleteLocalUpload(u); });
+        await dbPool.query("UPDATE problem_item_reports SET images = '[]' WHERE id = $1;", [r.id]);
+        touchedRows++;
+        for (const cat of PROBLEM_ITEM_CATEGORIES) {
+          const hit = (problemItemReports[cat] || []).find((x) => String(x.id) === String(r.id));
+          if (hit) hit.images = [];
+        }
+        const fin = problemItemFinished.find((x) => String(x.id) === String(r.id));
+        if (fin) fin.images = [];
+      }
+    }
+    // ---- 案例库图片（默认关着）----
+    if (CLEAN_CASE_DAYS > 0) {
+      const cutoff = new Date(Date.now() - CLEAN_CASE_DAYS * 86400000).toISOString();
+      const { rows } = await dbPool.query(
+        "SELECT id, images FROM case_library WHERE created_at < $1 AND images IS NOT NULL AND images::text <> '[]';",
+        [cutoff]
+      );
+      for (const r of rows) {
+        (Array.isArray(r.images) ? r.images : []).forEach((u) => { const p2 = storagePathFromUrl(u); if (p2) toDelete.push(p2); else deleteLocalUpload(u); });
+        await dbPool.query("UPDATE case_library SET images = '[]' WHERE id = $1;", [r.id]);
+        touchedRows++;
+        const hit = caseLibrary.find((x) => String(x.id) === String(r.id));
+        if (hit) hit.images = [];
+      }
+    }
+    if (touchedRows === 0) return;
+    const removed = STORAGE_ENABLED ? await deleteFromStorageBatch(toDelete) : 0;
+    console.log(`[图片清理] 清掉 ${touchedRows} 条记录上的图片，云端删除 ${removed} 个文件，用时 ${Math.round((Date.now() - started) / 1000)}s`);
+    // 正开着页面的人也刷新一下，避免继续显示坏掉的缩略图
+    broadcast({ type: 'problem_item_data', ...getProblemItemSnapshot() });
+    broadcast({ type: 'case_library', cases: caseLibraryForClients() });
+  } catch (err) {
+    console.error('[图片清理失败]', err.message);
+  }
+}
+// 启动 5 分钟后跑一次（避开刚启动时的高峰），之后每 12 小时一次
+setTimeout(cleanupOldImages, 5 * 60 * 1000);
+setInterval(cleanupOldImages, 12 * 3600 * 1000);
 
 // ==================== 时间管理（签出/签入打卡，按日本时间归档，可按天导出） ====================
 // 规则跟前端按钮一一对应：

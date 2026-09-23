@@ -1269,7 +1269,7 @@ async function deleteSpecialReq(id) {
 // 自动算"过去30天充的钱"：每个账户各算各的，超 200万 标红（30万 先黄字提醒），不看三家合计。
 const PAYPAY_ACCOUNTS = [
   { key: 'yamada', name: '山田惠美', code: '1838' },
-  { key: 'amamiya', name: '雨宫雄一（雨宮）', code: '0400' },
+  { key: 'amamiya', name: '雨宫', code: '0400' },
   { key: 'mori', name: '森', code: '4832' },
 ];
 const PAYPAY_ACCOUNT_WARN = 300000;   // 单账户 30天 到 30万 先黄字提个醒

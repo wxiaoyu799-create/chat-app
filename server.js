@@ -1266,14 +1266,14 @@ async function deleteSpecialReq(id) {
 
 // ==================== PayPay 充值记录 ====================
 // 三个账户各记各的：日期、充值金额、充值后余额。
-// 自动算"过去30天充的钱"：单个账户超 30万 标红，三个账户合计超 200万 标红（PayPay 的30天额度）。
+// 自动算"过去30天充的钱"：每个账户各算各的，超 200万 标红（30万 先黄字提醒），不看三家合计。
 const PAYPAY_ACCOUNTS = [
   { key: 'yamada', name: '山田惠美', code: '1838' },
   { key: 'amamiya', name: '雨宫雄一（雨宮）', code: '0400' },
   { key: 'mori', name: '森', code: '4832' },
 ];
-const PAYPAY_ACCOUNT_LIMIT = 300000;  // 单账户 30天 30万
-const PAYPAY_TOTAL_LIMIT = 2000000;   // 三个账户合计 30天 200万
+const PAYPAY_ACCOUNT_WARN = 300000;   // 单账户 30天 到 30万 先黄字提个醒
+const PAYPAY_ACCOUNT_LIMIT = 2000000; // 单账户 30天 超过 200万 标红（不看三家合计）
 let paypayRecords = []; // { id, account, date, amount, balance, note, by, createdAt }
 
 async function ensurePaypayTable() {
@@ -1309,7 +1309,7 @@ async function loadPaypayFromDB() {
   }
 }
 function paypaySnapshot() {
-  return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, totalLimit: PAYPAY_TOTAL_LIMIT };
+  return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, accountWarn: PAYPAY_ACCOUNT_WARN };
 }
 function broadcastPaypay() { broadcast(paypaySnapshot()); }
 // 日期只认 YYYY-MM-DD

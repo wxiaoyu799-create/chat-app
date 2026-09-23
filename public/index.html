@@ -1255,8 +1255,7 @@
   #sidebar .sidebar-divider { margin: 8px 0; }
   #sidebar .sidebar-toggle { padding-bottom: 6px; }
   /* 底部这几个模块入口（时间管理/人员管理/商城/PayPay/账号管理）排得紧一点，项目多了也放得下一屏 */
-  #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #tool-mall-btn,
-  #sidebar #paypay-open-btn, #sidebar #accounts-open-btn { padding: 3px 0 4px; }
+  #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #accounts-open-btn { padding: 3px 0 4px; }
   #sidebar .sidebar-toggle .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
   #sidebar .tool-entry-btn { padding: 5px 9px; margin-bottom: 4px; font-size: 12.5px; gap: 7px; }
   #sidebar .tool-entry-btn .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
@@ -1997,7 +1996,7 @@
   #sidebar .sidebar-toggle > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-count-badge { font-size: 11px; color: var(--muted); background: var(--panel-alt); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
   .sidebar-count-badge:empty { display: none; }
-  .sidebar-count-badge.warn { background: rgba(229, 83, 75, 0.15); color: #e5534b; font-weight: 700; }
+  .sidebar-count-badge.warn, .case-count-badge.warn { background: rgba(229, 83, 75, 0.15); color: #e5534b; font-weight: 700; }
   #paypay-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
   #paypay-overlay.active { display: flex; }
   #paypay-overlay-close-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
@@ -2015,6 +2014,7 @@
   .paypay-acc-btn .pa-code { font-size: 11px; color: var(--muted); }
   .paypay-acc-btn .pa-sum { font-size: 11.5px; color: var(--muted); }
   .paypay-acc-btn .pa-sum.over { color: #e5534b; font-weight: 700; }
+  .paypay-acc-btn .pa-sum.warn { color: #b8562f; }
   .paypay-acc-btn:hover { background: var(--hover-dark); }
   .paypay-acc-btn.active { background: var(--accent); }
   .paypay-acc-btn.active .pa-name, .paypay-acc-btn.active .pa-code, .paypay-acc-btn.active .pa-sum { color: #fff; }
@@ -2025,6 +2025,7 @@
   #paypay-head-stats { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
   #paypay-head-stats b { color: var(--text); font-size: 15px; }
   #paypay-head-stats .over b, #paypay-head-stats .over { color: #e5534b; }
+  #paypay-head-stats .warn b, #paypay-head-stats .warn { color: #b8562f; }
   #paypay-add-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
   #paypay-add-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   #paypay-add-bar input { padding: 7px 9px; font-size: 13px; width: 140px; }
@@ -3902,12 +3903,6 @@
     <button id="staff-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
-    <button id="tool-mall-btn" class="sidebar-toggle" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span> 商城到货统计 <span class="sidebar-count-badge" id="mall-count-badge"></span></span>
-    </button>
-    <button id="paypay-open-btn" class="sidebar-toggle" type="button">
-      <span><span class="module-icon-badge"><i class="ti ti-wallet"></i></span> PayPay充值记录 <span class="sidebar-count-badge warn" id="paypay-warn-badge"></span></span>
-    </button>
     <button id="accounts-open-btn" class="sidebar-toggle admin-only" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-user-cog"></i></span> 账号管理</span>
     </button>
@@ -4154,6 +4149,20 @@
         <span id="reminder-error-msg"></span>
       </div>
     </div>
+
+    <div class="sidebar-divider"></div>
+
+<h3>统计</h3>
+    <button id="tool-mall-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span>
+      <span class="tool-entry-label">商城到货统计</span>
+      <span class="case-count-badge" id="mall-count-badge"></span>
+    </button>
+    <button id="paypay-open-btn" class="tool-entry-btn" type="button">
+      <span class="module-icon-badge"><i class="ti ti-wallet"></i></span>
+      <span class="tool-entry-label">PayPay充值记录</span>
+      <span class="case-count-badge warn" id="paypay-warn-badge"></span>
+    </button>
   </div>
 </div>
 
@@ -5409,7 +5418,7 @@
           if (/密码/.test(specialEditError.textContent)) specialEditPassword.focus();
         }
       } else if (data.type === 'paypay_data') {
-        paypayData = { accounts: data.accounts || [], records: data.records || [], accountLimit: data.accountLimit || 300000, totalLimit: data.totalLimit || 2000000 };
+        paypayData = { accounts: data.accounts || [], records: data.records || [], accountLimit: data.accountLimit || 2000000, accountWarn: data.accountWarn || 300000 };
         renderPaypayBadge();
         if (paypayOverlay.classList.contains('active')) renderPaypay();
       } else if (data.type === 'paypay_saved') {
@@ -8970,7 +8979,7 @@
   const paypayEditCancelBtn = document.getElementById('paypay-edit-cancel-btn');
   const paypayMsg = document.getElementById('paypay-msg');
 
-  let paypayData = { accounts: [], records: [], accountLimit: 300000, totalLimit: 2000000 };
+  let paypayData = { accounts: [], records: [], accountLimit: 2000000, accountWarn: 300000 };
   let paypayAccount = '';
   let paypayEditingId = null;
 
@@ -8993,21 +9002,20 @@
   }
   function renderPaypayBadge() {
     const over = paypayData.accounts.filter((a) => paypaySum30(a.key) > paypayData.accountLimit).length;
-    const totalOver = paypaySum30('') > paypayData.totalLimit;
-    // 侧栏地方小，只放一个很短的红标：合计超额显示 !，否则显示超额的账户个数
-    paypayWarnBadge.textContent = totalOver ? '!' : (over ? String(over) : '');
-    paypayWarnBadge.title = totalOver ? '三个账户合计过去30天超过200万' : (over ? `${over} 个账户过去30天超过30万` : '');
+    paypayWarnBadge.textContent = over ? String(over) : '';
+    paypayWarnBadge.title = over ? `${over} 个账户过去30天充值超过 200万` : '';
   }
   function renderPaypaySidebar() {
     paypaySidebar.innerHTML = '';
     paypayData.accounts.forEach((acc) => {
       const sum = paypaySum30(acc.key);
       const over = sum > paypayData.accountLimit;
+      const warn = !over && sum > paypayData.accountWarn;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'paypay-acc-btn' + (acc.key === paypayAccount ? ' active' : '');
       btn.innerHTML = `<span class="pa-name">${escapeHtml(acc.name)}</span><span class="pa-code">番号 ${escapeHtml(acc.code)}</span>`
-        + `<span class="pa-sum${over ? ' over' : ''}">30天 ${yen(sum)}${over ? ' ⚠' : ''}</span>`;
+        + `<span class="pa-sum${over ? ' over' : (warn ? ' warn' : '')}">30天 ${yen(sum)}${over ? ' ⚠' : ''}</span>`;
       btn.addEventListener('click', () => { paypayAccount = acc.key; cancelPaypayEdit(); renderPaypay(); });
       paypaySidebar.appendChild(btn);
     });
@@ -9022,16 +9030,16 @@
     const recs = paypayData.records.filter((r) => r.account === paypayAccount).sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)));
     const sum30 = paypaySum30(paypayAccount);
     const over = sum30 > paypayData.accountLimit;
-    const totalSum = paypaySum30('');
-    const totalOver = totalSum > paypayData.totalLimit;
+    const warn = !over && sum30 > paypayData.accountWarn;
 
     paypayHeadName.textContent = acc ? `${acc.name}（番号 ${acc.code}）` : '';
     const latest = recs.find((r) => r.balance !== null && r.balance !== undefined);
-    paypayHeadStats.innerHTML = `<span class="${over ? 'over' : ''}">过去30天充值 <b>${yen(sum30)}</b>${over ? ` ⚠ 超过 ${yen(paypayData.accountLimit)}` : ` / ${yen(paypayData.accountLimit)}`}</span>`
+    paypayHeadStats.innerHTML = `<span class="${over ? 'over' : (warn ? 'warn' : '')}">过去30天充值 <b>${yen(sum30)}</b>${over ? ` ⚠ 超过 ${yen(paypayData.accountLimit)}` : ` / ${yen(paypayData.accountLimit)}`}</span>`
       + `<span>本账户累计 <b>${yen(recs.reduce((n, r) => n + r.amount, 0))}</b></span>`
       + (latest ? `<span>最新余额 <b>${yen(latest.balance)}</b>（${escapeHtml(latest.date)}）</span>` : '');
-    paypayTotalChip.className = totalOver ? 'over' : '';
-    paypayTotalChip.textContent = `三个账户合计 30天 ${yen(totalSum)}${totalOver ? ` ⚠ 超过 ${yen(paypayData.totalLimit)}` : ` / ${yen(paypayData.totalLimit)}`}`;
+    // 顶上这条改成三个账户各自的30天一览，方便一眼比对；不再算合计红线
+    paypayTotalChip.className = paypayData.accounts.some((x) => paypaySum30(x.key) > paypayData.accountLimit) ? 'over' : '';
+    paypayTotalChip.textContent = paypayData.accounts.map((x) => x.name + ' ' + yen(paypaySum30(x.key))).join('  ·  ');
 
     paypayTbody.innerHTML = '';
     recs.forEach((r) => {
@@ -9110,10 +9118,9 @@
     lines.push(esc('过去30天统计（导出时点）'));
     paypayData.accounts.forEach((a) => {
       const sum = paypaySum30(a.key);
-      lines.push([esc(a.name), esc(a.code), esc('过去30天'), sum, '', esc(sum > paypayData.accountLimit ? '超过30万' : ''), ''].join(','));
+      lines.push([esc(a.name), esc(a.code), esc('过去30天'), sum, '', esc(sum > paypayData.accountLimit ? '超过200万' : (sum > paypayData.accountWarn ? '超过30万' : '')), ''].join(','));
     });
-    const total = paypaySum30('');
-    lines.push([esc('三个账户合计'), '', esc('过去30天'), total, '', esc(total > paypayData.totalLimit ? '超过200万' : ''), ''].join(','));
+    lines.push([esc('三个账户合计'), '', esc('过去30天'), paypaySum30(''), '', esc('仅参考，不作红线'), ''].join(','));
     const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

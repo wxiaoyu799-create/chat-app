@@ -1264,6 +1264,57 @@ async function deleteSpecialReq(id) {
   return true;
 }
 
+// ==================== PayPay 充值记录 ====================
+// 三个账户各记各的：日期、充值金额、充值后余额。
+// 自动算"过去30天充的钱"：单个账户超 30万 标红，三个账户合计超 200万 标红（PayPay 的30天额度）。
+const PAYPAY_ACCOUNTS = [
+  { key: 'yamada', name: '山田惠美', code: '1838' },
+  { key: 'amamiya', name: '雨宫雄一（雨宮）', code: '0400' },
+  { key: 'mori', name: '森', code: '4832' },
+];
+const PAYPAY_ACCOUNT_LIMIT = 300000;  // 单账户 30天 30万
+const PAYPAY_TOTAL_LIMIT = 2000000;   // 三个账户合计 30天 200万
+let paypayRecords = []; // { id, account, date, amount, balance, note, by, createdAt }
+
+async function ensurePaypayTable() {
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS paypay_records (
+      id BIGSERIAL PRIMARY KEY,
+      account TEXT NOT NULL,
+      charge_date TEXT NOT NULL,
+      amount BIGINT NOT NULL,
+      balance BIGINT,
+      note TEXT,
+      by_user TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+}
+function rowToPaypay(r) {
+  return {
+    id: String(r.id), account: r.account, date: r.charge_date, amount: Number(r.amount),
+    balance: r.balance === null || r.balance === undefined ? null : Number(r.balance),
+    note: r.note || '', by: r.by_user || '', createdAt: new Date(r.created_at).getTime(),
+  };
+}
+async function loadPaypayFromDB() {
+  if (!dbPool) return;
+  try {
+    await ensurePaypayTable();
+    const { rows } = await dbPool.query('SELECT * FROM paypay_records ORDER BY charge_date ASC, id ASC;');
+    paypayRecords = rows.map(rowToPaypay);
+    console.log(`已从数据库加载 PayPay 充值记录，共 ${paypayRecords.length} 条`);
+  } catch (err) {
+    console.error('[加载 PayPay 充值记录失败]', err.message);
+  }
+}
+function paypaySnapshot() {
+  return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, totalLimit: PAYPAY_TOTAL_LIMIT };
+}
+function broadcastPaypay() { broadcast(paypaySnapshot()); }
+// 日期只认 YYYY-MM-DD
+function validPaypayDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')); }
+
 // ==================== 商城到货统计 ====================
 // 三家供应商各自一份订货明细（Excel 导入），到货时扫 JAN 或手动填数量记一笔"到货"，
 // 到齐的自动从"待到货"挪到"已入库"。到货记录能删（仓库现场/管理员），删了数量退回去。
@@ -2179,6 +2230,7 @@ wss.on('connection', (ws) => {
       shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
       staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
       mall_import: 'mall_error', mall_arrive: 'mall_error', mall_arrival_delete: 'mall_error', mall_item_delete: 'mall_error', mall_item_cancel: 'mall_error', mall_item_note: 'mall_error',
+      paypay_add: 'paypay_error', paypay_update: 'paypay_error', paypay_delete: 'paypay_error', paypay_bulk: 'paypay_error',
     };
     if (EDITOR_ONLY_TYPES[data.type]) {
       const c = clients.get(ws);
@@ -2227,6 +2279,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
       ws.send(JSON.stringify(mallSnapshot()));
+      ws.send(JSON.stringify(paypaySnapshot()));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
@@ -2498,6 +2551,97 @@ wss.on('connection', (ws) => {
       }
       const ok = await deleteSpecialReq(data.id);
       if (ok) broadcast({ type: 'special_req_list', items: specialRequirements });
+      return;
+    }
+
+    // ---- PayPay 充值记录 ----
+    if (data.type === 'paypay_add' || data.type === 'paypay_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const acc = PAYPAY_ACCOUNTS.find((x) => x.key === data.account);
+      if (!acc) { ws.send(JSON.stringify({ type: 'paypay_error', message: '请选一个账户' })); return; }
+      if (!validPaypayDate(data.date)) { ws.send(JSON.stringify({ type: 'paypay_error', message: '请选充值日期' })); return; }
+      const amount = Math.round(Number(data.amount));
+      if (!Number.isFinite(amount) || amount < 0) { ws.send(JSON.stringify({ type: 'paypay_error', message: '充值金额要填数字' })); return; }
+      const balance = (data.balance === '' || data.balance === null || data.balance === undefined) ? null : Math.round(Number(data.balance));
+      if (balance !== null && (!Number.isFinite(balance) || balance < 0)) { ws.send(JSON.stringify({ type: 'paypay_error', message: '充值后余额填错了' })); return; }
+      const note = String(data.note || '').trim().slice(0, 200);
+      if (data.type === 'paypay_add') {
+        const rec = { id: `mem-pp-${Date.now()}-${Math.round(Math.random() * 1e6)}`, account: acc.key, date: String(data.date), amount, balance, note, by: client.username, createdAt: Date.now() };
+        if (dbPool) {
+          try {
+            const ins = await dbPool.query(
+              'INSERT INTO paypay_records (account, charge_date, amount, balance, note, by_user) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id;',
+              [rec.account, rec.date, rec.amount, rec.balance, rec.note, rec.by]
+            );
+            rec.id = String(ins.rows[0].id);
+          } catch (err) { console.error('[PayPay 记录写入失败]', err.message); }
+        }
+        paypayRecords.push(rec);
+      } else {
+        const rec = paypayRecords.find((x) => String(x.id) === String(data.id));
+        if (!rec) { ws.send(JSON.stringify({ type: 'paypay_error', message: '没找到这条记录' })); return; }
+        Object.assign(rec, { account: acc.key, date: String(data.date), amount, balance, note });
+        if (dbPool && !String(rec.id).startsWith('mem-')) {
+          try {
+            await dbPool.query('UPDATE paypay_records SET account=$1, charge_date=$2, amount=$3, balance=$4, note=$5 WHERE id=$6;',
+              [rec.account, rec.date, rec.amount, rec.balance, rec.note, rec.id]);
+          } catch (err) { console.error('[PayPay 记录更新失败]', err.message); }
+        }
+      }
+      paypayRecords.sort((x, y) => (x.date === y.date ? Number(x.createdAt) - Number(y.createdAt) : (x.date < y.date ? -1 : 1)));
+      broadcastPaypay();
+      ws.send(JSON.stringify({ type: 'paypay_saved' }));
+      return;
+    }
+    // 批量导入历史记录（从别处复制过来的明细，前端解析好再发过来）
+    if (data.type === 'paypay_bulk') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const acc = PAYPAY_ACCOUNTS.find((x) => x.key === data.account);
+      if (!acc) { ws.send(JSON.stringify({ type: 'paypay_error', message: '请选一个账户' })); return; }
+      const rows = Array.isArray(data.rows) ? data.rows.slice(0, 2000) : [];
+      let added = 0;
+      for (const r of rows) {
+        if (!validPaypayDate(r.date)) continue;
+        const amount = Math.round(Number(r.amount));
+        if (!Number.isFinite(amount) || amount < 0) continue;
+        const rawBalance = (r.balance === '' || r.balance === null || r.balance === undefined) ? null : Math.round(Number(r.balance));
+        // 充值额 0 = 只是记了一下当天余额，没有余额就没意义，跳过
+        if (amount === 0 && !Number.isFinite(rawBalance)) continue;
+        const rec = {
+          id: `mem-pp-${Date.now()}-${Math.round(Math.random() * 1e6)}`, account: acc.key, date: String(r.date),
+          amount, balance: Number.isFinite(rawBalance) ? rawBalance : null, note: String(r.note || '').trim().slice(0, 200),
+          by: client.username, createdAt: Date.now(),
+        };
+        if (dbPool) {
+          try {
+            const ins = await dbPool.query(
+              'INSERT INTO paypay_records (account, charge_date, amount, balance, note, by_user) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id;',
+              [rec.account, rec.date, rec.amount, rec.balance, rec.note, rec.by]
+            );
+            rec.id = String(ins.rows[0].id);
+          } catch (err) { console.error('[PayPay 批量写入失败]', err.message); }
+        }
+        paypayRecords.push(rec);
+        added++;
+      }
+      paypayRecords.sort((x, y) => (x.date === y.date ? Number(x.createdAt) - Number(y.createdAt) : (x.date < y.date ? -1 : 1)));
+      broadcastPaypay();
+      ws.send(JSON.stringify({ type: 'paypay_bulk_done', count: added, skipped: rows.length - added }));
+      return;
+    }
+
+    if (data.type === 'paypay_delete') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const rec = paypayRecords.find((x) => String(x.id) === String(data.id));
+      if (!rec) { ws.send(JSON.stringify({ type: 'paypay_error', message: '没找到这条记录' })); return; }
+      paypayRecords = paypayRecords.filter((x) => x !== rec);
+      if (dbPool && !String(rec.id).startsWith('mem-')) {
+        try { await dbPool.query('DELETE FROM paypay_records WHERE id=$1;', [rec.id]); } catch (err) { console.error('[PayPay 记录删除失败]', err.message); }
+      }
+      broadcastPaypay();
       return;
     }
 
@@ -4073,6 +4217,7 @@ async function startServer() {
   await loadCaseLibraryFromDB();
   await loadSpecialRequirementsFromDB();
   await loadMallFromDB();
+  await loadPaypayFromDB();
   await loadDriveIndexFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();

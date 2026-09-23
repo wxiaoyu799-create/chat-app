@@ -1252,8 +1252,12 @@
 
   /* 左侧栏项目变多了（问题件下面有 12 个入口），整体收紧一档，让常见的笔记本高度一屏放得下 */
   #sidebar { padding: 12px 14px; overflow-y: auto; min-height: 0; }
-  #sidebar .sidebar-divider { margin: 9px 0; }
-  #sidebar .sidebar-toggle { padding-bottom: 7px; }
+  #sidebar .sidebar-divider { margin: 8px 0; }
+  #sidebar .sidebar-toggle { padding-bottom: 6px; }
+  /* 底部这几个模块入口（时间管理/人员管理/商城/PayPay/账号管理）排得紧一点，项目多了也放得下一屏 */
+  #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #tool-mall-btn,
+  #sidebar #paypay-open-btn, #sidebar #accounts-open-btn { padding: 3px 0 4px; }
+  #sidebar .sidebar-toggle .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
   #sidebar .tool-entry-btn { padding: 5px 9px; margin-bottom: 4px; font-size: 12.5px; gap: 7px; }
   #sidebar .tool-entry-btn .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
   #sidebar .problem-item-queue-divider { margin: 7px 2px 6px; font-size: 10.5px; }
@@ -1989,6 +1993,69 @@
   #accounts-reset-card input { width: 100%; box-sizing: border-box; }
   #accounts-reset-error { color: #e5534b; font-size: 12px; min-height: 16px; margin: 6px 0 4px; }
 
+  /* ===== PayPay 充值记录 ===== */
+  #sidebar .sidebar-toggle > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-count-badge { font-size: 11px; color: var(--muted); background: var(--panel-alt); border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
+  .sidebar-count-badge:empty { display: none; }
+  .sidebar-count-badge.warn { background: rgba(229, 83, 75, 0.15); color: #e5534b; font-weight: 700; }
+  #paypay-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
+  #paypay-overlay.active { display: flex; }
+  #paypay-overlay-close-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
+  #paypay-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
+  #paypay-total-chip { font-size: 12.5px; color: var(--muted); background: var(--panel-alt); border-radius: 999px; padding: 4px 12px; }
+  #paypay-total-chip.over { background: rgba(229, 83, 75, 0.15); color: #e5534b; font-weight: 700; }
+  #paypay-overlay-body { flex: 1; display: flex; min-height: 0; }
+  #paypay-sidebar { flex-shrink: 0; width: 176px; background: var(--panel); border-right: 1px solid var(--border); padding: 12px 8px; overflow-y: auto; }
+  .paypay-acc-btn {
+    width: 100%; background: transparent; border: none; border-radius: 8px; padding: 10px;
+    text-align: left; margin-bottom: 4px; cursor: pointer; font-family: inherit; color: var(--muted);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .paypay-acc-btn .pa-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .paypay-acc-btn .pa-code { font-size: 11px; color: var(--muted); }
+  .paypay-acc-btn .pa-sum { font-size: 11.5px; color: var(--muted); }
+  .paypay-acc-btn .pa-sum.over { color: #e5534b; font-weight: 700; }
+  .paypay-acc-btn:hover { background: var(--hover-dark); }
+  .paypay-acc-btn.active { background: var(--accent); }
+  .paypay-acc-btn.active .pa-name, .paypay-acc-btn.active .pa-code, .paypay-acc-btn.active .pa-sum { color: #fff; }
+  .paypay-acc-btn.active .pa-sum.over { color: #ffd0cc; }
+  #paypay-content { flex: 1; min-width: 0; overflow-y: auto; padding: 16px 22px 40px; }
+  #paypay-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  #paypay-head-name { font-size: 18px; font-weight: 700; }
+  #paypay-head-stats { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  #paypay-head-stats b { color: var(--text); font-size: 15px; }
+  #paypay-head-stats .over b, #paypay-head-stats .over { color: #e5534b; }
+  #paypay-add-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
+  #paypay-add-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  #paypay-add-bar input { padding: 7px 9px; font-size: 13px; width: 140px; }
+  #paypay-note { width: 180px; align-self: flex-end; }
+  #paypay-add-btn { font-size: 13px; padding: 8px 14px; }
+  #paypay-msg { font-size: 12.5px; color: var(--muted); flex-basis: 100%; }
+  #paypay-msg.ok { color: #2e9e5b; }
+  #paypay-msg.err { color: #e5534b; }
+  #paypay-msg:empty { display: none; }
+  #paypay-bulk-btn, #paypay-export-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
+  #paypay-bulk-btn:hover, #paypay-export-btn:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
+  #paypay-bulk-panel { display: none; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  #paypay-bulk-panel.active { display: block; }
+  #paypay-bulk-input { width: 100%; box-sizing: border-box; font-family: Consolas, Menlo, monospace; font-size: 12.5px; margin: 8px 0; resize: vertical; }
+  #paypay-bulk-year-row { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+  #paypay-bulk-year { width: 84px; padding: 5px 8px; font-size: 12.5px; margin: 0 4px; }
+  #paypay-bulk-preview { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+  #paypay-bulk-preview b { color: var(--text); }
+  #paypay-bulk-error { color: #e5534b; font-size: 12px; min-height: 16px; }
+  #paypay-table td.pp-amount { font-weight: 700; color: #2e9e5b; }
+  #paypay-table td.pp-balance { color: var(--text); }
+  #paypay-table .pp-none { color: var(--muted); font-weight: 400; font-size: 12px; }
+  #paypay-table tr.in30 td:first-child { border-left: 3px solid var(--accent); }
+  #paypay-table tr.editing td { background: rgba(63, 111, 214, 0.08); }
+  @media (max-width: 640px) {
+    #paypay-sidebar { width: 110px; padding: 8px 4px; }
+    #paypay-content { padding: 10px 10px 40px; }
+    #paypay-add-bar input, #paypay-note { width: 100%; }
+    #paypay-add-bar label { flex: 1 1 100%; }
+  }
+
   /* ===== 商城到货统计 ===== */
   #mall-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
   #mall-overlay.active { display: flex; }
@@ -2061,7 +2128,8 @@
   .mall-empty.active { display: block; }
   .mall-table-wrap:has(.mall-empty.active) table { display: none; }
   /* 只读角色看不到操作列和扫码条 */
-  body.role-readonly #mall-overlay .editor-only { display: none !important; }
+  body.role-readonly #mall-overlay .editor-only,
+  body.role-readonly #paypay-overlay .editor-only { display: none !important; }
   #mall-import-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
   #mall-import-panel.active { display: flex; }
   #mall-import-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto; }
@@ -3834,6 +3902,12 @@
     <button id="staff-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-users-group"></i></span> 人员管理</span>
     </button>
+    <button id="tool-mall-btn" class="sidebar-toggle" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span> 商城到货统计 <span class="sidebar-count-badge" id="mall-count-badge"></span></span>
+    </button>
+    <button id="paypay-open-btn" class="sidebar-toggle" type="button">
+      <span><span class="module-icon-badge"><i class="ti ti-wallet"></i></span> PayPay充值记录 <span class="sidebar-count-badge warn" id="paypay-warn-badge"></span></span>
+    </button>
     <button id="accounts-open-btn" class="sidebar-toggle admin-only" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-user-cog"></i></span> 账号管理</span>
     </button>
@@ -4033,11 +4107,6 @@
     <div class="sidebar-divider"></div>
 
 <h3>实用工具</h3>
-    <button id="tool-mall-btn" class="tool-entry-btn" type="button">
-      <span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span>
-      <span class="tool-entry-label">商城到货统计</span>
-      <span class="case-count-badge" id="mall-count-badge"></span>
-    </button>
     <button id="tool-drive-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-cloud-upload"></i></span>
       <span class="tool-entry-label">云盘（共享文件）</span>
@@ -4445,6 +4514,57 @@
       <div class="problem-item-options-edit-actions">
         <button id="accounts-reset-cancel-btn" type="button" class="pin-edit-btn">取消</button>
         <button id="accounts-reset-ok-btn" type="button">重置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PayPay 充值记录 ===== -->
+<div id="paypay-overlay">
+  <div class="tool-overlay-header-bar">
+    <span><i class="ti ti-wallet"></i> PayPay充值记录</span>
+    <div class="case-header-actions">
+      <span id="paypay-total-chip"></span>
+      <button id="paypay-bulk-btn" type="button" class="editor-only"><i class="ti ti-clipboard-plus"></i> 导入历史</button>
+      <button id="paypay-export-btn" type="button"><i class="ti ti-download"></i> 导出</button>
+      <button id="paypay-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
+    </div>
+  </div>
+  <div id="paypay-overlay-body">
+    <div id="paypay-sidebar"></div>
+    <div id="paypay-content">
+      <div id="paypay-head">
+        <div id="paypay-head-name"></div>
+        <div id="paypay-head-stats"></div>
+      </div>
+      <div id="paypay-add-bar" class="editor-only">
+        <label>日期 <input id="paypay-date" type="date" /></label>
+        <label>充值金额 <input id="paypay-amount" type="number" min="1" step="1" placeholder="10000" /></label>
+        <label>充值后余额 <input id="paypay-balance" type="number" min="0" step="1" placeholder="选填" /></label>
+        <input id="paypay-note" type="text" maxlength="200" placeholder="备注（选填）" />
+        <button id="paypay-add-btn" type="button"><i class="ti ti-plus"></i> 记一笔</button>
+        <button id="paypay-edit-cancel-btn" type="button" class="pin-edit-btn" hidden>取消编辑</button>
+        <span id="paypay-msg"></span>
+      </div>
+      <!-- 粘贴导入：一行一笔，日期 + 金额 (+ 余额 + 备注) -->
+      <div id="paypay-bulk-panel">
+        <div class="problem-item-options-edit-title" style="font-size:14px">导入历史记录到「<span id="paypay-bulk-acc"></span>」</div>
+        <div class="problem-item-options-edit-desc">一行一笔，直接从 Excel 或 PayPay 明细里复制粘贴。列顺序：<b>日期 金额 [充值后余额] [备注]</b>，中间空格 / Tab / 逗号都行。日期支持 2026-09-01、2026/9/1、9月1日。</div>
+        <textarea id="paypay-bulk-input" rows="8" placeholder="2026-09-01\t50000\t120000\n2026/9/8\t30000\n9月15日 100000 250000 便利店充值"></textarea>
+        <label id="paypay-bulk-year-row">只写了「9月17日」这种没年份的，算作 <input id="paypay-bulk-year" type="number" min="2020" max="2100" step="1" /> 年</label>
+        <div id="paypay-bulk-preview"></div>
+        <div id="paypay-bulk-error"></div>
+        <div class="problem-item-options-edit-actions">
+          <button id="paypay-bulk-cancel-btn" type="button" class="pin-edit-btn">取消</button>
+          <button id="paypay-bulk-ok-btn" type="button">导入</button>
+        </div>
+      </div>
+      <div class="mall-table-wrap">
+        <table class="mall-table" id="paypay-table">
+          <thead><tr><th>充值日期</th><th>充值金额</th><th>充值后余额</th><th>备注</th><th>记录人</th><th class="editor-only">操作</th></tr></thead>
+          <tbody id="paypay-tbody"></tbody>
+        </table>
+        <div id="paypay-empty" class="mall-empty">这个账户还没有充值记录</div>
       </div>
     </div>
   </div>
@@ -5288,6 +5408,23 @@
           specialEditError.textContent = data.message || '保存失败';
           if (/密码/.test(specialEditError.textContent)) specialEditPassword.focus();
         }
+      } else if (data.type === 'paypay_data') {
+        paypayData = { accounts: data.accounts || [], records: data.records || [], accountLimit: data.accountLimit || 300000, totalLimit: data.totalLimit || 2000000 };
+        renderPaypayBadge();
+        if (paypayOverlay.classList.contains('active')) renderPaypay();
+      } else if (data.type === 'paypay_saved') {
+        const editing = !!paypayEditingId;
+        cancelPaypayEdit();
+        renderPaypay();
+        setPaypayMsg(editing ? '✓ 已保存修改' : '✓ 已记一笔', 'ok');
+      } else if (data.type === 'paypay_bulk_done') {
+        paypayBulkPanel.classList.remove('active');
+        paypayBulkInput.value = '';
+        paypayBulkPreview.innerHTML = '';
+        renderPaypay();
+        setPaypayMsg('✓ 导入 ' + data.count + ' 笔' + (data.skipped ? '，跳过 ' + data.skipped + ' 行' : ''), 'ok');
+      } else if (data.type === 'paypay_error') {
+        setPaypayMsg(data.message || '操作失败', 'err');
       } else if (data.type === 'mall_data') {
         mallData = { suppliers: data.suppliers || [], items: data.items || [], arrivals: data.arrivals || [] };
         renderMallCountBadge();
@@ -8813,6 +8950,284 @@
     else if (accountPanel.classList.contains('active')) closeAccountPanel();
     else if (accountsOverlay.classList.contains('active')) accountsOverlay.classList.remove('active');
   });
+
+  // ===== PayPay 充值记录 =====
+  const paypayOverlay = document.getElementById('paypay-overlay');
+  const paypayOpenBtn = document.getElementById('paypay-open-btn');
+  const paypayCloseBtn = document.getElementById('paypay-overlay-close-btn');
+  const paypaySidebar = document.getElementById('paypay-sidebar');
+  const paypayHeadName = document.getElementById('paypay-head-name');
+  const paypayHeadStats = document.getElementById('paypay-head-stats');
+  const paypayTotalChip = document.getElementById('paypay-total-chip');
+  const paypayWarnBadge = document.getElementById('paypay-warn-badge');
+  const paypayTbody = document.getElementById('paypay-tbody');
+  const paypayEmpty = document.getElementById('paypay-empty');
+  const paypayDate = document.getElementById('paypay-date');
+  const paypayAmount = document.getElementById('paypay-amount');
+  const paypayBalance = document.getElementById('paypay-balance');
+  const paypayNote = document.getElementById('paypay-note');
+  const paypayAddBtn = document.getElementById('paypay-add-btn');
+  const paypayEditCancelBtn = document.getElementById('paypay-edit-cancel-btn');
+  const paypayMsg = document.getElementById('paypay-msg');
+
+  let paypayData = { accounts: [], records: [], accountLimit: 300000, totalLimit: 2000000 };
+  let paypayAccount = '';
+  let paypayEditingId = null;
+
+  const yen = (n) => '¥' + Number(n || 0).toLocaleString('ja-JP');
+  function todayStr() {
+    const d = new Date(); const pad = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  // 过去30天 = 含今天在内往前 30 天
+  function paypayWindowStart() {
+    const d = new Date(); d.setDate(d.getDate() - 29);
+    const pad = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function paypaySum30(accountKey) {
+    const from = paypayWindowStart();
+    return paypayData.records
+      .filter((r) => (!accountKey || r.account === accountKey) && r.date >= from)
+      .reduce((n, r) => n + Number(r.amount || 0), 0);
+  }
+  function renderPaypayBadge() {
+    const over = paypayData.accounts.filter((a) => paypaySum30(a.key) > paypayData.accountLimit).length;
+    const totalOver = paypaySum30('') > paypayData.totalLimit;
+    // 侧栏地方小，只放一个很短的红标：合计超额显示 !，否则显示超额的账户个数
+    paypayWarnBadge.textContent = totalOver ? '!' : (over ? String(over) : '');
+    paypayWarnBadge.title = totalOver ? '三个账户合计过去30天超过200万' : (over ? `${over} 个账户过去30天超过30万` : '');
+  }
+  function renderPaypaySidebar() {
+    paypaySidebar.innerHTML = '';
+    paypayData.accounts.forEach((acc) => {
+      const sum = paypaySum30(acc.key);
+      const over = sum > paypayData.accountLimit;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'paypay-acc-btn' + (acc.key === paypayAccount ? ' active' : '');
+      btn.innerHTML = `<span class="pa-name">${escapeHtml(acc.name)}</span><span class="pa-code">番号 ${escapeHtml(acc.code)}</span>`
+        + `<span class="pa-sum${over ? ' over' : ''}">30天 ${yen(sum)}${over ? ' ⚠' : ''}</span>`;
+      btn.addEventListener('click', () => { paypayAccount = acc.key; cancelPaypayEdit(); renderPaypay(); });
+      paypaySidebar.appendChild(btn);
+    });
+  }
+  function renderPaypay() {
+    if (!paypayAccount && paypayData.accounts.length) paypayAccount = paypayData.accounts[0].key;
+    renderPaypaySidebar();
+    renderPaypayBadge();
+    const acc = paypayData.accounts.find((a) => a.key === paypayAccount);
+    const canEdit = isEditRole(myRole);
+    const from = paypayWindowStart();
+    const recs = paypayData.records.filter((r) => r.account === paypayAccount).sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)));
+    const sum30 = paypaySum30(paypayAccount);
+    const over = sum30 > paypayData.accountLimit;
+    const totalSum = paypaySum30('');
+    const totalOver = totalSum > paypayData.totalLimit;
+
+    paypayHeadName.textContent = acc ? `${acc.name}（番号 ${acc.code}）` : '';
+    const latest = recs.find((r) => r.balance !== null && r.balance !== undefined);
+    paypayHeadStats.innerHTML = `<span class="${over ? 'over' : ''}">过去30天充值 <b>${yen(sum30)}</b>${over ? ` ⚠ 超过 ${yen(paypayData.accountLimit)}` : ` / ${yen(paypayData.accountLimit)}`}</span>`
+      + `<span>本账户累计 <b>${yen(recs.reduce((n, r) => n + r.amount, 0))}</b></span>`
+      + (latest ? `<span>最新余额 <b>${yen(latest.balance)}</b>（${escapeHtml(latest.date)}）</span>` : '');
+    paypayTotalChip.className = totalOver ? 'over' : '';
+    paypayTotalChip.textContent = `三个账户合计 30天 ${yen(totalSum)}${totalOver ? ` ⚠ 超过 ${yen(paypayData.totalLimit)}` : ` / ${yen(paypayData.totalLimit)}`}`;
+
+    paypayTbody.innerHTML = '';
+    recs.forEach((r) => {
+      const tr = document.createElement('tr');
+      if (r.date >= from) tr.classList.add('in30');
+      if (String(r.id) === String(paypayEditingId)) tr.classList.add('editing');
+      tr.innerHTML = `<td>${escapeHtml(r.date)}</td><td class="pp-amount">${r.amount > 0 ? yen(r.amount) : '<span class="pp-none">— 只记余额</span>'}</td>`
+        + `<td class="pp-balance">${r.balance === null || r.balance === undefined ? '—' : yen(r.balance)}</td>`
+        + `<td>${escapeHtml(r.note)}</td><td>${escapeHtml(r.by)}</td>`
+        + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
+      if (canEdit) {
+        const box = tr.querySelector('.mall-row-actions');
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button'; editBtn.innerHTML = '<i class="ti ti-pencil"></i>'; editBtn.title = '修改这笔';
+        editBtn.addEventListener('click', () => startPaypayEdit(r));
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button'; delBtn.className = 'danger'; delBtn.innerHTML = '<i class="ti ti-trash"></i>'; delBtn.title = '删除这笔';
+        delBtn.addEventListener('click', () => { if (window.confirm(`删除 ${r.date} 充值 ${yen(r.amount)} 这笔记录？`)) ws && ws.send(JSON.stringify({ type: 'paypay_delete', id: r.id })); });
+        box.append(editBtn, delBtn);
+      }
+      paypayTbody.appendChild(tr);
+    });
+    paypayEmpty.classList.toggle('active', recs.length === 0);
+  }
+  function startPaypayEdit(r) {
+    paypayEditingId = r.id;
+    paypayDate.value = r.date;
+    paypayAmount.value = String(r.amount);
+    paypayBalance.value = r.balance === null || r.balance === undefined ? '' : String(r.balance);
+    paypayNote.value = r.note || '';
+    paypayAddBtn.innerHTML = '<i class="ti ti-check"></i> 保存修改';
+    paypayEditCancelBtn.hidden = false;
+    renderPaypay();
+    paypayAmount.focus();
+  }
+  function cancelPaypayEdit() {
+    paypayEditingId = null;
+    paypayAddBtn.innerHTML = '<i class="ti ti-plus"></i> 记一笔';
+    paypayEditCancelBtn.hidden = true;
+    paypayAmount.value = '';
+    paypayBalance.value = '';
+    paypayNote.value = '';
+  }
+  function setPaypayMsg(text, cls) {
+    paypayMsg.textContent = text;
+    paypayMsg.className = cls || '';
+    clearTimeout(paypayMsg._t);
+    paypayMsg._t = setTimeout(() => { paypayMsg.textContent = ''; }, 5000);
+  }
+  function submitPaypay() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) { setPaypayMsg('连接已断开', 'err'); return; }
+    const date = paypayDate.value || todayStr();
+    const amount = Number(paypayAmount.value);
+    if (!Number.isFinite(amount) || amount <= 0) { setPaypayMsg('充值金额要填正整数', 'err'); paypayAmount.focus(); return; }
+    ws.send(JSON.stringify({
+      type: paypayEditingId ? 'paypay_update' : 'paypay_add',
+      id: paypayEditingId, account: paypayAccount, date, amount,
+      balance: paypayBalance.value === '' ? null : Number(paypayBalance.value),
+      note: paypayNote.value.trim(),
+    }));
+  }
+  paypayAddBtn.addEventListener('click', submitPaypay);
+  paypayEditCancelBtn.addEventListener('click', () => { cancelPaypayEdit(); renderPaypay(); });
+  [paypayAmount, paypayBalance, paypayNote].forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitPaypay(); }));
+  // ---- 导出：全部账户明细 + 30天统计，CSV（Excel 直接能开） ----
+  const paypayExportBtn = document.getElementById('paypay-export-btn');
+  paypayExportBtn.addEventListener('click', () => {
+    const all = [...paypayData.records].sort((a, b) => (a.date === b.date ? a.createdAt - b.createdAt : (a.date < b.date ? -1 : 1)));
+    const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const lines = ['账户,番号,充值日期,充值金额,充值后余额,备注,记录人'];
+    all.forEach((r) => {
+      const a = paypayData.accounts.find((x) => x.key === r.account) || { name: r.account, code: '' };
+      lines.push([esc(a.name), esc(a.code), esc(r.date), r.amount, (r.balance === null || r.balance === undefined ? '' : r.balance), esc(r.note), esc(r.by)].join(','));
+    });
+    lines.push('');
+    lines.push(esc('过去30天统计（导出时点）'));
+    paypayData.accounts.forEach((a) => {
+      const sum = paypaySum30(a.key);
+      lines.push([esc(a.name), esc(a.code), esc('过去30天'), sum, '', esc(sum > paypayData.accountLimit ? '超过30万' : ''), ''].join(','));
+    });
+    const total = paypaySum30('');
+    lines.push([esc('三个账户合计'), '', esc('过去30天'), total, '', esc(total > paypayData.totalLimit ? '超过200万' : ''), ''].join(','));
+    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'PayPay充值记录-' + todayStr() + '.csv';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setPaypayMsg('✓ 已导出 CSV（全部账户）', 'ok');
+  });
+
+  // ---- 批量导入历史明细：粘贴文本，前端解析后发给服务器 ----
+  const paypayBulkBtn = document.getElementById('paypay-bulk-btn');
+  const paypayBulkPanel = document.getElementById('paypay-bulk-panel');
+  const paypayBulkAcc = document.getElementById('paypay-bulk-acc');
+  const paypayBulkInput = document.getElementById('paypay-bulk-input');
+  const paypayBulkPreview = document.getElementById('paypay-bulk-preview');
+  const paypayBulkError = document.getElementById('paypay-bulk-error');
+  const paypayBulkOkBtn = document.getElementById('paypay-bulk-ok-btn');
+  const paypayBulkCancelBtn = document.getElementById('paypay-bulk-cancel-btn');
+  let paypayBulkRows = [];
+
+  function normalizePaypayDate(t, fallbackYear) {
+    const raw = String(t || '').trim();
+    const pad = (x) => String(x).padStart(2, '0');
+    let m = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?$/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = raw.match(/^(\d{1,2})[-/.月](\d{1,2})日?$/);
+    if (m) return String(fallbackYear) + '-' + pad(m[1]) + '-' + pad(m[2]);
+    return '';
+  }
+  // 解析粘贴来的明细。带 Tab 的（从 Excel 复制的）按列对位：日期 | 充值金额 | 充值后余额 | 其他(当备注)，
+  // 中间那一列空着就是"这天只记了余额，没充值"，照样记一条（金额 0，不计入30天合计）。
+  // 没有 Tab 的（手敲的）按空格拆，第一个数字当充值额、第二个当余额。
+  function parsePaypayBulk(text, year) {
+    const rows = [];
+    let bad = 0;
+    const TAB = String.fromCharCode(9);
+    const clean = (x) => String(x || '').replace(/[¥￥,，円\s]/g, '');
+    String(text || '').split(/\r?\n/).forEach((line) => {
+      if (!line.trim()) return;
+      let date = '';
+      let amountRaw = '';
+      let balanceRaw = '';
+      let note = '';
+      if (line.indexOf(TAB) !== -1) {
+        const cols = line.split(TAB);
+        date = normalizePaypayDate(cols[0], year);
+        amountRaw = clean(cols[1]);
+        balanceRaw = clean(cols[2]);
+        note = cols.slice(3).map((x) => String(x).trim()).filter(Boolean).join(' ');
+        if (note) note = '交接余额 ' + note;
+      } else {
+        const parts = line.trim().split(/[,，]+|\s+/).filter(Boolean);
+        if (parts.length < 2) { bad++; return; }
+        date = normalizePaypayDate(parts[0], year);
+        const nums = [];
+        const notes = [];
+        parts.slice(1).forEach((x) => {
+          const c = clean(x);
+          if (/^\d+$/.test(c)) nums.push(c); else notes.push(x);
+        });
+        amountRaw = nums[0] || '';
+        balanceRaw = nums[1] || '';
+        note = notes.join(' ');
+      }
+      if (!date) { bad++; return; }
+      const amount = /^\d+$/.test(amountRaw) ? Number(amountRaw) : 0;
+      const balance = /^\d+$/.test(balanceRaw) ? Number(balanceRaw) : null;
+      if (!amount && balance === null) { bad++; return; }
+      rows.push({ date, amount, balance, note: note.slice(0, 200) });
+    });
+    return { rows, bad };
+  }
+  function refreshPaypayBulkPreview() {
+    const year = Number(document.getElementById('paypay-bulk-year').value) || new Date().getFullYear();
+    const parsed = parsePaypayBulk(paypayBulkInput.value, year);
+    paypayBulkRows = parsed.rows;
+    const charges = parsed.rows.filter((r) => r.amount > 0);
+    const onlyBalance = parsed.rows.length - charges.length;
+    const sum = charges.reduce((n, r) => n + r.amount, 0);
+    paypayBulkPreview.innerHTML = parsed.rows.length
+      ? '识别出 <b>' + charges.length + '</b> 笔充值，合计 <b>' + yen(sum) + '</b>'
+        + (onlyBalance ? '；另有 <b>' + onlyBalance + '</b> 行只记了余额（不计入30天合计）' : '')
+        + '；日期 ' + escapeHtml(parsed.rows[0].date) + ' ~ ' + escapeHtml(parsed.rows[parsed.rows.length - 1].date)
+        + (parsed.bad ? '（<b>' + parsed.bad + '</b> 行没看懂，会跳过，比如表头）' : '')
+      : (paypayBulkInput.value.trim() ? '一行都没认出来——确认每行是「日期 金额」开头' : '');
+    paypayBulkError.textContent = '';
+  }
+  paypayBulkBtn.addEventListener('click', () => {
+    const acc = paypayData.accounts.find((a) => a.key === paypayAccount);
+    paypayBulkAcc.textContent = acc ? acc.name + '（番号 ' + acc.code + '）' : '';
+    const yearInput = document.getElementById('paypay-bulk-year');
+    if (!yearInput.value) yearInput.value = String(new Date().getFullYear());
+    yearInput.onchange = refreshPaypayBulkPreview;
+    paypayBulkPanel.classList.add('active');
+    paypayBulkInput.focus();
+    refreshPaypayBulkPreview();
+  });
+  paypayBulkInput.addEventListener('input', refreshPaypayBulkPreview);
+  paypayBulkCancelBtn.addEventListener('click', () => { paypayBulkPanel.classList.remove('active'); paypayBulkInput.value = ''; paypayBulkPreview.innerHTML = ''; });
+  paypayBulkOkBtn.addEventListener('click', () => {
+    if (!paypayBulkRows.length) { paypayBulkError.textContent = '没有可导入的行'; return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { paypayBulkError.textContent = '连接已断开'; return; }
+    ws.send(JSON.stringify({ type: 'paypay_bulk', account: paypayAccount, rows: paypayBulkRows }));
+  });
+
+  paypayOpenBtn.addEventListener('click', () => {
+    if (typeof closeDrawer === 'function') closeDrawer();
+    paypayOverlay.classList.add('active');
+    if (!paypayDate.value) paypayDate.value = todayStr();
+    renderPaypay();
+  });
+  paypayCloseBtn.addEventListener('click', () => paypayOverlay.classList.remove('active'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && paypayOverlay.classList.contains('active')) paypayOverlay.classList.remove('active'); });
 
   // ===== 商城到货统计 =====
   const mallOverlay = document.getElementById('mall-overlay');

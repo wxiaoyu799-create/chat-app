@@ -238,6 +238,22 @@ function human(bytes) {
     log(`  新下载 ${okCount} 个（${human(bytes)}），已有跳过 ${skipCount} 个，失败 ${failCount} 个`);
   }
 
+  // ---------- 3) 旧快照清理：数据库快照只留最近 30 份，图片不动 ----------
+  try {
+    const KEEP = Number(cfg.KEEP_SNAPSHOTS || 30);
+    const snaps = fs.readdirSync(ROOT)
+      .filter((n) => /^\d{4}-\d{2}-\d{2}_\d{4}$/.test(n) && fs.statSync(path.join(ROOT, n)).isDirectory())
+      .sort();
+    if (KEEP > 0 && snaps.length > KEEP) {
+      const old = snaps.slice(0, snaps.length - KEEP);
+      old.forEach((n) => fs.rmSync(path.join(ROOT, n), { recursive: true, force: true }));
+      log('');
+      log(`【清理】删掉 ${old.length} 份最旧的数据库快照，保留最近 ${KEEP} 份（图片不受影响）`);
+    }
+  } catch (err) {
+    log('【清理】跳过：' + err.message);
+  }
+
   log('');
   log('完成。');
   fs.writeFileSync(path.join(outDir, '报告.txt'), report.join('\r\n'), 'utf8');

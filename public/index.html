@@ -2026,6 +2026,8 @@
   #paypay-head-stats b { color: var(--text); font-size: 15px; }
   #paypay-head-stats .over b, #paypay-head-stats .over { color: #e5534b; }
   #paypay-head-stats .warn b, #paypay-head-stats .warn { color: #b8562f; }
+  #paypay-head-stats .pp-hint { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+  #paypay-head-stats span[title] { cursor: help; }
   #paypay-add-bar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
   #paypay-add-bar label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   #paypay-add-bar input { padding: 7px 9px; font-size: 13px; width: 140px; }
@@ -9000,6 +9002,36 @@
       .filter((r) => (!accountKey || r.account === accountKey) && r.date >= from)
       .reduce((n, r) => n + Number(r.amount || 0), 0);
   }
+  // 过去30天花了多少：系统里只记了充值，支出靠余额倒推——
+  //   两笔之间花掉的 = 上一笔的「充值后余额」+ 这一笔充值 - 这一笔的「充值后余额」
+  // 哪一笔没填余额，那一段就算不出来，跳过并记一笔"缺口"，在界面上说明白，不硬凑数字。
+  const PAYPAY_SPEND_LIMIT = 1900000; // 30天支出超过 190万 标红
+  function paypaySpend30(accountKey) {
+    const from = paypayWindowStart();
+    const recs = paypayData.records
+      .filter((r) => r.account === accountKey)
+      .sort((x, y) => (x.date === y.date ? x.createdAt - y.createdAt : (x.date < y.date ? -1 : 1)));
+    const hasBal = (r) => r.balance !== null && r.balance !== undefined;
+    let spend = 0;
+    let pairs = 0;
+    let earliest = '';
+    let lastBal = null;      // 上一个填了余额的那笔
+    let chargesSince = 0;    // 从那笔之后到现在累计充了多少
+    for (const cur of recs) {
+      if (lastBal !== null) chargesSince += Number(cur.amount || 0);
+      if (!hasBal(cur)) continue; // 没填余额的中间几笔：把充值额记着，等下一个有余额的一起结算
+      if (lastBal !== null && cur.date >= from) {
+        spend += Number(lastBal.balance) + chargesSince - Number(cur.balance);
+        pairs++;
+        if (!earliest) earliest = lastBal.date;
+      }
+      lastBal = cur;
+      chargesSince = 0;
+    }
+    // 末尾还挂着没结算的（最后几笔都没填余额），说明这段算不出来
+    const tailOpen = lastBal !== null && chargesSince > 0;
+    return { spend, pairs, earliest, tailOpen };
+  }
   function renderPaypayBadge() {
     const over = paypayData.accounts.filter((a) => paypaySum30(a.key) > paypayData.accountLimit).length;
     paypayWarnBadge.textContent = over ? String(over) : '';
@@ -9034,8 +9066,17 @@
 
     paypayHeadName.textContent = acc ? `${acc.name}（番号 ${acc.code}）` : '';
     const latest = recs.find((r) => r.balance !== null && r.balance !== undefined);
+    const sp = paypaySpend30(paypayAccount);
+    const spendOver = sp.spend > PAYPAY_SPEND_LIMIT;
+    const spendTitle = sp.pairs === 0
+      ? '算不出来：这30天里至少要有两笔填了「充值后余额」'
+      : `按余额倒推：从 ${sp.earliest} 起 ${sp.pairs} 段区间累加` + (sp.tailOpen ? '；最后几笔还没填余额，这段花的还没算进来' : '');
     paypayHeadStats.innerHTML = `<span class="${over ? 'over' : (warn ? 'warn' : '')}">过去30天充值 <b>${yen(sum30)}</b>${over ? ` ⚠ 超过 ${yen(paypayData.accountLimit)}` : ` / ${yen(paypayData.accountLimit)}`}</span>`
-      + `<span>本账户累计 <b>${yen(recs.reduce((n, r) => n + r.amount, 0))}</b></span>`
+      + `<span class="${spendOver ? 'over' : ''}" title="${escapeHtml(spendTitle)}">过去30天支出 <b>${sp.pairs === 0 ? '—' : yen(sp.spend)}</b>`
+        + (sp.pairs === 0 ? '<span class="pp-hint">（缺余额，算不出）</span>'
+            : (spendOver ? ` ⚠ 超过 ${yen(PAYPAY_SPEND_LIMIT)}` : ` / ${yen(PAYPAY_SPEND_LIMIT)}`) + (sp.tailOpen ? '<span class="pp-hint">（最新几笔缺余额，未计）</span>' : ''))
+        + `</span>`
+      + `<span>本账户累计充值 <b>${yen(recs.reduce((n, r) => n + r.amount, 0))}</b></span>`
       + (latest ? `<span>最新余额 <b>${yen(latest.balance)}</b>（${escapeHtml(latest.date)}）</span>` : '');
     // 顶上这条改成三个账户各自的30天一览，方便一眼比对；不再算合计红线
     paypayTotalChip.className = paypayData.accounts.some((x) => paypaySum30(x.key) > paypayData.accountLimit) ? 'over' : '';
@@ -9118,7 +9159,10 @@
     lines.push(esc('过去30天统计（导出时点）'));
     paypayData.accounts.forEach((a) => {
       const sum = paypaySum30(a.key);
-      lines.push([esc(a.name), esc(a.code), esc('过去30天'), sum, '', esc(sum > paypayData.accountLimit ? '超过200万' : (sum > paypayData.accountWarn ? '超过30万' : '')), ''].join(','));
+      lines.push([esc(a.name), esc(a.code), esc('过去30天充值'), sum, '', esc(sum > paypayData.accountLimit ? '超过200万' : (sum > paypayData.accountWarn ? '超过30万' : '')), ''].join(','));
+      const spx = paypaySpend30(a.key);
+      lines.push([esc(a.name), esc(a.code), esc('过去30天支出'), (spx.pairs ? spx.spend : ''), '',
+        esc(spx.pairs === 0 ? '缺余额算不出' : ((spx.spend > PAYPAY_SPEND_LIMIT ? '超过190万' : '') + (spx.tailOpen ? ' 最新几笔缺余额未计' : ''))), ''].join(','));
     });
     lines.push([esc('三个账户合计'), '', esc('过去30天'), paypaySum30(''), '', esc('仅参考，不作红线'), ''].join(','));
     const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });

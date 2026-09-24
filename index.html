@@ -2131,8 +2131,12 @@
   .mall-empty.active { display: block; }
   .mall-table-wrap:has(.mall-empty.active) table { display: none; }
   /* 只读角色看不到操作列和扫码条 */
-  /* 只读角色（质检员/代购/客服）看不到统计这一组，也看不到两个面板里的录入按钮 */
+  /* 只读角色看不到各模块的编辑按钮（统计那两个面板另算，见下面） */
   body.role-readonly .editor-only { display: none !important; }
+  /* 统计：谁都能看，但改动分两档——下单侧（管理员/仓库现场/客服）、入库侧（管理员/仓库现场）。
+     用 :not() 反着写，这样原来的 display 不会被覆盖掉 */
+  body:not(.role-admin):not(.role-manager):not(.role-service) .can-order { display: none !important; }
+  body:not(.role-admin):not(.role-manager) .can-stock { display: none !important; }
   #mall-import-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
   #mall-import-panel.active { display: flex; }
   #mall-import-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto; }
@@ -4152,15 +4156,15 @@
       </div>
     </div>
 
-    <div class="sidebar-divider editor-only"></div>
+    <div class="sidebar-divider"></div>
 
-<h3 class="editor-only">统计</h3>
-    <button id="tool-mall-btn" class="tool-entry-btn editor-only" type="button">
+<h3>统计</h3>
+    <button id="tool-mall-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-truck-loading"></i></span>
       <span class="tool-entry-label">商城到货统计</span>
       <span class="case-count-badge" id="mall-count-badge"></span>
     </button>
-    <button id="paypay-open-btn" class="tool-entry-btn editor-only" type="button">
+    <button id="paypay-open-btn" class="tool-entry-btn" type="button">
       <span class="module-icon-badge"><i class="ti ti-wallet"></i></span>
       <span class="tool-entry-label">PayPay充值记录</span>
       <span class="case-count-badge warn" id="paypay-warn-badge"></span>
@@ -4536,7 +4540,7 @@
     <span><i class="ti ti-wallet"></i> PayPay充值记录</span>
     <div class="case-header-actions">
       <span id="paypay-total-chip"></span>
-      <button id="paypay-bulk-btn" type="button" class="editor-only"><i class="ti ti-clipboard-plus"></i> 导入历史</button>
+      <button id="paypay-bulk-btn" type="button" class="can-stock"><i class="ti ti-clipboard-plus"></i> 导入历史</button>
       <button id="paypay-export-btn" type="button"><i class="ti ti-download"></i> 导出</button>
       <button id="paypay-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
     </div>
@@ -4548,7 +4552,7 @@
         <div id="paypay-head-name"></div>
         <div id="paypay-head-stats"></div>
       </div>
-      <div id="paypay-add-bar" class="editor-only">
+      <div id="paypay-add-bar" class="can-stock">
         <label>日期 <input id="paypay-date" type="date" /></label>
         <label>充值金额 <input id="paypay-amount" type="number" min="1" step="1" placeholder="10000" /></label>
         <label>充值后余额 <input id="paypay-balance" type="number" min="0" step="1" placeholder="选填" /></label>
@@ -4572,7 +4576,7 @@
       </div>
       <div class="mall-table-wrap">
         <table class="mall-table" id="paypay-table">
-          <thead><tr><th>充值日期</th><th>充值金额</th><th>充值后余额</th><th>备注</th><th>记录人</th><th class="editor-only">操作</th></tr></thead>
+          <thead><tr><th>充值日期</th><th>充值金额</th><th>充值后余额</th><th>备注</th><th>记录人</th><th class="can-stock">操作</th></tr></thead>
           <tbody id="paypay-tbody"></tbody>
         </table>
         <div id="paypay-empty" class="mall-empty">这个账户还没有充值记录</div>
@@ -4586,7 +4590,7 @@
   <div class="tool-overlay-header-bar">
     <span><i class="ti ti-truck-loading"></i> 商城到货统计</span>
     <div class="case-header-actions">
-      <button id="mall-import-btn" type="button" class="editor-only"><i class="ti ti-file-spreadsheet"></i> 导入 Excel</button>
+      <button id="mall-import-btn" type="button" class="can-order"><i class="ti ti-file-spreadsheet"></i> 导入 Excel</button>
       <input type="file" id="mall-import-input" accept=".xlsx,.xls,.csv" style="display:none" />
       <button id="mall-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
     </div>
@@ -4595,7 +4599,7 @@
     <div id="mall-sidebar"></div>
     <div id="mall-content">
       <!-- 扫码 / 手动入库 -->
-      <div id="mall-scan-bar" class="editor-only">
+      <div id="mall-scan-bar" class="can-stock">
         <div id="mall-scan-wrap">
           <i class="ti ti-barcode"></i>
           <input id="mall-scan-input" type="text" inputmode="numeric" placeholder="扫 JAN 条码，或手输后按回车 → 记一笔到货" autocomplete="off" />
@@ -4613,7 +4617,7 @@
         <div class="mall-section-head"><span class="mall-section-title pending"><i class="ti ti-clock"></i> 待到货</span><span id="mall-pending-count" class="mall-section-count"></span></div>
         <div class="mall-table-wrap">
           <table class="mall-table" id="mall-pending-table">
-            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>日语名</th><th>订货数</th><th>已到</th><th>备注</th><th class="editor-only">操作</th></tr></thead>
+            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>日语名</th><th>订货数</th><th>已到</th><th>备注</th><th class="can-stock">操作</th></tr></thead>
             <tbody id="mall-pending-tbody"></tbody>
           </table>
           <div id="mall-pending-empty" class="mall-empty">这家还没有待到货的商品</div>
@@ -4624,7 +4628,7 @@
         <div class="mall-section-head"><span class="mall-section-title arrived"><i class="ti ti-package-import"></i> 已入库</span><span id="mall-arrived-count" class="mall-section-count"></span></div>
         <div class="mall-table-wrap">
           <table class="mall-table" id="mall-arrived-table">
-            <thead><tr><th>到货时间</th><th>JAN</th><th>商品名</th><th>数量</th><th>操作人</th><th>订货日期</th><th>备注</th><th class="editor-only">操作</th></tr></thead>
+            <thead><tr><th>到货时间</th><th>JAN</th><th>商品名</th><th>数量</th><th>操作人</th><th>订货日期</th><th>备注</th><th class="can-stock">操作</th></tr></thead>
             <tbody id="mall-arrived-tbody"></tbody>
           </table>
           <div id="mall-arrived-empty" class="mall-empty">还没有到货记录</div>
@@ -4635,7 +4639,7 @@
         <div class="mall-section-head"><span class="mall-section-title cancelled"><i class="ti ti-ban"></i> 订不到 / 已取消</span><span id="mall-cancelled-count" class="mall-section-count"></span></div>
         <div class="mall-table-wrap">
           <table class="mall-table" id="mall-cancelled-table">
-            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>订货数</th><th>备注</th><th class="editor-only">操作</th></tr></thead>
+            <thead><tr><th>订货日期</th><th>JAN</th><th>商品名</th><th>订货数</th><th>备注</th><th class="can-stock">操作</th></tr></thead>
             <tbody id="mall-cancelled-tbody"></tbody>
           </table>
           <div id="mall-cancelled-empty" class="mall-empty">没有</div>
@@ -5236,12 +5240,17 @@
     } catch (e) { /* 忽略 */ }
   }
   function isEditRole(role) { return role === 'admin' || role === 'manager'; }
+  // 统计（商城/PayPay）：下单侧能导入和写备注，入库侧才能记到货 / 记充值
+  function canOrderSide() { return ['admin', 'manager', 'service'].includes(myRole); }
+  function canStockSide() { return ['admin', 'manager'].includes(myRole); }
   function applyRole(user) {
     myUser = user;
     myRole = user ? user.role : '';
     document.body.classList.toggle('role-admin', myRole === 'admin');
     document.body.classList.toggle('role-manager', myRole === 'manager');
     document.body.classList.toggle('role-readonly', !!myRole && !isEditRole(myRole));
+    // 统计那两个面板按"下单侧 / 入库侧"分权限，这里把角色挂到 body 上让 CSS 决定显示什么
+    ['admin', 'manager', 'inspector', 'buyer', 'service'].forEach((r) => document.body.classList.toggle('role-' + r, myRole === r));
     const tag = document.getElementById('my-role-tag');
     tag.textContent = user ? (user.roleLabel || roleLabels[user.role] || '') : '';
   }
@@ -9057,7 +9066,7 @@
     renderPaypaySidebar();
     renderPaypayBadge();
     const acc = paypayData.accounts.find((a) => a.key === paypayAccount);
-    const canEdit = isEditRole(myRole);
+    const canEdit = canStockSide();
     const from = paypayWindowStart();
     const recs = paypayData.records.filter((r) => r.account === paypayAccount).sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : (a.date < b.date ? 1 : -1)));
     const sum30 = paypaySum30(paypayAccount);
@@ -9340,7 +9349,8 @@
     renderMallSidebar();
     const key = mallSearchKeyword.trim().toLowerCase();
     const items = mallItemsOf(mallSupplier);
-    const canEdit = isEditRole(myRole);
+    const canEdit = canStockSide();   // 记到货 / 取消 / 删除
+    const canNote = canOrderSide();   // 写备注（客服也可以）
 
     // 待到货：按订货日期/导入顺序
     const pending = items.filter((x) => x.status === 'pending' && mallMatch(x, key));
@@ -9352,7 +9362,7 @@
       tr.innerHTML = `<td>${escapeHtml(it.orderDate)}</td><td class="mall-jan">${highlightCell(it.jan, key)}</td>`
         + `<td class="mall-name" title="${escapeHtml(it.nameCn)}">${highlightCell(it.nameCn, key)}</td>`
         + `<td class="mall-name" title="${escapeHtml(it.nameJp)}">${highlightCell(it.nameJp, key)}</td>`
-        + `<td>${it.qty}</td><td>${it.qtyArrived ? `<b>${it.qtyArrived}</b> / ${it.qty}` : '0'}</td>${mallNoteCell(it, canEdit)}`
+        + `<td>${it.qty}</td><td>${it.qtyArrived ? `<b>${it.qtyArrived}</b> / ${it.qty}` : '0'}</td>${mallNoteCell(it, canNote)}`
         + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
       if (canEdit) {
         const box = tr.querySelector('.mall-row-actions');
@@ -9389,7 +9399,7 @@
       tr.innerHTML = `<td>${fmtMallTime(a.at)}</td><td class="mall-jan">${highlightCell(a.item.jan, key)}</td>`
         + `<td class="mall-name" title="${escapeHtml(a.item.nameCn)}">${highlightCell(a.item.nameCn || a.item.nameJp, key)}</td>`
         + `<td><b>${a.qty}</b>${a.item.qtyArrived < a.item.qty ? ` <span style="color:var(--muted)">（共到 ${a.item.qtyArrived}/${a.item.qty}）</span>` : ''}</td>`
-        + `<td>${escapeHtml(a.by)}</td><td>${escapeHtml(a.item.orderDate)}</td>${mallNoteCell(a.item, canEdit)}`
+        + `<td>${escapeHtml(a.by)}</td><td>${escapeHtml(a.item.orderDate)}</td>${mallNoteCell(a.item, canNote)}`
         + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
       if (canEdit) {
         const delBtn = document.createElement('button');
@@ -9409,7 +9419,7 @@
     cancelled.forEach((it) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(it.orderDate)}</td><td class="mall-jan">${highlightCell(it.jan, key)}</td>`
-        + `<td class="mall-name">${highlightCell(it.nameCn || it.nameJp, key)}</td><td>${it.qty}</td>${mallNoteCell(it, canEdit)}`
+        + `<td class="mall-name">${highlightCell(it.nameCn || it.nameJp, key)}</td><td>${it.qty}</td>${mallNoteCell(it, canNote)}`
         + (canEdit ? '<td><div class="mall-row-actions"></div></td>' : '');
       if (canEdit) {
         const back = document.createElement('button');
@@ -9457,6 +9467,7 @@
     input.addEventListener('blur', () => finish(true));
   }
   document.getElementById('mall-content').addEventListener('click', (e) => {
+    if (!canOrderSide()) return;
     const td = e.target.closest('td.mall-note.editable');
     if (td) startMallNoteEdit(td);
   });
@@ -9486,7 +9497,7 @@
     if (typeof closeDrawer === 'function') closeDrawer();
     mallOverlay.classList.add('active');
     renderMall();
-    if (isEditRole(myRole)) mallScanInput.focus();
+    if (canStockSide()) mallScanInput.focus();
   });
   mallCloseBtn.addEventListener('click', () => mallOverlay.classList.remove('active'));
 

@@ -1311,7 +1311,7 @@ async function loadPaypayFromDB() {
 function paypaySnapshot() {
   return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, accountWarn: PAYPAY_ACCOUNT_WARN };
 }
-function broadcastPaypay() { broadcastToEditors(paypaySnapshot()); }
+function broadcastPaypay() { broadcast(paypaySnapshot()); }
 // 日期只认 YYYY-MM-DD
 function validPaypayDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')); }
 
@@ -1376,7 +1376,7 @@ async function loadMallFromDB() {
 function mallSnapshot() {
   return { type: 'mall_data', suppliers: MALL_SUPPLIERS, items: mallItems, arrivals: mallArrivals };
 }
-function broadcastMall() { broadcastToEditors(mallSnapshot()); }
+function broadcastMall() { broadcast(mallSnapshot()); }
 function mallItemById(id) { return mallItems.find((x) => String(x.id) === String(id)) || null; }
 function recomputeMallStatus(item) {
   if (item.status === 'cancelled') return;
@@ -2238,9 +2238,33 @@ wss.on('connection', (ws) => {
       timeclock_name_delete: 'timeclock_error', timeclock_name_add: 'timeclock_error', work_items_update: 'timeclock_error',
       shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
       staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
-      mall_import: 'mall_error', mall_arrive: 'mall_error', mall_arrival_delete: 'mall_error', mall_item_delete: 'mall_error', mall_item_cancel: 'mall_error', mall_item_note: 'mall_error',
-      paypay_add: 'paypay_error', paypay_update: 'paypay_error', paypay_delete: 'paypay_error', paypay_bulk: 'paypay_error',
     };
+    // 统计（商城/PayPay）单独一套：谁都能看，但改动分两档——
+    //   下单侧（管理员 / 仓库现场 / 客服）：导入订货明细、写备注
+    //   入库侧（管理员 / 仓库现场）：扫码到货、删到货、取消或删订货、PayPay 记账
+    const ORDER_SIDE = ['admin', 'manager', 'service'];
+    const STOCK_SIDE = ['admin', 'manager'];
+    const STATS_TYPES = {
+      mall_import: { roles: ORDER_SIDE, err: 'mall_error', what: '导入订货明细' },
+      mall_item_note: { roles: ORDER_SIDE, err: 'mall_error', what: '改备注' },
+      mall_arrive: { roles: STOCK_SIDE, err: 'mall_error', what: '记到货' },
+      mall_arrival_delete: { roles: STOCK_SIDE, err: 'mall_error', what: '删到货记录' },
+      mall_item_delete: { roles: STOCK_SIDE, err: 'mall_error', what: '删订货' },
+      mall_item_cancel: { roles: STOCK_SIDE, err: 'mall_error', what: '标订不到' },
+      paypay_add: { roles: STOCK_SIDE, err: 'paypay_error', what: '记充值' },
+      paypay_update: { roles: STOCK_SIDE, err: 'paypay_error', what: '改充值记录' },
+      paypay_delete: { roles: STOCK_SIDE, err: 'paypay_error', what: '删充值记录' },
+      paypay_bulk: { roles: STOCK_SIDE, err: 'paypay_error', what: '导入充值历史' },
+    };
+    if (STATS_TYPES[data.type]) {
+      const c = clients.get(ws);
+      if (!c) return;
+      const rule = STATS_TYPES[data.type];
+      if (!rule.roles.includes(c.role)) {
+        ws.send(JSON.stringify({ type: rule.err, message: `你的账号没有「${rule.what}」的权限` }));
+        return;
+      }
+    }
     if (EDITOR_ONLY_TYPES[data.type]) {
       const c = clients.get(ws);
       if (!c) return;
@@ -2287,10 +2311,8 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'online', users: getOnlineUsers(), directory: getDirectory() }));
       ws.send(JSON.stringify({ type: 'case_library', cases: caseLibraryForClients() }));
       ws.send(JSON.stringify({ type: 'special_req_list', items: specialRequirements }));
-      if (isEditRole(user.role)) {
-        ws.send(JSON.stringify(mallSnapshot()));
-        ws.send(JSON.stringify(paypaySnapshot()));
-      }
+      ws.send(JSON.stringify(mallSnapshot()));
+      ws.send(JSON.stringify(paypaySnapshot()));
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));

@@ -155,7 +155,8 @@
   #chat-search-btn:hover, #right-sidebar-toggle:hover { color: var(--accent); border-color: var(--accent); background: transparent; }
   #chat-search-btn.active { color: var(--accent); border-color: var(--accent); }
   /* 右侧栏收起：整个 #app 变成两栏，聊天区把空出来的宽度吃掉 */
-  #app.right-collapsed { grid-template-columns: 200px 1fr; }
+  /* 右侧栏收起：空出来的宽度分一点给左侧栏，条目更舒展，剩下的都给聊天区 */
+  #app.right-collapsed { grid-template-columns: 240px 1fr; }
   #app.right-collapsed > #quick-sidebar { display: none; }
   @media (max-width: 900px) { #right-sidebar-toggle { display: none; } }
 
@@ -1250,17 +1251,21 @@
   .msg-images-grid:not(.count-1) .msg-image { max-width: 100px; max-height: 100px; aspect-ratio: 1; }
   .msg-images-grid + div { margin-top: 6px; }
 
-  /* 左侧栏项目变多了（问题件下面有 12 个入口），整体收紧一档，让常见的笔记本高度一屏放得下 */
-  #sidebar { padding: 12px 14px; overflow-y: auto; min-height: 0; }
-  #sidebar .sidebar-divider { margin: 8px 0; }
-  #sidebar .sidebar-toggle { padding-bottom: 6px; }
-  /* 底部这几个模块入口（时间管理/人员管理/商城/PayPay/账号管理）排得紧一点，项目多了也放得下一屏 */
-  #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #accounts-open-btn { padding: 3px 0 4px; }
-  #sidebar .sidebar-toggle .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
-  #sidebar .tool-entry-btn { padding: 5px 9px; margin-bottom: 4px; font-size: 12.5px; gap: 7px; }
-  #sidebar .tool-entry-btn .module-icon-badge { width: 20px; height: 20px; font-size: 15px; }
-  #sidebar .problem-item-queue-divider { margin: 7px 2px 6px; font-size: 10.5px; }
-  #sidebar #problem-item-body > .problem-item-queue-divider:first-child { margin-top: 0; }
+  /* 左侧栏：项目不少，但也别挤成一团。条目本身给足高度，
+     下面用 margin-top:auto 把"时间管理"那组顶到底部，中间的空白由它吸收，
+     这样不会出现"上面挤、下面空一大片"。 */
+  #sidebar { padding: 12px 14px; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+  #sidebar .sidebar-divider { margin: 9px 0; }
+  #sidebar .sidebar-toggle { padding-bottom: 7px; flex-shrink: 0; }
+  #sidebar .sidebar-toggle .module-icon-badge { width: 21px; height: 21px; font-size: 16px; }
+  #sidebar .tool-entry-btn { padding: 5px 11px; margin-bottom: 4px; font-size: 13px; gap: 8px; flex-shrink: 0; }
+  #sidebar .tool-entry-btn .module-icon-badge { width: 21px; height: 21px; font-size: 16px; }
+  #sidebar .problem-item-queue-divider { margin: 7px 2px 6px; font-size: 11px; }
+  #sidebar #problem-item-body > .problem-item-queue-divider:first-child { margin-top: 2px; }
+  #sidebar #problem-item-body { flex-shrink: 0; }
+  /* 底部这组（时间管理/人员管理/账号管理）推到最下面，中间多出来的空白留在它上面 */
+  #sidebar > .sidebar-spacer { margin-top: auto; }
+  #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #accounts-open-btn { padding: 5px 0 6px; flex-shrink: 0; }
   /* 四个人名跟上面的入口一样，一人一整行、同宽同样式（并成两列太挤，红点会压到名字） */
   #problem-item-person-entries .tool-entry-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-toggle {
@@ -3900,7 +3905,7 @@
 
     </div>
 
-    <div class="sidebar-divider"></div>
+    <div class="sidebar-divider sidebar-spacer"></div>
 
 <button id="timeclock-open-btn" class="sidebar-toggle" type="button">
       <span><span class="module-icon-badge"><i class="ti ti-clock"></i></span> 时间管理</span>

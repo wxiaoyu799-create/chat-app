@@ -3142,9 +3142,6 @@
   .task-summary:hover { background: var(--hover-dark); }
   .task-summary .ts-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 8px; font-weight: 600; font-size: 11.5px; }
   .task-summary .ts-prio { color: #fff; }
-  .task-summary .ts-due.late { background: rgba(229, 83, 75, 0.14); color: #e5534b; }
-  .task-summary .ts-due.today { background: rgba(240, 169, 78, 0.18); color: #c07a14; }
-  .task-summary .ts-due.ok { background: rgba(63, 111, 214, 0.1); color: var(--accent); }
   .task-summary .ts-execs { display: inline-flex; align-items: center; }
   .task-summary .ts-execs .avatar { margin-left: -4px; box-shadow: 0 0 0 1.5px var(--panel-alt); }
   .task-summary .ts-execs .avatar:first-child { margin-left: 0; }
@@ -3198,10 +3195,6 @@
   .td-img .td-img-del { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; background: #e5534b; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .td-add-img { width: 84px; height: 84px; border: 1.5px dashed var(--border); border-radius: 8px; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
   .td-add-img:hover { border-color: var(--accent); color: var(--accent); }
-  .td-due { padding-top: 5px; font-weight: 600; }
-  .td-due.late { color: #e5534b; }
-  .td-due.today { color: #c07a14; }
-  .td-due.ok { color: var(--accent); }
   .td-prio-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
   .td-prio-wrap { display: flex; align-items: center; gap: 4px; }
   .td-meta { font-size: 12px; color: var(--muted); line-height: 1.7; padding-top: 5px; }
@@ -9003,20 +8996,8 @@
   // ===== 代购代拍任务：卡片摘要 + 详情面板 =====
   function taskHaystack(r) {
     const t = r.taskInfo || {};
-    return [t.content, t.priority, t.contact, t.followUp, t.jpgoodbuy, (t.executors || []).join(' '),
+    return [t.content, t.priority, t.contact, t.followUp, (t.executors || []).join(' '),
       (r.taskComments || []).map((c) => `${c.by} ${c.text}`).join(' ')].join(' ');
-  }
-  function taskDueInfo(deadline) {
-    if (!deadline) return null;
-    const m = String(deadline).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return null;
-    const due = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const days = Math.round((due - today) / 86400000);
-    if (days < 0) return { cls: 'late', text: `⁉️ 已延期 ${-days} 天` };
-    if (days === 0) return { cls: 'today', text: '今天截止' };
-    return { cls: 'ok', text: `还剩 ${days} 天（${Number(m[2])}/${Number(m[3])}）` };
   }
   function taskPrioColor(v) { const x = TASK_PRIORITIES.find((p) => p.value === v); return x ? x.color : ''; }
   function formatTaskTime(ts) {
@@ -9036,13 +9017,6 @@
       c.textContent = t.priority;
       box.appendChild(c);
     }
-    const due = taskDueInfo(t.deadline);
-    if (due) {
-      const c = document.createElement('span');
-      c.className = 'ts-chip ts-due ' + due.cls;
-      c.textContent = due.text;
-      box.appendChild(c);
-    }
     if ((t.executors || []).length) {
       const ex = document.createElement('span');
       ex.className = 'ts-execs';
@@ -9059,9 +9033,9 @@
     if (last) {
       lastEl.className = 'ts-last';
       lastEl.innerHTML = `<b>${escapeHtml(last.by)}：</b>${escapeHtml(last.text || '[图片]')}`;
-    } else if (!t.priority && !due && !(t.executors || []).length) {
+    } else if (!t.priority && !(t.executors || []).length) {
       lastEl.className = 'ts-empty';
-      lastEl.textContent = '还没填任务信息，点开补上执行人、截止日…';
+      lastEl.textContent = '还没填任务信息，点开补上执行人、优先级…';
     }
     box.appendChild(lastEl);
     box.addEventListener('click', () => openTaskDetail(report._fromCategory || report.category, report.id));
@@ -9161,16 +9135,6 @@
     refs.contact.addEventListener('change', () => patchTask({ contact: refs.contact.value }));
     tdRow('ti-phone-call', '客户向联系', refs.contact);
 
-    refs.deadline = document.createElement('input');
-    refs.deadline.type = 'date';
-    refs.deadline.style.width = 'auto';
-    refs.deadline.addEventListener('change', () => patchTask({ deadline: refs.deadline.value }));
-    tdRow('ti-calendar', '截止日期', refs.deadline);
-
-    refs.due = document.createElement('div');
-    refs.due.className = 'td-due';
-    tdRow('ti-hourglass', '距离截止日', refs.due);
-
     const prioWrap = document.createElement('div');
     prioWrap.className = 'td-prio-wrap';
     refs.prioDot = document.createElement('span');
@@ -9184,19 +9148,6 @@
     refs.execs = document.createElement('div');
     refs.execs.className = 'td-chips';
     tdRow('ti-user', '执行人', refs.execs);
-
-    refs.jpgoodbuy = document.createElement('input');
-    refs.jpgoodbuy.type = 'text';
-    refs.jpgoodbuy.placeholder = '请输入内容';
-    refs.jpgoodbuy.maxLength = 100;
-    const saveJp = () => {
-      const r = currentTaskRecord();
-      const old = (r && r.taskInfo && r.taskInfo.jpgoodbuy) || '';
-      if (refs.jpgoodbuy.value.trim() !== old) patchTask({ jpgoodbuy: refs.jpgoodbuy.value });
-    };
-    refs.jpgoodbuy.addEventListener('blur', saveJp);
-    refs.jpgoodbuy.addEventListener('keydown', (e) => { if (e.key === 'Enter') refs.jpgoodbuy.blur(); });
-    tdRow('ti-hash', 'JPGOODBUY 订单号', refs.jpgoodbuy);
 
     refs.followUp = makeSelect(TASK_FOLLOW_OPTIONS, '— 未选 —');
     refs.followUp.addEventListener('change', () => patchTask({ followUp: refs.followUp.value }));
@@ -9220,15 +9171,10 @@
     setVal(refs.content, t.content != null ? t.content : (r.orderNote || ''));
     autoGrow(refs.content);
     setVal(refs.contact, t.contact || '');
-    setVal(refs.deadline, t.deadline || '');
     setVal(refs.priority, t.priority || '');
     refs.prioDot.style.background = taskPrioColor(t.priority) || 'var(--border)';
-    setVal(refs.jpgoodbuy, t.jpgoodbuy || '');
     setVal(refs.followUp, t.followUp || '');
-    [refs.content, refs.contact, refs.deadline, refs.priority, refs.jpgoodbuy, refs.followUp].forEach((el) => { el.disabled = readOnly; });
-    const due = taskDueInfo(t.deadline);
-    refs.due.className = 'td-due' + (due ? ' ' + due.cls : '');
-    refs.due.textContent = due ? due.text : '—';
+    [refs.content, refs.contact, refs.priority, refs.followUp].forEach((el) => { el.disabled = readOnly; });
 
     // 附件：检品时拍的照片（只读）+ 任务里补的图（可删）
     refs.imgs.innerHTML = '';

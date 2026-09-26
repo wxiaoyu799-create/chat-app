@@ -1869,8 +1869,6 @@ function applyTaskPatch(info, patch) {
   if ('priority' in patch) out.priority = TASK_PRIORITIES.includes(patch.priority) ? patch.priority : '';
   if ('contact' in patch) out.contact = TASK_CONTACT_OPTIONS.includes(patch.contact) ? patch.contact : '';
   if ('followUp' in patch) out.followUp = TASK_FOLLOW_OPTIONS.includes(patch.followUp) ? patch.followUp : '';
-  if ('deadline' in patch) out.deadline = /^\d{4}-\d{2}-\d{2}$/.test(String(patch.deadline || '')) ? String(patch.deadline) : '';
-  if ('jpgoodbuy' in patch) out.jpgoodbuy = cleanTaskText(patch.jpgoodbuy, 100);
   if ('executors' in patch) {
     out.executors = Array.from(new Set((Array.isArray(patch.executors) ? patch.executors : [])
       .map((x) => cleanTaskText(x, 40)).filter((x) => x && users.some((u) => u.username === x)))).slice(0, 20); // 只收真实存在的账号

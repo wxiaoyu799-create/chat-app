@@ -2275,6 +2275,11 @@
   /* 只读角色看不到操作列和扫码条 */
   /* 只读角色看不到各模块的编辑按钮（统计那两个面板另算，见下面） */
   body.role-readonly .editor-only { display: none !important; }
+  /* 质检员不显示"煤炉反查""代购代拍任务"这两个队列（以及完结表里的"查看任务"） */
+  body.role-inspector .queue-only,
+  body.role-inspector [data-category="煤炉反查"],
+  body.role-inspector [data-category="代购代拍任务"],
+  body.role-inspector .finished-task-btn { display: none !important; }
   /* 统计：谁都能看，但改动分两档——下单侧（管理员/仓库现场/客服）、入库侧（管理员/仓库现场）。
      用 :not() 反着写，这样原来的 display 不会被覆盖掉 */
   body:not(.role-admin):not(.role-manager):not(.role-service) .can-order { display: none !important; }
@@ -4162,7 +4167,7 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
-      <div class="problem-item-queue-divider"><span>按类别需关注</span></div>
+      <div class="problem-item-queue-divider queue-only"><span>按类别需关注</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="煤炉反查" type="button">
         <span class="module-icon-badge"><i class="ti ti-zoom-question"></i></span>
         <span class="tool-entry-label">煤炉反查</span>
@@ -5187,7 +5192,7 @@
       <button class="problem-item-panel-cat-btn" data-category="代购">代购</button>
       <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
-      <div class="problem-item-cat-divider"></div>
+      <div class="problem-item-cat-divider queue-only"></div>
       <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
       <button class="problem-item-panel-cat-btn" data-category="代购代拍任务">代购代拍任务</button>
       <div class="problem-item-cat-divider"></div>
@@ -8539,6 +8544,7 @@
 
   // ---- 全屏面板开关、分类切换 ----
   function openProblemItemOverlay(category) {
+    if (myRole === 'inspector' && isQueueCategory(category)) category = '代购'; // 质检员不显示两个去向队列
     currentProblemItemCategory = category;
     problemItemOverlay.classList.add('active');
     resetProblemItemForm();
@@ -8736,6 +8742,7 @@
       if (n && cat !== currentProblemItemCategory) places.push({ cat, n });
     });
     Object.keys(PROBLEM_ITEM_QUEUES).forEach((q) => {
+      if (myRole === 'inspector') return; // 质检员看不到这两个队列
       const n = getQueueReports(q).filter((r) => problemItemMatches(r, key)).length;
       if (n && q !== currentProblemItemCategory) places.push({ cat: q, n });
     });

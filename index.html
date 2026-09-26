@@ -1088,6 +1088,69 @@
     color: var(--text);
   }
   #image-preview-status { flex-shrink: 0; font-size: 12px; color: var(--muted); }
+  /* 缩略图可点开标注：悬停时显示小铅笔 */
+  .image-preview-item img { cursor: pointer; }
+  .image-preview-item .item-edit-badge {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 12px;
+    border-radius: 0 0 6px 6px; pointer-events: none; opacity: 0; transition: opacity 0.15s;
+  }
+  .image-preview-item:hover .item-edit-badge { opacity: 1; }
+  @media (hover: none) { .image-preview-item .item-edit-badge { opacity: 0.85; } }
+
+  /* ===== 图片标注（发图前框选/箭头/文字/马赛克） ===== */
+  #img-edit-panel {
+    display: none; position: fixed; inset: 0; z-index: 10002;
+    background: rgba(10, 12, 18, 0.82); flex-direction: column;
+  }
+  #img-edit-panel.active { display: flex; }
+  #img-edit-toolbar {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  #img-edit-toolbar .ie-group { display: flex; align-items: center; gap: 4px; }
+  #img-edit-toolbar .ie-sep { width: 1px; height: 22px; background: var(--border); margin: 0 6px; }
+  .ie-tool {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: transparent; border: 1px solid transparent; color: var(--text);
+    border-radius: 8px; padding: 5px 9px; font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+  .ie-tool i { font-size: 17px; }
+  .ie-tool:hover { background: var(--hover-dark); }
+  .ie-tool.active { background: rgba(63, 111, 214, 0.14); border-color: var(--accent); color: var(--accent); }
+  .ie-tool:disabled { opacity: 0.35; cursor: default; background: transparent; }
+  .ie-color {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--panel);
+    box-shadow: 0 0 0 1px var(--border); cursor: pointer; padding: 0;
+  }
+  .ie-color.active { box-shadow: 0 0 0 2px var(--accent); }
+  .ie-size { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; padding: 0; }
+  .ie-size span { display: block; border-radius: 50%; background: var(--text); }
+  .ie-size.active { border-color: var(--accent); background: rgba(63, 111, 214, 0.1); }
+  #img-edit-toolbar .ie-spacer { flex: 1; }
+  #img-edit-cancel { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 14px; font-size: 13px; font-family: inherit; cursor: pointer; }
+  #img-edit-done { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  #img-edit-done:disabled { opacity: 0.6; cursor: default; }
+  #img-edit-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: hidden; }
+  #img-edit-stage { position: relative; display: inline-block; line-height: 0; }
+  #img-edit-canvas {
+    display: block; max-width: calc(100vw - 32px); max-height: calc(100vh - 120px);
+    touch-action: none; cursor: crosshair; background: #fff; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  }
+  #img-edit-canvas.tool-text { cursor: text; }
+  #img-edit-text-input {
+    position: absolute; display: none; min-width: 60px; padding: 0; margin: 0;
+    border: none; outline: 1.5px dashed rgba(255, 255, 255, 0.9); background: rgba(0, 0, 0, 0.15);
+    font-weight: 700; font-family: sans-serif; line-height: 1.2; z-index: 2;
+  }
+  #img-edit-hint { color: rgba(255, 255, 255, 0.7); font-size: 12px; text-align: center; padding: 0 0 10px; }
+  @media (max-width: 640px) {
+    #img-edit-toolbar { padding: 8px; gap: 4px; }
+    .ie-tool .ie-label { display: none; }
+    #img-edit-toolbar .ie-sep { margin: 0 2px; }
+    #img-edit-canvas { max-height: calc(100vh - 170px); }
+  }
 
   /* 通用文件预览条（跟图片预览条样式接近，但每一项是文件名chip不是缩略图） */
   #file-preview-bar {
@@ -5189,6 +5252,39 @@
   </div>
 </div>
 
+  <!-- 发图前的简单标注：框选 / 箭头 / 画笔 / 文字 / 马赛克 -->
+  <div id="img-edit-panel">
+    <div id="img-edit-toolbar">
+      <div class="ie-group" id="img-edit-tools">
+        <button type="button" class="ie-tool active" data-tool="rect" title="框选"><i class="ti ti-square"></i><span class="ie-label">框选</span></button>
+        <button type="button" class="ie-tool" data-tool="arrow" title="箭头"><i class="ti ti-arrow-up-right"></i><span class="ie-label">箭头</span></button>
+        <button type="button" class="ie-tool" data-tool="pen" title="画笔"><i class="ti ti-pencil"></i><span class="ie-label">画笔</span></button>
+        <button type="button" class="ie-tool" data-tool="text" title="文字：点一下图片输入"><i class="ti ti-typography"></i><span class="ie-label">文字</span></button>
+        <button type="button" class="ie-tool" data-tool="mosaic" title="马赛克：拖一个框遮住信息"><i class="ti ti-grid-dots"></i><span class="ie-label">马赛克</span></button>
+      </div>
+      <span class="ie-sep"></span>
+      <div class="ie-group" id="img-edit-colors"></div>
+      <span class="ie-sep"></span>
+      <div class="ie-group" id="img-edit-sizes">
+        <button type="button" class="ie-size" data-size="0" title="细"><span style="width:5px;height:5px"></span></button>
+        <button type="button" class="ie-size active" data-size="1" title="中"><span style="width:9px;height:9px"></span></button>
+        <button type="button" class="ie-size" data-size="2" title="粗"><span style="width:13px;height:13px"></span></button>
+      </div>
+      <span class="ie-sep"></span>
+      <button type="button" class="ie-tool" id="img-edit-undo" title="撤销（Ctrl+Z）"><i class="ti ti-arrow-back-up"></i><span class="ie-label">撤销</span></button>
+      <button type="button" class="ie-tool" id="img-edit-clear" title="清掉所有标注"><i class="ti ti-eraser"></i><span class="ie-label">清空</span></button>
+      <span class="ie-spacer"></span>
+      <button type="button" id="img-edit-cancel">取消</button>
+      <button type="button" id="img-edit-done">完成</button>
+    </div>
+    <div id="img-edit-body">
+      <div id="img-edit-stage">
+        <canvas id="img-edit-canvas"></canvas>
+        <input id="img-edit-text-input" type="text" autocomplete="off" />
+      </div>
+    </div>
+    <div id="img-edit-hint">拖动画框 / 箭头；文字：点一下图片再输入，回车确定；Ctrl+Z 撤销</div>
+  </div>
 <script>
   let ws = null;
   let username = '';
@@ -6526,7 +6622,7 @@
     } else if (failedCount > 0) {
       imagePreviewStatus.textContent = `${failedCount} 张上传失败，点×移除后重试`;
     } else {
-      imagePreviewStatus.textContent = `${total} 张图片已就绪`;
+      imagePreviewStatus.textContent = `${total} 张图片已就绪 · 点图片可标注`;
     }
   }
 
@@ -6556,7 +6652,14 @@
 
     const img = document.createElement('img');
     img.src = item.objectUrl;
+    img.title = '点一下可以框选、加文字';
+    img.addEventListener('click', () => openImageEditor(item));
     wrap.appendChild(img);
+
+    const badge = document.createElement('span');
+    badge.className = 'item-edit-badge';
+    badge.innerHTML = '<i class="ti ti-pencil"></i>';
+    wrap.appendChild(badge);
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'item-remove-btn';
@@ -6570,15 +6673,19 @@
   }
 
   async function uploadOneImage(item) {
+    const file = item.file;
     try {
       const formData = new FormData();
-      formData.append('image', item.file);
+      formData.append('image', file);
       const res = await fetch('/upload', { method: 'POST', body: formData });
       const data = await res.json();
+      if (item.file !== file) return; // 这期间图被标注替换了，以新的那次上传为准
       if (!res.ok) throw new Error(data.error || '上传失败');
       item.uploadedUrl = data.url;
       item.uploading = false;
+      if (item.el) item.el.classList.remove('uploading');
     } catch (e) {
+      if (item.file !== file) return;
       item.uploading = false;
       item.failed = true;
       if (item.el) item.el.classList.add('uploading');
@@ -6623,6 +6730,264 @@
     });
     updateImagePreviewStatus();
   }
+
+  // ===== 图片标注：点预览缩略图打开，画完"完成"就替换这张图并重新上传 =====
+  const imgEditPanel = document.getElementById('img-edit-panel');
+  const imgEditCanvas = document.getElementById('img-edit-canvas');
+  const imgEditStage = document.getElementById('img-edit-stage');
+  const imgEditTextInput = document.getElementById('img-edit-text-input');
+  const imgEditUndoBtn = document.getElementById('img-edit-undo');
+  const imgEditClearBtn = document.getElementById('img-edit-clear');
+  const imgEditDoneBtn = document.getElementById('img-edit-done');
+  const IE_COLORS = ['#e5534b', '#ffcc00', '#2e9e5b', '#3f6fd6', '#222222', '#ffffff'];
+  const IE_LINE = [2, 4, 7];      // 线宽（屏幕上看到的像素）
+  const IE_FONT = [16, 22, 32];   // 字号（屏幕上看到的像素）
+  const ie = {
+    item: null, img: null, pix: null, ctx: imgEditCanvas.getContext('2d'),
+    shapes: [], cur: null, tool: 'rect', color: IE_COLORS[0], size: 1, unit: 1,
+    textAt: null,
+  };
+  const ieColorBox = document.getElementById('img-edit-colors');
+  IE_COLORS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ie-color' + (i === 0 ? ' active' : '');
+    b.style.background = c;
+    b.dataset.color = c;
+    b.addEventListener('click', () => {
+      ie.color = c;
+      ieColorBox.querySelectorAll('.ie-color').forEach((x) => x.classList.toggle('active', x === b));
+      if (ie.textAt) imgEditTextInput.style.color = c;
+    });
+    ieColorBox.appendChild(b);
+  });
+  document.querySelectorAll('#img-edit-tools .ie-tool').forEach((b) => b.addEventListener('click', () => {
+    commitImageText();
+    ie.tool = b.dataset.tool;
+    document.querySelectorAll('#img-edit-tools .ie-tool').forEach((x) => x.classList.toggle('active', x === b));
+    imgEditCanvas.classList.toggle('tool-text', ie.tool === 'text');
+  }));
+  document.querySelectorAll('#img-edit-sizes .ie-size').forEach((b) => b.addEventListener('click', () => {
+    ie.size = Number(b.dataset.size);
+    document.querySelectorAll('#img-edit-sizes .ie-size').forEach((x) => x.classList.toggle('active', x === b));
+    if (ie.textAt) imgEditTextInput.style.fontSize = IE_FONT[ie.size] + 'px';
+  }));
+
+  function openImageEditor(item) {
+    const img = new Image();
+    img.onload = () => {
+      // 太大的图缩到长边 3000，画起来不卡，发出去也够清楚
+      const k = Math.min(1, 3000 / Math.max(img.naturalWidth, img.naturalHeight));
+      imgEditCanvas.width = Math.max(1, Math.round(img.naturalWidth * k));
+      imgEditCanvas.height = Math.max(1, Math.round(img.naturalHeight * k));
+      // 马赛克用：先把整张图缩小再放大，得到一张"方块图"，遮挡时从这张里裁
+      const blk = Math.max(8, Math.round(Math.max(imgEditCanvas.width, imgEditCanvas.height) / 90));
+      const small = document.createElement('canvas');
+      small.width = Math.max(1, Math.ceil(imgEditCanvas.width / blk));
+      small.height = Math.max(1, Math.ceil(imgEditCanvas.height / blk));
+      small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
+      const pix = document.createElement('canvas');
+      pix.width = imgEditCanvas.width;
+      pix.height = imgEditCanvas.height;
+      const pctx = pix.getContext('2d');
+      pctx.imageSmoothingEnabled = false;
+      pctx.drawImage(small, 0, 0, pix.width, pix.height);
+      Object.assign(ie, { item, img, pix, shapes: [], cur: null, textAt: null });
+      imgEditTextInput.style.display = 'none';
+      imgEditDoneBtn.disabled = false;
+      imgEditPanel.classList.add('active');
+      requestAnimationFrame(() => {
+        const r = imgEditCanvas.getBoundingClientRect();
+        ie.unit = r.width ? imgEditCanvas.width / r.width : 1;
+        redrawImageEditor();
+      });
+      redrawImageEditor();
+    };
+    img.onerror = () => alert('这张图打不开，没法标注');
+    img.src = item.objectUrl;
+  }
+  function closeImageEditor() {
+    imgEditPanel.classList.remove('active');
+    imgEditTextInput.style.display = 'none';
+    Object.assign(ie, { item: null, img: null, pix: null, shapes: [], cur: null, textAt: null });
+  }
+
+  function drawIeShape(ctx, sh) {
+    ctx.save();
+    ctx.strokeStyle = sh.color;
+    ctx.fillStyle = sh.color;
+    ctx.lineWidth = sh.lw;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (sh.type === 'rect') {
+      ctx.strokeRect(Math.min(sh.x1, sh.x2), Math.min(sh.y1, sh.y2), Math.abs(sh.x2 - sh.x1), Math.abs(sh.y2 - sh.y1));
+    } else if (sh.type === 'mosaic') {
+      const x = Math.min(sh.x1, sh.x2), y = Math.min(sh.y1, sh.y2);
+      const w = Math.abs(sh.x2 - sh.x1), h = Math.abs(sh.y2 - sh.y1);
+      if (w > 0 && h > 0 && ie.pix) ctx.drawImage(ie.pix, x, y, w, h, x, y, w, h);
+    } else if (sh.type === 'arrow') {
+      const dx = sh.x2 - sh.x1, dy = sh.y2 - sh.y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1) { ctx.restore(); return; }
+      const head = Math.min(len * 0.6, sh.lw * 3 + 10 * sh.unit);
+      const ang = Math.atan2(dy, dx);
+      // 杆子画到箭头根部，免得粗线从尖上戳出来
+      const bx = sh.x2 - Math.cos(ang) * head * 0.8, by = sh.y2 - Math.sin(ang) * head * 0.8;
+      ctx.beginPath(); ctx.moveTo(sh.x1, sh.y1); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(sh.x2, sh.y2);
+      ctx.lineTo(sh.x2 - head * Math.cos(ang - 0.45), sh.y2 - head * Math.sin(ang - 0.45));
+      ctx.lineTo(sh.x2 - head * Math.cos(ang + 0.45), sh.y2 - head * Math.sin(ang + 0.45));
+      ctx.closePath(); ctx.fill();
+    } else if (sh.type === 'pen') {
+      ctx.beginPath();
+      sh.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      if (sh.pts.length === 1) ctx.lineTo(sh.pts[0][0] + 0.1, sh.pts[0][1]);
+      ctx.stroke();
+    } else if (sh.type === 'text') {
+      ctx.font = `bold ${sh.fs}px sans-serif`;
+      ctx.textBaseline = 'top';
+      // 描一圈反差色的边，放在什么底色上都看得清
+      const light = /^#(ff|fe|fd|fc)/i.test(sh.color);
+      ctx.strokeStyle = light ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = Math.max(2, sh.fs / 7);
+      ctx.strokeText(sh.text, sh.x, sh.y);
+      ctx.fillText(sh.text, sh.x, sh.y);
+    }
+    ctx.restore();
+  }
+  function redrawImageEditor() {
+    const ctx = ie.ctx;
+    if (!ie.img) return;
+    ctx.clearRect(0, 0, imgEditCanvas.width, imgEditCanvas.height);
+    ctx.drawImage(ie.img, 0, 0, imgEditCanvas.width, imgEditCanvas.height);
+    ie.shapes.forEach((sh) => drawIeShape(ctx, sh));
+    if (ie.cur) drawIeShape(ctx, ie.cur);
+    imgEditUndoBtn.disabled = ie.shapes.length === 0;
+    imgEditClearBtn.disabled = ie.shapes.length === 0;
+  }
+  function iePoint(e) {
+    const r = imgEditCanvas.getBoundingClientRect();
+    return [(e.clientX - r.left) * (imgEditCanvas.width / r.width), (e.clientY - r.top) * (imgEditCanvas.height / r.height)];
+  }
+
+  // 文字：点一下在那里放个输入框，回车/点别处确定，Esc 放弃
+  function openImageTextInput(e) {
+    const sr = imgEditStage.getBoundingClientRect();
+    const fs = IE_FONT[ie.size];
+    const left = e.clientX - sr.left;
+    const top = e.clientY - sr.top - fs * 0.6;
+    ie.textAt = { left, top };
+    Object.assign(imgEditTextInput.style, {
+      display: 'block', left: left + 'px', top: top + 'px',
+      fontSize: fs + 'px', color: ie.color, width: Math.max(80, sr.width - left - 4) + 'px',
+    });
+    imgEditTextInput.value = '';
+    imgEditTextInput.focus();
+  }
+  function commitImageText() {
+    if (!ie.textAt) return;
+    const at = ie.textAt;
+    ie.textAt = null;
+    const text = imgEditTextInput.value.trim();
+    imgEditTextInput.style.display = 'none';
+    if (!text || !ie.img) return;
+    const sr = imgEditStage.getBoundingClientRect();
+    const cr = imgEditCanvas.getBoundingClientRect();
+    const k = imgEditCanvas.width / cr.width;
+    const fsScreen = parseFloat(imgEditTextInput.style.fontSize) || IE_FONT[ie.size];
+    ie.shapes.push({
+      type: 'text', text, color: ie.color,
+      x: (at.left - (cr.left - sr.left)) * k,
+      y: (at.top - (cr.top - sr.top)) * k + fsScreen * 0.1 * k,
+      fs: fsScreen * k,
+    });
+    redrawImageEditor();
+  }
+  imgEditTextInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitImageText(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); ie.textAt = null; imgEditTextInput.style.display = 'none'; }
+  });
+  imgEditTextInput.addEventListener('blur', commitImageText);
+
+  imgEditCanvas.addEventListener('pointerdown', (e) => {
+    if (!ie.img || e.button > 0) return;
+    e.preventDefault();
+    if (ie.textAt) { commitImageText(); if (ie.tool !== 'text') return; }
+    if (ie.tool === 'text') return; // 文字框在 click 里打开（等鼠标默认的焦点处理完，不然输入框会被抢走焦点）
+    const [x, y] = iePoint(e);
+    const r = imgEditCanvas.getBoundingClientRect();
+    ie.unit = imgEditCanvas.width / r.width;
+    const lw = IE_LINE[ie.size] * ie.unit;
+    ie.cur = ie.tool === 'pen'
+      ? { type: 'pen', color: ie.color, lw, pts: [[x, y]] }
+      : { type: ie.tool, color: ie.color, lw, unit: ie.unit, x1: x, y1: y, x2: x, y2: y };
+    imgEditCanvas.setPointerCapture(e.pointerId);
+    redrawImageEditor();
+  });
+  imgEditCanvas.addEventListener('click', (e) => {
+    if (ie.img && ie.tool === 'text' && !ie.textAt) openImageTextInput(e);
+  });
+  imgEditCanvas.addEventListener('pointermove', (e) => {
+    if (!ie.cur) return;
+    const [x, y] = iePoint(e);
+    if (ie.cur.type === 'pen') ie.cur.pts.push([x, y]);
+    else { ie.cur.x2 = x; ie.cur.y2 = y; }
+    redrawImageEditor();
+  });
+  function endImageStroke() {
+    if (!ie.cur) return;
+    const c = ie.cur;
+    ie.cur = null;
+    // 只点了一下没拖动的框/箭头不算
+    const tiny = c.type !== 'pen' && Math.hypot(c.x2 - c.x1, c.y2 - c.y1) < 4 * ie.unit;
+    if (!tiny) ie.shapes.push(c);
+    redrawImageEditor();
+  }
+  imgEditCanvas.addEventListener('pointerup', endImageStroke);
+  imgEditCanvas.addEventListener('pointercancel', endImageStroke);
+
+  imgEditUndoBtn.addEventListener('click', () => { ie.shapes.pop(); redrawImageEditor(); });
+  imgEditClearBtn.addEventListener('click', () => { ie.shapes = []; redrawImageEditor(); });
+  document.getElementById('img-edit-cancel').addEventListener('click', closeImageEditor);
+  document.addEventListener('keydown', (e) => {
+    if (!imgEditPanel.classList.contains('active') || document.activeElement === imgEditTextInput) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); ie.shapes.pop(); redrawImageEditor(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeImageEditor(); }
+  });
+
+  imgEditDoneBtn.addEventListener('click', () => {
+    commitImageText();
+    const item = ie.item;
+    if (!item) return;
+    if (ie.shapes.length === 0) { closeImageEditor(); return; } // 什么都没画，原图不动
+    imgEditDoneBtn.disabled = true;
+    const toBlob = (type, q) => new Promise((res) => imgEditCanvas.toBlob(res, type, q));
+    (async () => {
+      // 原图是 jpg 就还存 jpg；png 截图存 png（字更清楚），太大了再退成 jpg
+      let type = item.file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      let blob = await toBlob(type, 0.92);
+      if (blob && blob.size > MAX_IMAGE_SIZE) { type = 'image/jpeg'; blob = await toBlob(type, 0.85); }
+      if (!blob || blob.size > MAX_IMAGE_SIZE) {
+        imgEditDoneBtn.disabled = false;
+        alert('标注后的图片太大了，发不出去');
+        return;
+      }
+      const base = (item.file.name || 'image').replace(/\.[^.]+$/, '');
+      const file = new File([blob], `${base}-标注.${type === 'image/jpeg' ? 'jpg' : 'png'}`, { type });
+      if (!pendingImages.includes(item)) { closeImageEditor(); return; } // 标注期间这张被移除了
+      if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+      Object.assign(item, { file, objectUrl: URL.createObjectURL(file), uploadedUrl: null, uploading: true, failed: false });
+      if (item.el) {
+        item.el.classList.add('uploading');
+        const im = item.el.querySelector('img');
+        if (im) im.src = item.objectUrl;
+      }
+      closeImageEditor();
+      updateImagePreviewStatus();
+      uploadOneImage(item);
+    })();
+  });
 
   imagePickBtn.addEventListener('click', () => imageFileInput.click());
   imageFileInput.addEventListener('change', () => {

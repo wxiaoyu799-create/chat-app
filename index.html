@@ -3146,7 +3146,6 @@
   }
   .task-summary:hover { background: var(--hover-dark); }
   .task-summary .ts-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 8px; font-weight: 600; font-size: 11.5px; }
-  .task-summary .ts-prio { color: #fff; }
   .task-summary .ts-execs { display: inline-flex; align-items: center; }
   .task-summary .ts-execs .avatar { margin-left: -4px; box-shadow: 0 0 0 1.5px var(--panel-alt); }
   .task-summary .ts-execs .avatar:first-child { margin-left: 0; }
@@ -3200,8 +3199,6 @@
   .td-img .td-img-del { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; background: #e5534b; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; }
   .td-add-img { width: 84px; height: 84px; border: 1.5px dashed var(--border); border-radius: 8px; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
   .td-add-img:hover { border-color: var(--accent); color: var(--accent); }
-  .td-prio-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
-  .td-prio-wrap { display: flex; align-items: center; gap: 4px; }
   .td-meta { font-size: 12px; color: var(--muted); line-height: 1.7; padding-top: 5px; }
   #task-detail-comments-col { display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
   .td-comments-title { padding: 12px 16px 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
@@ -8091,11 +8088,6 @@
     { key: 'cancelled', label: '已取消', icon: 'ti-ban' },
   ];
   const TASK_RESULTS = [{ key: 'done', label: '已完结', icon: 'ti-circle-check' }];
-  const TASK_PRIORITIES = [
-    { value: 'P0紧急', color: '#e5534b' },
-    { value: 'P1一般', color: '#e0a100' },
-    { value: 'P2不急', color: '#2e9e5b' },
-  ];
   const TASK_CONTACT_OPTIONS = ['需要', '不需要'];
   const TASK_FOLLOW_OPTIONS = ['国内跟进', '日本跟进', '不需要跟进'];
   // 代购/代拍/煤炉共用同一组问题类型选项
@@ -9003,10 +8995,9 @@
   // ===== 代购代拍任务：卡片摘要 + 详情面板 =====
   function taskHaystack(r) {
     const t = r.taskInfo || {};
-    return [t.content, t.priority, t.contact, t.followUp, (t.executors || []).join(' '),
+    return [t.content, t.contact, t.followUp, (t.executors || []).join(' '),
       (r.taskComments || []).map((c) => `${c.by} ${c.text}`).join(' ')].join(' ');
   }
-  function taskPrioColor(v) { const x = TASK_PRIORITIES.find((p) => p.value === v); return x ? x.color : ''; }
   function formatTaskTime(ts) {
     const d = new Date(ts);
     const pad = (n) => String(n).padStart(2, '0');
@@ -9017,13 +9008,6 @@
     const box = document.createElement('div');
     box.className = 'task-summary';
     box.title = '点开看任务详情 / 写评论';
-    if (t.priority) {
-      const c = document.createElement('span');
-      c.className = 'ts-chip ts-prio';
-      c.style.background = taskPrioColor(t.priority);
-      c.textContent = t.priority;
-      box.appendChild(c);
-    }
     if ((t.executors || []).length) {
       const ex = document.createElement('span');
       ex.className = 'ts-execs';
@@ -9040,9 +9024,9 @@
     if (last) {
       lastEl.className = 'ts-last';
       lastEl.innerHTML = `<b>${escapeHtml(last.by)}：</b>${escapeHtml(last.text || '[图片]')}`;
-    } else if (!t.priority && !(t.executors || []).length) {
+    } else if (!(t.executors || []).length) {
       lastEl.className = 'ts-empty';
-      lastEl.textContent = '还没填任务信息，点开补上执行人、优先级…';
+      lastEl.textContent = '还没填任务信息，点开补上执行人、写跟进评论…';
     }
     box.appendChild(lastEl);
     box.addEventListener('click', () => openTaskDetail(report._fromCategory || report.category, report.id));
@@ -9142,16 +9126,6 @@
     refs.contact.addEventListener('change', () => patchTask({ contact: refs.contact.value }));
     tdRow('ti-phone-call', '客户向联系', refs.contact);
 
-    const prioWrap = document.createElement('div');
-    prioWrap.className = 'td-prio-wrap';
-    refs.prioDot = document.createElement('span');
-    refs.prioDot.className = 'td-prio-dot';
-    refs.priority = makeSelect(TASK_PRIORITIES.map((x) => x.value), '— 未设 —');
-    refs.priority.addEventListener('change', () => patchTask({ priority: refs.priority.value }));
-    prioWrap.appendChild(refs.prioDot);
-    prioWrap.appendChild(refs.priority);
-    tdRow('ti-flag', '优先级', prioWrap);
-
     refs.execs = document.createElement('div');
     refs.execs.className = 'td-chips';
     tdRow('ti-user', '执行人', refs.execs);
@@ -9178,10 +9152,8 @@
     setVal(refs.content, t.content != null ? t.content : (r.orderNote || ''));
     autoGrow(refs.content);
     setVal(refs.contact, t.contact || '');
-    setVal(refs.priority, t.priority || '');
-    refs.prioDot.style.background = taskPrioColor(t.priority) || 'var(--border)';
     setVal(refs.followUp, t.followUp || '');
-    [refs.content, refs.contact, refs.priority, refs.followUp].forEach((el) => { el.disabled = readOnly; });
+    [refs.content, refs.contact, refs.followUp].forEach((el) => { el.disabled = readOnly; });
 
     // 附件：检品时拍的照片（只读）+ 任务里补的图（可删）
     refs.imgs.innerHTML = '';

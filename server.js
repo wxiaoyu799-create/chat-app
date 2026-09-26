@@ -1645,7 +1645,6 @@ const PROBLEM_ITEM_RESULTS = {
   done: { status: 'resolved_done', label: '已完结', queue: 'transferred_task' },
 };
 // 任务详情里的几个下拉选项
-const TASK_PRIORITIES = ['P0紧急', 'P1一般', 'P2不急'];
 const TASK_CONTACT_OPTIONS = ['需要', '不需要'];
 const TASK_FOLLOW_OPTIONS = ['国内跟进', '日本跟进', '不需要跟进'];
 const TASK_MAX_IMAGES = 12;
@@ -1866,7 +1865,6 @@ function applyTaskPatch(info, patch) {
   const out = { ...info };
   if (!patch || typeof patch !== 'object') return out;
   if ('content' in patch) out.content = cleanTaskText(patch.content, 3000);
-  if ('priority' in patch) out.priority = TASK_PRIORITIES.includes(patch.priority) ? patch.priority : '';
   if ('contact' in patch) out.contact = TASK_CONTACT_OPTIONS.includes(patch.contact) ? patch.contact : '';
   if ('followUp' in patch) out.followUp = TASK_FOLLOW_OPTIONS.includes(patch.followUp) ? patch.followUp : '';
   if ('executors' in patch) {

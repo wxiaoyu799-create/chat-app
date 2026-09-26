@@ -284,7 +284,7 @@ app.get('/api/problem-item-export', async (req, res) => {
 
   // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
   // 不然老记录会被漏掉
-  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled')";
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done')";
   const params = [];
   if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
     params.push(category);
@@ -308,8 +308,9 @@ app.get('/api/problem-item-export', async (req, res) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
       const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
-        : row.status === 'transferred_merchant' ? '转日志商家'
+        : row.status === 'transferred_merchant' ? '转煤炉反查'
         : row.status === 'transferred_task' ? '转任务'
+        : row.status === 'resolved_done' ? '已完结'
         : row.status === 'resolved_stocked' ? '已入库'
         : row.status === 'resolved_reshipped' ? '已补（换）发入库'
         : row.status === 'resolved_cancelled' ? '已取消'
@@ -1627,29 +1628,35 @@ function getAllInspectionRulesText() {
 // ===== 问题件列表：代购/代拍/煤炉三个分类，各自独立计数和记录列表。
 // "问题类型"三个分类共用一组选项（数据库里的option_type='issue_type'）。
 // "检品人员姓名"直接用当前登录用户名，不再维护选项列表。
-// 另外还有两个"去向队列"：转日志商家、转任务——它们不是提交入口，
+// 另外还有两个"去向队列"：转煤炉反查、转任务（代购代拍任务）——它们不是提交入口，
 // 只是把已经转出去的记录按去向汇总起来，方便后续跟进（见 PROBLEM_ITEM_QUEUES）=====
 const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
-const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
+// （状态值沿用老名字 transferred_merchant，老数据不用迁移）
+const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task' };
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
-// 队列（日志商家/任务）里的三种结束方式：点完这条记录就从队列里退场，
-// 具体是哪种结果存在 status 里，导出的时候分开统计
+// 队列里的结束方式：点完这条记录就从队列里退场，
+// 具体是哪种结果存在 status 里，导出的时候分开统计。
+// 煤炉反查用前三种；代购代拍任务的进展都写在任务详情里，结束时只有"已完结"一种
 const PROBLEM_ITEM_RESULTS = {
-  stocked: { status: 'resolved_stocked', label: '已入库' },
-  reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库' },
-  cancelled: { status: 'resolved_cancelled', label: '已取消' },
+  stocked: { status: 'resolved_stocked', label: '已入库', queue: 'transferred_merchant' },
+  reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库', queue: 'transferred_merchant' },
+  cancelled: { status: 'resolved_cancelled', label: '已取消', queue: 'transferred_merchant' },
+  done: { status: 'resolved_done', label: '已完结', queue: 'transferred_task' },
 };
-// 队列里的跟进图章：可以同时盖多个（比如先找顾客确认、同时已经建了任务），
-// 每个图章记住是谁盖的、什么时候盖的；再点一下就取消
-const PROBLEM_ITEM_STAMPS = ['日志顾客确认中', '商家中', '已建任务跟进中'];
+// 任务详情里的几个下拉选项
+const TASK_PRIORITIES = ['P0紧急', 'P1一般', 'P2不急'];
+const TASK_CONTACT_OPTIONS = ['需要', '不需要'];
+const TASK_FOLLOW_OPTIONS = ['国内跟进', '日本跟进', '不需要跟进'];
+const TASK_MAX_IMAGES = 12;
+const TASK_MAX_COMMENTS = 300;
 // 待处理列表里按"谁转出去的"再分一遍的人名视图：这几个人各占一行，
-// 谁点了转日志商家/转任务，那条记录就同时出现在她名下（跟队列视图是同一批数据，只是切法不同）
+// 谁点了转煤炉反查/转任务，那条记录就同时出现在她名下（跟队列视图是同一批数据，只是切法不同）
 const PROBLEM_ITEM_HANDLERS = ['王晓雨', '孙韶蔚', '余丽', '钟海燕'];
 // 走到头的记录（不管是三个分类里直接"已解决"，还是队列里给了处理结果）都算"已完结"。
 // 这些记录不再占着待处理列表，但要在"已完结问题件"表格里实时看得到，
 // 所以在内存里另留一份最近的，超出上限就把最老的挤掉（完整历史仍然在数据库里）
-const PROBLEM_ITEM_FINISHED_STATUSES = ['resolved', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled'];
+const PROBLEM_ITEM_FINISHED_STATUSES = ['resolved', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done'];
 const PROBLEM_ITEM_FINISHED_LIMIT = 500;
 const problemItemFinished = [];
 function problemItemStatusLabel(status) {
@@ -1657,7 +1664,8 @@ function problemItemStatusLabel(status) {
   if (status === 'resolved_stocked') return '已入库';
   if (status === 'resolved_reshipped') return '已补（换）发入库';
   if (status === 'resolved_cancelled') return '已取消';
-  if (status === 'transferred_merchant') return '转日志商家';
+  if (status === 'resolved_done') return '已完结';
+  if (status === 'transferred_merchant') return '转煤炉反查';
   if (status === 'transferred_task') return '转任务';
   return '转处理'; // 老数据（transferred / follow_up）
 }
@@ -1710,6 +1718,9 @@ async function ensureProblemItemTables() {
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS id_kind TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS images JSONB;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS follow_stamps JSONB;`);
+  // 代购代拍任务：详情字段（执行人/截止日/优先级…）和评论串
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_info JSONB;`);
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_comments JSONB;`);
   // "待跟进暂存"这个状态取消了，老数据里的 shelved 一次性归回待处理，免得永远不显示
   await dbPool.query(`UPDATE problem_item_reports SET status = 'pending' WHERE status = 'shelved';`);
 }
@@ -1732,6 +1743,8 @@ function rowToProblemItemReport(row) {
     status: row.status,
     followStamps: (row.follow_stamps && typeof row.follow_stamps === 'object' && !Array.isArray(row.follow_stamps)) ? row.follow_stamps : {},
     handledBy: row.resolved_by || '', // 转出去/处理掉这条的人（人名视图按这个分）
+    taskInfo: (row.task_info && typeof row.task_info === 'object' && !Array.isArray(row.task_info)) ? row.task_info : {},
+    taskComments: Array.isArray(row.task_comments) ? row.task_comments : [],
   };
 }
 
@@ -1815,7 +1828,7 @@ async function addProblemItemReport(category, issueTypes, inspectorNames, orderN
       console.error('[问题件列表记录写入数据库失败]', err.message);
     }
   }
-  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {} };
+  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {}, taskInfo: {}, taskComments: [] };
   problemItemReports[category].push(report);
   return report;
 }
@@ -1837,23 +1850,41 @@ async function appendProblemItemImages(category, reportId, newImages) {
   return report;
 }
 
-// 跟进图章：同一个图章再点一次就取消，不同图章互不影响。
-// 存成 { 图章名: { by, at } }，谁盖的直接跟在图章旁边显示
-async function toggleProblemItemFollowStamp(category, reportId, stamp, byUsername) {
+// ===== 代购代拍任务：详情字段 + 评论 =====
+// 只有还在"代购代拍任务"队列里的记录能改；各角色都能跟进（写字段、发评论、点赞）
+function findTaskReport(category, reportId) {
   const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(reportId));
-  if (!report) return null;
-  const stamps = (report.followStamps && typeof report.followStamps === 'object') ? { ...report.followStamps } : {};
-  if (stamps[stamp]) delete stamps[stamp];
-  else stamps[stamp] = { by: byUsername, at: Date.now() };
-  report.followStamps = stamps;
-  if (dbPool) {
-    try {
-      await dbPool.query('UPDATE problem_item_reports SET follow_stamps = $1 WHERE id = $2;', [JSON.stringify(stamps), reportId]);
-    } catch (err) {
-      console.error('[问题件跟进图章写入数据库失败]', err.message);
-    }
+  return report && report.status === 'transferred_task' ? report : null;
+}
+function cleanTaskText(v, max) { return String(v == null ? '' : v).replace(/\r/g, '').trim().slice(0, max); }
+function cleanTaskImages(list, max) {
+  return Array.from(new Set((Array.isArray(list) ? list : []).map((u) => String(u || '').trim())
+    .filter((u) => u && isOwnUploadUrl(u)))).slice(0, max);
+}
+// 只收认识的字段，每个字段各自校验；没传的字段保持原样
+function applyTaskPatch(info, patch) {
+  const out = { ...info };
+  if (!patch || typeof patch !== 'object') return out;
+  if ('content' in patch) out.content = cleanTaskText(patch.content, 3000);
+  if ('priority' in patch) out.priority = TASK_PRIORITIES.includes(patch.priority) ? patch.priority : '';
+  if ('contact' in patch) out.contact = TASK_CONTACT_OPTIONS.includes(patch.contact) ? patch.contact : '';
+  if ('followUp' in patch) out.followUp = TASK_FOLLOW_OPTIONS.includes(patch.followUp) ? patch.followUp : '';
+  if ('deadline' in patch) out.deadline = /^\d{4}-\d{2}-\d{2}$/.test(String(patch.deadline || '')) ? String(patch.deadline) : '';
+  if ('jpgoodbuy' in patch) out.jpgoodbuy = cleanTaskText(patch.jpgoodbuy, 100);
+  if ('executors' in patch) {
+    out.executors = Array.from(new Set((Array.isArray(patch.executors) ? patch.executors : [])
+      .map((x) => cleanTaskText(x, 40)).filter((x) => x && users.some((u) => u.username === x)))).slice(0, 20); // 只收真实存在的账号
   }
-  return report;
+  if ('images' in patch) out.images = cleanTaskImages(patch.images, TASK_MAX_IMAGES);
+  return out;
+}
+async function saveTaskColumn(reportId, column, value) {
+  if (!dbPool || String(reportId).startsWith('mem-')) return;
+  try {
+    await dbPool.query(`UPDATE problem_item_reports SET ${column} = $1 WHERE id = $2;`, [JSON.stringify(value), reportId]);
+  } catch (err) {
+    console.error('[任务详情写入数据库失败]', err.message);
+  }
 }
 
 async function updateProblemItemReportStatus(category, reportId, status, byUsername) {
@@ -1862,7 +1893,7 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
 
   let finished = null;
   if (status === 'transferred_merchant' || status === 'transferred_task') {
-    // 转日志商家 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
+    // 转煤炉反查 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
     problemItemReports[category][idx].handledBy = byUsername;
@@ -2259,7 +2290,7 @@ wss.on('connection', (ws) => {
       case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
       special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
       inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
-      problem_item_result: 'problem_item_error', problem_item_stamp: 'problem_item_error',
+      problem_item_result: 'problem_item_error',
       problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
       problem_item_options_update: 'problem_item_options_error',
       reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
@@ -2898,7 +2929,7 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // 队列（日志商家/任务）里的处理结果：已入库 / 已补（换）发入库 / 已取消。
+    // 队列里的处理结果：煤炉反查 = 已入库 / 已补（换）发入库 / 已取消；代购代拍任务 = 已完结。
     // 点完记录就从队列里消失，结果本身写进数据库，导出时能看到是哪一种
     if (data.type === 'problem_item_result') {
       const client = clients.get(ws);
@@ -2907,6 +2938,8 @@ wss.on('connection', (ws) => {
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
       const result = PROBLEM_ITEM_RESULTS[String(data.result || '')];
       if (!result) return;
+      const cur = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!cur || cur.status !== result.queue) return; // 结果要跟它所在的队列对得上
       const ok = await updateProblemItemReportStatus(category, data.reportId, result.status, client.username);
       if (ok) {
         broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
@@ -2915,16 +2948,50 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // 跟进图章：点亮/取消
-    if (data.type === 'problem_item_stamp') {
+    // 代购代拍任务：改详情字段（执行人、截止日、优先级、附件……），谁都能改，改完实时同步
+    if (data.type === 'problem_task_update') {
       const client = clients.get(ws);
       if (!client) return;
       const category = String(data.category || '');
-      if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
-      const stamp = String(data.stamp || '');
-      if (!PROBLEM_ITEM_STAMPS.includes(stamp)) return;
-      const report = await toggleProblemItemFollowStamp(category, data.reportId, stamp, client.username);
-      if (report) broadcast({ type: 'problem_item_report_updated', category, report });
+      const report = findTaskReport(category, data.reportId);
+      if (!report) { ws.send(JSON.stringify({ type: 'problem_task_error', message: '这条任务已经完结或不存在了' })); return; }
+      report.taskInfo = applyTaskPatch(report.taskInfo || {}, data.patch);
+      report.taskInfo.updatedBy = client.username;
+      report.taskInfo.updatedAt = Date.now();
+      await saveTaskColumn(report.id, 'task_info', report.taskInfo);
+      broadcast({ type: 'problem_item_report_updated', category, report });
+      return;
+    }
+    // 任务评论：发 / 删（只能删自己的，管理员都能删）/ 点赞（再点取消）
+    if (data.type === 'problem_task_comment' || data.type === 'problem_task_comment_delete' || data.type === 'problem_task_comment_like') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      const report = findTaskReport(category, data.reportId);
+      if (!report) { ws.send(JSON.stringify({ type: 'problem_task_error', message: '这条任务已经完结或不存在了' })); return; }
+      const comments = Array.isArray(report.taskComments) ? report.taskComments.slice() : [];
+      if (data.type === 'problem_task_comment') {
+        const text = cleanTaskText(data.text, 2000);
+        const images = cleanTaskImages(data.images, 6);
+        if (!text && images.length === 0) return;
+        if (comments.length >= TASK_MAX_COMMENTS) { ws.send(JSON.stringify({ type: 'problem_task_error', message: '评论太多了，先完结这条吧' })); return; }
+        comments.push({ id: `${Date.now()}-${Math.round(Math.random() * 1e6)}`, by: client.username, at: Date.now(), text, images, likes: [] });
+      } else {
+        const c = comments.find((x) => x && x.id === String(data.commentId || ''));
+        if (!c) return;
+        if (data.type === 'problem_task_comment_delete') {
+          if (c.by !== client.username && client.role !== 'admin') { ws.send(JSON.stringify({ type: 'problem_task_error', message: '只能删自己的评论' })); return; }
+          comments.splice(comments.indexOf(c), 1);
+        } else {
+          const likes = Array.isArray(c.likes) ? c.likes.slice() : [];
+          const i = likes.indexOf(client.username);
+          if (i >= 0) likes.splice(i, 1); else likes.push(client.username);
+          comments[comments.indexOf(c)] = { ...c, likes };
+        }
+      }
+      report.taskComments = comments;
+      await saveTaskColumn(report.id, 'task_comments', comments);
+      broadcast({ type: 'problem_item_report_updated', category, report });
       return;
     }
 
@@ -2935,7 +3002,7 @@ wss.on('connection', (ws) => {
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
       let status;
       if (data.type === 'problem_item_resolve') status = 'resolved';
-      // "转处理"拆成了两种去向：转给日志商家、转成任务。老的 'transferred' 保留，只用来读历史数据
+      // "转处理"拆成了两种去向：转煤炉反查、转成任务。老的 'transferred' 保留，只用来读历史数据
       else if (data.type === 'problem_item_transfer') {
         status = data.target === 'task' ? 'transferred_task'
           : data.target === 'merchant' ? 'transferred_merchant'
@@ -2945,7 +3012,7 @@ wss.on('connection', (ws) => {
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {
         if (status === 'transferred_merchant' || status === 'transferred_task') {
-          // 转出去的记录没有消失，只是从原分类挪到了"日志商家/任务"队列里，
+          // 转出去的记录没有消失，只是从原分类挪到了"煤炉反查/代购代拍任务"队列里，
           // 所以广播状态变更（带上完整记录），让各端把它从原列表移走、加进对应队列
           const moved = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
           broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status, report: moved });

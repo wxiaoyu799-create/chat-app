@@ -2705,13 +2705,14 @@
   #problem-item-overlay-body { flex: 1; display: flex; min-height: 0; }
   #problem-item-sidebar {
     flex-shrink: 0;
-    width: 120px;
+    width: 140px;
     background: var(--panel);
     border-right: 1px solid var(--border);
     padding: 12px 8px;
     overflow-y: auto;
   }
   .problem-item-panel-cat-btn {
+    white-space: nowrap;
     width: 100%;
     background: transparent;
     border: none;
@@ -3132,6 +3133,127 @@
   .problem-item-card-row { display: flex; align-items: flex-start; gap: 14px; }
   .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
   #problem-item-list.queue-mode { max-width: 720px; }
+  /* 任务卡片上的摘要行 */
+  .task-summary {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+    margin: 8px 0 2px; padding: 8px 10px; border-radius: 8px;
+    background: var(--panel-alt); cursor: pointer; font-size: 12px; color: var(--muted);
+  }
+  .task-summary:hover { background: var(--hover-dark); }
+  .task-summary .ts-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 8px; font-weight: 600; font-size: 11.5px; }
+  .task-summary .ts-prio { color: #fff; }
+  .task-summary .ts-due.late { background: rgba(229, 83, 75, 0.14); color: #e5534b; }
+  .task-summary .ts-due.today { background: rgba(240, 169, 78, 0.18); color: #c07a14; }
+  .task-summary .ts-due.ok { background: rgba(63, 111, 214, 0.1); color: var(--accent); }
+  .task-summary .ts-execs { display: inline-flex; align-items: center; }
+  .task-summary .ts-execs .avatar { margin-left: -4px; box-shadow: 0 0 0 1.5px var(--panel-alt); }
+  .task-summary .ts-execs .avatar:first-child { margin-left: 0; }
+  .task-summary .ts-last { flex: 1 1 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .task-summary .ts-last b { color: var(--muted); font-weight: 600; }
+  .task-summary .ts-empty { color: var(--muted); }
+  .problem-item-card-actions .task-detail-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    font-size: 12px; font-weight: 600; padding: 6px 12px; cursor: pointer; font-family: inherit;
+  }
+  .finished-task-btn {
+    display: inline-flex; align-items: center; gap: 3px; margin-top: 2px;
+    background: rgba(63, 111, 214, 0.1); color: var(--accent); border: none; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; padding: 2px 9px; cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+
+  /* ===== 任务详情面板 ===== */
+  #task-detail-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
+  #task-detail-panel.active { display: flex; }
+  #task-detail-card { background: var(--bg); border-radius: 14px; width: 100%; max-width: 980px; height: min(760px, calc(100vh - 40px)); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); }
+  #task-detail-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px 10px; border-bottom: 1px solid var(--border); }
+  #task-detail-title { font-size: 19px; font-weight: 800; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #task-detail-state { font-size: 12px; font-weight: 700; color: #2e9e5b; background: rgba(46, 158, 91, 0.12); border-radius: 999px; padding: 2px 10px; }
+  #task-detail-state:empty { display: none; }
+  #task-detail-close { background: transparent; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 4px; line-height: 1; }
+  #task-detail-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.15fr 1fr; }
+  #task-detail-fields { overflow-y: auto; padding: 8px 18px 16px; border-right: 1px solid var(--border); }
+  .td-row { display: grid; grid-template-columns: 118px 1fr; gap: 10px; align-items: start; padding: 8px 0; }
+  .td-label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; padding-top: 5px; }
+  .td-label i { font-size: 16px; }
+  .td-value { min-width: 0; font-size: 13px; }
+  .td-value textarea, .td-value input[type=text], .td-value input[type=date], .td-value select {
+    width: 100%; box-sizing: border-box; border: 1px solid transparent; background: transparent; color: var(--text);
+    border-radius: 7px; padding: 5px 7px; font-size: 13px; font-family: inherit;
+  }
+  .td-value textarea { resize: none; line-height: 1.6; overflow: hidden; min-height: 32px; }
+  .td-value textarea:hover, .td-value input:hover, .td-value select:hover { background: var(--panel-alt); }
+  .td-value textarea:focus, .td-value input:focus, .td-value select:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  .td-value select { width: auto; min-width: 130px; cursor: pointer; }
+  .td-value :disabled { cursor: default; background: transparent !important; color: var(--text); opacity: 1; }
+  .td-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 3px; }
+  .td-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(63, 111, 214, 0.1); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+  .td-chip.cat { background: rgba(240, 169, 78, 0.18); color: #b86e12; }
+  .td-exec { display: inline-flex; align-items: center; gap: 5px; background: var(--panel-alt); border-radius: 999px; padding: 2px 8px 2px 2px; font-size: 12.5px; }
+  .td-exec button, .td-img .td-img-del { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 13px; line-height: 1; }
+  .td-add-exec { border: 1px dashed var(--border) !important; min-width: 0 !important; width: auto !important; color: var(--muted) !important; border-radius: 999px !important; padding: 3px 8px !important; font-size: 12px !important; }
+  .td-imgs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .td-img { position: relative; width: 84px; height: 84px; }
+  .td-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; display: block; }
+  .td-img .td-img-tag { position: absolute; left: 4px; bottom: 4px; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 10px; border-radius: 4px; padding: 0 4px; }
+  .td-img .td-img-del { position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%; background: #e5534b; color: #fff; font-size: 12px; display: flex; align-items: center; justify-content: center; padding: 0; }
+  .td-add-img { width: 84px; height: 84px; border: 1.5px dashed var(--border); border-radius: 8px; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
+  .td-add-img:hover { border-color: var(--accent); color: var(--accent); }
+  .td-due { padding-top: 5px; font-weight: 600; }
+  .td-due.late { color: #e5534b; }
+  .td-due.today { color: #c07a14; }
+  .td-due.ok { color: var(--accent); }
+  .td-prio-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
+  .td-prio-wrap { display: flex; align-items: center; gap: 4px; }
+  .td-meta { font-size: 12px; color: var(--muted); line-height: 1.7; padding-top: 5px; }
+  #task-detail-comments-col { display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+  .td-comments-title { padding: 12px 16px 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  #task-detail-comments { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 10px; display: flex; flex-direction: column; gap: 14px; }
+  .td-empty { color: var(--muted); font-size: 12.5px; text-align: center; padding: 30px 0; }
+  .td-comment { display: flex; gap: 10px; }
+  .td-comment-main { flex: 1; min-width: 0; }
+  .td-comment-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .td-comment-meta b { color: var(--text); font-weight: 600; }
+  .td-comment-text { font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+  .td-comment-imgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+  .td-comment-imgs img { width: 72px; height: 72px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
+  .td-comment-actions { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .td-like { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--bg); border-radius: 999px; padding: 1px 8px; font-size: 11.5px; color: var(--muted); cursor: pointer; font-family: inherit; }
+  .td-like.mine { border-color: var(--accent); color: var(--accent); background: rgba(63, 111, 214, 0.08); }
+  .td-like-add, .td-comment-del { background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 1px 4px; opacity: 0; font-family: inherit; }
+  .td-comment:hover .td-like-add, .td-comment:hover .td-comment-del { opacity: 1; }
+  @media (hover: none) { .td-like-add, .td-comment-del { opacity: 0.8; } }
+  #task-detail-composer { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); padding: 6px 8px; }
+  #task-detail-composer:focus-within { border-color: var(--accent); }
+  #task-detail-comment-input { width: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent; color: var(--text); font-size: 13px; font-family: inherit; line-height: 1.5; max-height: 140px; }
+  .td-composer-actions { display: flex; align-items: center; gap: 6px; }
+  .td-composer-actions button { background: transparent; border: none; color: var(--muted); font-size: 17px; cursor: pointer; padding: 2px 4px; }
+  #task-detail-comment-send { color: var(--accent); }
+  #task-detail-composer-imgs { display: flex; gap: 6px; flex-wrap: wrap; }
+  #task-detail-composer-imgs:empty { display: none; }
+  #task-detail-composer-imgs .td-img { width: 52px; height: 52px; margin: 4px 0; }
+  #task-detail-composer-imgs .td-img.uploading img { opacity: 0.45; }
+  #task-detail-foot { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--border); }
+  #task-detail-msg { font-size: 12px; color: var(--muted); }
+  #task-detail-msg.err { color: #e5534b; }
+  #task-detail-done { background: #2e9e5b; color: #fff; border: none; border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  #task-detail-panel.read-only #task-detail-composer,
+  #task-detail-panel.read-only #task-detail-done,
+  #task-detail-panel.read-only .td-img-del,
+  #task-detail-panel.read-only .td-add-img,
+  #task-detail-panel.read-only .td-add-exec,
+  #task-detail-panel.read-only .td-exec button,
+  #task-detail-panel.read-only .td-like-add,
+  #task-detail-panel.read-only .td-comment-del { display: none !important; }
+  #task-detail-panel.read-only .td-like { pointer-events: none; }
+  @media (max-width: 760px) {
+    #task-detail-panel { padding: 0; }
+    #task-detail-card { height: 100%; max-width: none; border-radius: 0; }
+    #task-detail-body { grid-template-columns: 1fr; overflow-y: auto; display: block; }
+    #task-detail-fields { border-right: none; overflow: visible; }
+    #task-detail-comments-col { min-height: 360px; }
+    #task-detail-comments { overflow: visible; }
+    .td-row { grid-template-columns: 96px 1fr; }
+  }
   /* 队列卡片标签行最前面的分类章：来自哪个分类一眼看到，不用再去读小字 */
   .problem-item-queue-chip {
     display: inline-block;
@@ -4048,15 +4170,15 @@
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
       <div class="problem-item-queue-divider"><span>按类别需关注</span></div>
-      <button class="tool-entry-btn problem-item-cat-btn" data-category="日志商家" type="button">
-        <span class="module-icon-badge"><i class="ti ti-truck-delivery"></i></span>
-        <span class="tool-entry-label">日志商家</span>
-        <span class="problem-item-badge" id="problem-badge-日志商家"></span>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="煤炉反查" type="button">
+        <span class="module-icon-badge"><i class="ti ti-zoom-question"></i></span>
+        <span class="tool-entry-label">煤炉反查</span>
+        <span class="problem-item-badge" id="problem-badge-煤炉反查"></span>
       </button>
-      <button class="tool-entry-btn problem-item-cat-btn" data-category="任务" type="button">
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代购代拍任务" type="button">
         <span class="module-icon-badge"><i class="ti ti-subtask"></i></span>
-        <span class="tool-entry-label">任务</span>
-        <span class="problem-item-badge" id="problem-badge-任务"></span>
+        <span class="tool-entry-label">代购代拍任务</span>
+        <span class="problem-item-badge" id="problem-badge-代购代拍任务"></span>
       </button>
       <div class="problem-item-queue-divider"><span>按处理人需关注</span></div>
       <!-- 按转出人分的人名视图，名单从服务器来，这里动态生成 -->
@@ -5073,8 +5195,8 @@
       <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
       <div class="problem-item-cat-divider"></div>
-      <button class="problem-item-panel-cat-btn" data-category="日志商家">日志商家</button>
-      <button class="problem-item-panel-cat-btn" data-category="任务">任务</button>
+      <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
+      <button class="problem-item-panel-cat-btn" data-category="代购代拍任务">代购代拍任务</button>
       <div class="problem-item-cat-divider"></div>
       <div id="problem-item-panel-person-entries"></div>
       <div class="problem-item-cat-divider"></div>
@@ -5251,6 +5373,38 @@
     </div>
   </div>
 </div>
+
+  <!-- 代购代拍任务详情：左边字段，右边评论。各角色都能改、都能评论，实时同步 -->
+  <div id="task-detail-panel">
+    <div id="task-detail-card">
+      <div id="task-detail-head">
+        <div id="task-detail-title"></div>
+        <span id="task-detail-state"></span>
+        <button type="button" id="task-detail-close" title="关闭（Esc）"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="task-detail-body">
+        <div id="task-detail-fields"></div>
+        <div id="task-detail-comments-col">
+          <div class="td-comments-title">评论 (<span id="task-detail-comment-count">0</span>)</div>
+          <div id="task-detail-comments"></div>
+          <div id="task-detail-composer">
+            <div id="task-detail-composer-imgs"></div>
+            <textarea id="task-detail-comment-input" rows="2" placeholder="添加新的评论…（Enter 发送，Shift+Enter 换行，可粘贴图片）"></textarea>
+            <div class="td-composer-actions">
+              <button type="button" id="task-detail-comment-img" title="加图片"><i class="ti ti-photo"></i></button>
+              <span style="flex:1"></span>
+              <button type="button" id="task-detail-comment-send" title="发送"><i class="ti ti-send"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="task-detail-foot">
+        <span id="task-detail-msg"></span>
+        <span style="flex:1"></span>
+        <button type="button" id="task-detail-done" class="editor-only"><i class="ti ti-circle-check"></i> 已完结</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 发图前的简单标注：框选 / 箭头 / 画笔 / 文字 / 马赛克 -->
   <div id="img-edit-panel">
@@ -5918,6 +6072,9 @@
         if (idx !== -1) list[idx] = data.report;
         // 队列视图是跨分类汇总的，所以只要面板开着就重画，不能只在分类相同时刷新
         if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
+        refreshTaskDetailIfOpen(data.report);
+      } else if (data.type === 'problem_task_error') {
+        showTaskDetailMsg(data.message || '操作失败', true);
       } else if (data.type === 'problem_item_finished_added') {
         // 有人给某条问题件下了最终结果：立刻进"已完结"表格，正开着表格的人不用刷新
         if (!Array.isArray(problemItemData.finished)) problemItemData.finished = [];
@@ -5934,8 +6091,10 @@
         renderProblemItemBadges();
         // 队列视图是跨分类汇总的，所以不管当前看的是哪个分类都要重画
         if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
+        // 正开着的任务详情被人点了已完结：关掉
+        if (taskDetail && !taskDetail.readOnly && String(taskDetail.reportId) === String(data.reportId)) closeTaskDetail();
       } else if (data.type === 'problem_item_report_status_changed') {
-        // 转日志商家/转任务：记录没消失，只是状态变了——从原分类的待处理列表里退场，
+        // 转煤炉反查/转任务：记录没消失，只是状态变了——从原分类的待处理列表里退场，
         // 同时出现在对应的去向队列里。所以两边的红点和列表都要刷新
         const cat = data.category;
         const list = problemItemData.reports[cat];
@@ -7916,7 +8075,7 @@
   // ===== 问题件列表（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
   const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
-  const PROBLEM_ITEM_QUEUES = { '日志商家': 'transferred_merchant', '任务': 'transferred_task' };
+  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task' };
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
   let problemItemHandlers = [];
@@ -7926,18 +8085,21 @@
   function queueNameOfStatus(status) {
     return Object.keys(PROBLEM_ITEM_QUEUES).find((k) => PROBLEM_ITEM_QUEUES[k] === status) || '';
   }
-  // 队列里的三种处理结果：点了就从队列里消失，结果会写进导出的表格
+  // 队列里的处理结果：点了就从队列里消失，结果会写进导出的表格。
+  // 煤炉反查三选一；代购代拍任务的进展都写在任务详情里，最后只点"已完结"
   const PROBLEM_ITEM_RESULTS = [
     { key: 'stocked', label: '已入库', icon: 'ti-package-import' },
     { key: 'reshipped', label: '已补（换）发入库', icon: 'ti-refresh' },
     { key: 'cancelled', label: '已取消', icon: 'ti-ban' },
   ];
-  // 跟进图章：可以同时盖多个，点一下点亮（记下盖章人），再点一下取消
-  const PROBLEM_ITEM_STAMPS = [
-    { name: '日志顾客确认中', cls: 's-log' },
-    { name: '商家中', cls: 's-merchant' },
-    { name: '已建任务跟进中', cls: 's-task' },
+  const TASK_RESULTS = [{ key: 'done', label: '已完结', icon: 'ti-circle-check' }];
+  const TASK_PRIORITIES = [
+    { value: 'P0紧急', color: '#e5534b' },
+    { value: 'P1一般', color: '#e0a100' },
+    { value: 'P2不急', color: '#2e9e5b' },
   ];
+  const TASK_CONTACT_OPTIONS = ['需要', '不需要'];
+  const TASK_FOLLOW_OPTIONS = ['国内跟进', '日本跟进', '不需要跟进'];
   // 代购/代拍/煤炉共用同一组问题类型选项
   function getIssueTypesForCategory() {
     return problemItemData.options.issueTypes || [];
@@ -8465,6 +8627,7 @@
     resolved_stocked: '已入库',
     resolved_reshipped: '已补（换）发入库',
     resolved_cancelled: '已取消',
+    resolved_done: '已完结',
   };
   const FINISHED_STAMP_CLASS = { '日志顾客确认中': 's-log', '商家中': 's-merchant', '已建任务跟进中': 's-task' };
 
@@ -8530,8 +8693,10 @@
         <td>${highlightCell((r.inspectorNames || []).join('、'), keyword)}</td>
         <td>${highlightCell(r.submittedBy, keyword)}</td>
         <td class="col-result">${highlightCell(FINISHED_STATUS_LABELS[r.status] || r.status, keyword)}</td>
-        <td>${stampHtml}</td>
+        <td>${stampHtml}${r.status === 'resolved_done' ? `<button type="button" class="finished-task-btn" data-id="${escapeHtml(String(r.id))}"><i class="ti ti-subtask"></i> 查看任务${(r.taskComments || []).length ? ` · ${(r.taskComments || []).length}条评论` : ''}</button>` : ''}</td>
         <td>${highlightCell(r.resolvedBy, keyword)}</td>`;
+      const taskBtn = tr.querySelector('.finished-task-btn');
+      if (taskBtn) taskBtn.addEventListener('click', () => openTaskDetail(r.category, r.id, true));
       problemItemFinishedTbody.appendChild(tr);
     });
 
@@ -8560,6 +8725,7 @@
       r.orderId, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
       r.submittedBy, r.orderNote, r._fromCategory || r.category, r.handledBy,
       Object.keys(stamps).map((k) => k + ' ' + ((stamps[k] && stamps[k].by) || '')).join(' '),
+      taskHaystack(r),
     ].join(' ').toLowerCase();
   }
   function problemItemMatches(r, key) { return !key || problemItemHaystack(r).includes(key); }
@@ -8627,7 +8793,7 @@
   });
 
   function renderProblemItemList() {
-    // 日志商家/任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
+    // 煤炉反查/代购代拍任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
     const isQueue = isQueueLike(currentProblemItemCategory);
     const allHere = isQueue
       ? getQueueReports(currentProblemItemCategory)
@@ -8658,7 +8824,7 @@
         catChip.textContent = report._fromCategory;
         tagsRow.appendChild(catChip);
       }
-      // 人名视图是把两条队列合在一起看的，所以再多一枚章标明它现在在"日志商家"还是"任务"里
+      // 人名视图是把两条队列合在一起看的，所以再多一枚章标明它现在在"煤炉反查"还是"代购代拍任务"里
       if (isQueue && report._queueName) {
         const qChip = document.createElement('span');
         qChip.className = 'problem-item-queue-chip';
@@ -8729,14 +8895,25 @@
         card.appendChild(imgRow);
       }
 
+      const isTask = isQueue && report.status === 'transferred_task';
+      // 任务卡片上挂一行摘要：优先级、截止、执行人、最新评论，点一下打开详情
+      if (isTask) card.appendChild(buildTaskSummary(report));
+
       const actions = document.createElement('div');
       actions.className = 'problem-item-card-actions';
 
       if (isQueue) {
         actions.classList.add('queue-actions');
-        // 队列里不再是笼统的"已解决"，而是三种明确的处理结果，
+        if (isTask) {
+          const detailBtn = document.createElement('button');
+          detailBtn.className = 'task-detail-btn';
+          detailBtn.innerHTML = '<i class="ti ti-layout-sidebar-right-expand"></i> 任务详情';
+          detailBtn.addEventListener('click', () => openTaskDetail(report._fromCategory || currentProblemItemCategory, report.id));
+          actions.appendChild(detailBtn);
+        }
+        // 队列里不再是笼统的"已解决"，而是明确的处理结果，
         // 点完这条就从队列里退场，结果本身进导出表
-        PROBLEM_ITEM_RESULTS.forEach(({ key, label, icon }) => {
+        (isTask ? TASK_RESULTS : PROBLEM_ITEM_RESULTS).forEach(({ key, label, icon }) => {
           const btn = document.createElement('button');
           btn.className = 'result-btn';
           btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
@@ -8771,7 +8948,7 @@
 
       // 原来的"转处理"拆成两个去向，点哪个就记哪个，导出时能分开统计
       (isQueue ? [] : [
-        { target: 'merchant', label: '转日志商家', icon: 'ti-truck-delivery' },
+        { target: 'merchant', label: '转煤炉反查', icon: 'ti-zoom-question' },
         { target: 'task', label: '转任务', icon: 'ti-subtask' },
       ]).forEach(({ target, label, icon }) => {
         const btn = document.createElement('button');
@@ -8816,45 +8993,487 @@
 
       card.appendChild(actions);
 
-      // 跟进图章：只在队列（日志商家/任务）里出现，竖着排在卡片右边一列。
-      // 盖章人不混在状态文字里——像聊天里的 👍 那样，用一枚小徽章挂在章的右下角。
-      // 大家看的是同一份数据，点亮/取消实时同步给所有人
-      if (isQueue) {
-        const row = document.createElement('div');
-        row.className = 'problem-item-card-row';
-        row.appendChild(card);
-
-        const stampCol = document.createElement('div');
-        stampCol.className = 'problem-item-stamps';
-        const stamped = (report.followStamps && typeof report.followStamps === 'object') ? report.followStamps : {};
-        PROBLEM_ITEM_STAMPS.forEach(({ name, cls }) => {
-          const mark = stamped[name];
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'problem-item-stamp ' + cls + (mark ? ' stamped' : '');
-          btn.innerHTML = `<span class="stamp-name">${name}</span>`
-            + (mark && mark.by ? `<span class="stamp-by"><i class="ti ti-thumb-up"></i>${mark.by}</span>` : '');
-          btn.title = mark ? `${mark.by || ''} 盖的，点一下取消` : '点一下盖章';
-          btn.addEventListener('click', () => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({
-                type: 'problem_item_stamp',
-                category: report._fromCategory || currentProblemItemCategory,
-                reportId: report.id,
-                stamp: name,
-              }));
-            }
-          });
-          stampCol.appendChild(btn);
-        });
-        row.appendChild(stampCol);
-        problemItemList.appendChild(row);
-        return;
-      }
-
       problemItemList.appendChild(card);
     });
   }
+
+  // ===== 代购代拍任务：卡片摘要 + 详情面板 =====
+  function taskHaystack(r) {
+    const t = r.taskInfo || {};
+    return [t.content, t.priority, t.contact, t.followUp, t.jpgoodbuy, (t.executors || []).join(' '),
+      (r.taskComments || []).map((c) => `${c.by} ${c.text}`).join(' ')].join(' ');
+  }
+  function taskDueInfo(deadline) {
+    if (!deadline) return null;
+    const m = String(deadline).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const due = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.round((due - today) / 86400000);
+    if (days < 0) return { cls: 'late', text: `⁉️ 已延期 ${-days} 天` };
+    if (days === 0) return { cls: 'today', text: '今天截止' };
+    return { cls: 'ok', text: `还剩 ${days} 天（${Number(m[2])}/${Number(m[3])}）` };
+  }
+  function taskPrioColor(v) { const x = TASK_PRIORITIES.find((p) => p.value === v); return x ? x.color : ''; }
+  function formatTaskTime(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function buildTaskSummary(report) {
+    const t = report.taskInfo || {};
+    const box = document.createElement('div');
+    box.className = 'task-summary';
+    box.title = '点开看任务详情 / 写评论';
+    if (t.priority) {
+      const c = document.createElement('span');
+      c.className = 'ts-chip ts-prio';
+      c.style.background = taskPrioColor(t.priority);
+      c.textContent = t.priority;
+      box.appendChild(c);
+    }
+    const due = taskDueInfo(t.deadline);
+    if (due) {
+      const c = document.createElement('span');
+      c.className = 'ts-chip ts-due ' + due.cls;
+      c.textContent = due.text;
+      box.appendChild(c);
+    }
+    if ((t.executors || []).length) {
+      const ex = document.createElement('span');
+      ex.className = 'ts-execs';
+      ex.title = '执行人：' + t.executors.join('、');
+      t.executors.slice(0, 5).forEach((n) => ex.appendChild(makeUserAvatar(n, 'xs')));
+      box.appendChild(ex);
+    }
+    const comments = report.taskComments || [];
+    const cc = document.createElement('span');
+    cc.innerHTML = `<i class="ti ti-message-circle"></i> ${comments.length}`;
+    box.appendChild(cc);
+    const last = comments[comments.length - 1];
+    const lastEl = document.createElement('span');
+    if (last) {
+      lastEl.className = 'ts-last';
+      lastEl.innerHTML = `<b>${escapeHtml(last.by)}：</b>${escapeHtml(last.text || '[图片]')}`;
+    } else if (!t.priority && !due && !(t.executors || []).length) {
+      lastEl.className = 'ts-empty';
+      lastEl.textContent = '还没填任务信息，点开补上执行人、截止日…';
+    }
+    box.appendChild(lastEl);
+    box.addEventListener('click', () => openTaskDetail(report._fromCategory || report.category, report.id));
+    return box;
+  }
+
+  const taskDetailPanel = document.getElementById('task-detail-panel');
+  const taskDetailFields = document.getElementById('task-detail-fields');
+  const taskDetailComments = document.getElementById('task-detail-comments');
+  const taskCommentInput = document.getElementById('task-detail-comment-input');
+  const taskComposerImgs = document.getElementById('task-detail-composer-imgs');
+  const taskDetailMsg = document.getElementById('task-detail-msg');
+  let taskDetail = null; // { category, reportId, readOnly, refs }
+  let taskCommentImages = []; // [{ id, objectUrl, url, uploading }]
+  let taskMsgTimer = null;
+
+  function findTaskRecord(category, reportId, readOnly) {
+    if (readOnly) return (problemItemData.finished || []).find((r) => String(r.id) === String(reportId)) || null;
+    return (problemItemData.reports[category] || []).find((r) => String(r.id) === String(reportId)) || null;
+  }
+  function currentTaskRecord() { return taskDetail ? findTaskRecord(taskDetail.category, taskDetail.reportId, taskDetail.readOnly) : null; }
+  function showTaskDetailMsg(text, isErr) {
+    taskDetailMsg.textContent = text;
+    taskDetailMsg.className = isErr ? 'err' : '';
+    clearTimeout(taskMsgTimer);
+    taskMsgTimer = setTimeout(() => { taskDetailMsg.textContent = ''; }, 3500);
+  }
+  function sendTask(type, extra) {
+    if (!taskDetail || taskDetail.readOnly) return false;
+    if (!ws || ws.readyState !== WebSocket.OPEN) { showTaskDetailMsg('连接已断开，稍后再试', true); return false; }
+    ws.send(JSON.stringify({ type, category: taskDetail.category, reportId: taskDetail.reportId, ...extra }));
+    return true;
+  }
+  function patchTask(patch) { if (sendTask('problem_task_update', { patch })) showTaskDetailMsg('已保存，大家那边同步更新'); }
+  function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+  async function uploadTaskImage(file) {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+    return data.url;
+  }
+  function pickImages(multiple) {
+    return new Promise((resolve) => {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = 'image/*';
+      inp.multiple = !!multiple;
+      inp.addEventListener('change', () => resolve(Array.from(inp.files || [])));
+      inp.click();
+    });
+  }
+
+  function tdRow(icon, label, valueEl) {
+    const row = document.createElement('div');
+    row.className = 'td-row';
+    row.innerHTML = `<div class="td-label"><i class="ti ${icon}"></i>${label}</div>`;
+    const v = document.createElement('div');
+    v.className = 'td-value';
+    v.appendChild(valueEl);
+    row.appendChild(v);
+    taskDetailFields.appendChild(row);
+    return v;
+  }
+  function makeSelect(options, placeholder) {
+    const sel = document.createElement('select');
+    sel.innerHTML = `<option value="">${placeholder}</option>` + options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+    return sel;
+  }
+
+  // 字段只在打开时搭一次，之后有人改了就把值填回去（正在输入的那个框不动，免得把人打断）
+  function buildTaskFields() {
+    taskDetailFields.innerHTML = '';
+    const refs = {};
+    refs.content = document.createElement('textarea');
+    refs.content.rows = 2;
+    refs.content.placeholder = '写清楚问题：什么单、哪里不对、要谁做什么';
+    refs.content.addEventListener('input', () => autoGrow(refs.content));
+    refs.content.addEventListener('blur', () => {
+      const r = currentTaskRecord();
+      const old = r ? ((r.taskInfo && r.taskInfo.content != null) ? r.taskInfo.content : (r.orderNote || '')) : '';
+      if (refs.content.value.trim() !== String(old).trim()) patchTask({ content: refs.content.value });
+    });
+    tdRow('ti-align-left', '问题内容', refs.content);
+
+    refs.imgs = document.createElement('div');
+    refs.imgs.className = 'td-imgs';
+    tdRow('ti-paperclip', '附件', refs.imgs);
+
+    refs.types = document.createElement('div');
+    refs.types.className = 'td-chips';
+    tdRow('ti-tags', '问题类型', refs.types);
+
+    refs.contact = makeSelect(TASK_CONTACT_OPTIONS, '— 未选 —');
+    refs.contact.addEventListener('change', () => patchTask({ contact: refs.contact.value }));
+    tdRow('ti-phone-call', '客户向联系', refs.contact);
+
+    refs.deadline = document.createElement('input');
+    refs.deadline.type = 'date';
+    refs.deadline.style.width = 'auto';
+    refs.deadline.addEventListener('change', () => patchTask({ deadline: refs.deadline.value }));
+    tdRow('ti-calendar', '截止日期', refs.deadline);
+
+    refs.due = document.createElement('div');
+    refs.due.className = 'td-due';
+    tdRow('ti-hourglass', '距离截止日', refs.due);
+
+    const prioWrap = document.createElement('div');
+    prioWrap.className = 'td-prio-wrap';
+    refs.prioDot = document.createElement('span');
+    refs.prioDot.className = 'td-prio-dot';
+    refs.priority = makeSelect(TASK_PRIORITIES.map((x) => x.value), '— 未设 —');
+    refs.priority.addEventListener('change', () => patchTask({ priority: refs.priority.value }));
+    prioWrap.appendChild(refs.prioDot);
+    prioWrap.appendChild(refs.priority);
+    tdRow('ti-flag', '优先级', prioWrap);
+
+    refs.execs = document.createElement('div');
+    refs.execs.className = 'td-chips';
+    tdRow('ti-user', '执行人', refs.execs);
+
+    refs.jpgoodbuy = document.createElement('input');
+    refs.jpgoodbuy.type = 'text';
+    refs.jpgoodbuy.placeholder = '请输入内容';
+    refs.jpgoodbuy.maxLength = 100;
+    const saveJp = () => {
+      const r = currentTaskRecord();
+      const old = (r && r.taskInfo && r.taskInfo.jpgoodbuy) || '';
+      if (refs.jpgoodbuy.value.trim() !== old) patchTask({ jpgoodbuy: refs.jpgoodbuy.value });
+    };
+    refs.jpgoodbuy.addEventListener('blur', saveJp);
+    refs.jpgoodbuy.addEventListener('keydown', (e) => { if (e.key === 'Enter') refs.jpgoodbuy.blur(); });
+    tdRow('ti-hash', 'JPGOODBUY 订单号', refs.jpgoodbuy);
+
+    refs.followUp = makeSelect(TASK_FOLLOW_OPTIONS, '— 未选 —');
+    refs.followUp.addEventListener('change', () => patchTask({ followUp: refs.followUp.value }));
+    tdRow('ti-route', '是否需要跟进', refs.followUp);
+
+    refs.meta = document.createElement('div');
+    refs.meta.className = 'td-meta';
+    tdRow('ti-info-circle', '来源', refs.meta);
+    return refs;
+  }
+
+  function fillTaskDetail() {
+    const r = currentTaskRecord();
+    if (!taskDetail || !r) return;
+    const { refs, readOnly } = taskDetail;
+    const t = r.taskInfo || {};
+    const idText = r.orderId ? `${r.orderId}` : `${r.category} · ${(r.issueTypes || []).join('、')}`;
+    document.getElementById('task-detail-title').textContent = idText;
+    document.getElementById('task-detail-state').textContent = readOnly ? (FINISHED_STATUS_LABELS[r.status] || '已完结') : '';
+    const setVal = (el, v) => { if (document.activeElement !== el) el.value = v == null ? '' : v; };
+    setVal(refs.content, t.content != null ? t.content : (r.orderNote || ''));
+    autoGrow(refs.content);
+    setVal(refs.contact, t.contact || '');
+    setVal(refs.deadline, t.deadline || '');
+    setVal(refs.priority, t.priority || '');
+    refs.prioDot.style.background = taskPrioColor(t.priority) || 'var(--border)';
+    setVal(refs.jpgoodbuy, t.jpgoodbuy || '');
+    setVal(refs.followUp, t.followUp || '');
+    [refs.content, refs.contact, refs.deadline, refs.priority, refs.jpgoodbuy, refs.followUp].forEach((el) => { el.disabled = readOnly; });
+    const due = taskDueInfo(t.deadline);
+    refs.due.className = 'td-due' + (due ? ' ' + due.cls : '');
+    refs.due.textContent = due ? due.text : '—';
+
+    // 附件：检品时拍的照片（只读）+ 任务里补的图（可删）
+    refs.imgs.innerHTML = '';
+    const origImgs = Array.isArray(r.images) ? r.images : [];
+    const taskImgs = Array.isArray(t.images) ? t.images : [];
+    const allImgs = origImgs.concat(taskImgs);
+    allImgs.forEach((url, i) => {
+      const box = document.createElement('div');
+      box.className = 'td-img';
+      const im = document.createElement('img');
+      im.src = url;
+      im.addEventListener('click', () => openImageLightbox(allImgs, i));
+      box.appendChild(im);
+      if (i < origImgs.length) {
+        box.insertAdjacentHTML('beforeend', '<span class="td-img-tag">检品照</span>');
+      } else {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'td-img-del';
+        del.textContent = '×';
+        del.title = '删掉这张附件';
+        del.addEventListener('click', () => patchTask({ images: taskImgs.filter((u) => u !== url) }));
+        box.appendChild(del);
+      }
+      refs.imgs.appendChild(box);
+    });
+    if (taskImgs.length < 12) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'td-add-img';
+      add.innerHTML = '<i class="ti ti-plus"></i>';
+      add.title = '加附件图片';
+      add.addEventListener('click', async () => {
+        const files = (await pickImages(true)).slice(0, 12 - taskImgs.length);
+        if (!files.length) return;
+        showTaskDetailMsg(`上传中 0/${files.length}…`);
+        const urls = [];
+        for (const f of files) {
+          try { urls.push(await uploadTaskImage(f)); showTaskDetailMsg(`上传中 ${urls.length}/${files.length}…`); }
+          catch (e) { showTaskDetailMsg(e.message || '上传失败', true); }
+        }
+        const latest = currentTaskRecord();
+        const cur = (latest && latest.taskInfo && latest.taskInfo.images) || [];
+        if (urls.length) patchTask({ images: cur.concat(urls) });
+      });
+      refs.imgs.appendChild(add);
+    }
+
+    refs.types.innerHTML = `<span class="td-chip cat">${escapeHtml(r.category)}</span>`
+      + (r.issueTypes || []).map((x) => `<span class="td-chip">${escapeHtml(x)}</span>`).join('');
+
+    // 执行人：从账号列表里挑
+    refs.execs.innerHTML = '';
+    const execs = Array.isArray(t.executors) ? t.executors : [];
+    execs.forEach((name) => {
+      const chip = document.createElement('span');
+      chip.className = 'td-exec';
+      chip.appendChild(makeUserAvatar(name, 'xs'));
+      chip.appendChild(document.createTextNode(name));
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.textContent = '×';
+      x.title = '移除';
+      x.addEventListener('click', () => patchTask({ executors: execs.filter((n) => n !== name) }));
+      chip.appendChild(x);
+      refs.execs.appendChild(chip);
+    });
+    const candidates = (userDirectory || []).map((u) => u.username).filter((n) => !execs.includes(n));
+    if (candidates.length) {
+      const addSel = document.createElement('select');
+      addSel.className = 'td-add-exec';
+      addSel.innerHTML = '<option value="">＋ 添加执行人</option>' + candidates.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      addSel.addEventListener('change', () => { if (addSel.value) patchTask({ executors: execs.concat(addSel.value) }); });
+      refs.execs.appendChild(addSel);
+    }
+    if (!execs.length && readOnly) refs.execs.textContent = '—';
+
+    const metaBits = [
+      r.orderId ? `${idKindLabel(r.idKind)}：${escapeHtml(r.orderId)}` : '',
+      `检品：${escapeHtml((r.inspectorNames || []).join('、') || '未填写')} · 提交：${escapeHtml(r.submittedBy || '')} ${formatProblemItemTime(r.submittedAt)}`,
+      r.handledBy ? `转任务：${escapeHtml(r.handledBy)}` : '',
+      t.updatedBy ? `最后修改：${escapeHtml(t.updatedBy)} ${formatTaskTime(t.updatedAt)}` : '',
+      readOnly && r.resolvedBy ? `完结：${escapeHtml(r.resolvedBy)} ${formatTaskTime(r.resolvedAt)}` : '',
+    ].filter(Boolean);
+    refs.meta.innerHTML = metaBits.join('<br>');
+
+    renderTaskComments(r);
+  }
+
+  function renderTaskComments(r) {
+    const comments = Array.isArray(r.taskComments) ? r.taskComments : [];
+    document.getElementById('task-detail-comment-count').textContent = comments.length;
+    const nearBottom = taskDetailComments.scrollHeight - taskDetailComments.scrollTop - taskDetailComments.clientHeight < 80;
+    const grew = comments.length > (taskDetail.lastCommentCount || 0);
+    taskDetail.lastCommentCount = comments.length;
+    taskDetailComments.innerHTML = '';
+    if (!comments.length) {
+      taskDetailComments.innerHTML = '<div class="td-empty">还没有评论。跟进到哪一步、顾客/商家怎么说，都写在这里</div>';
+      return;
+    }
+    comments.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'td-comment';
+      row.appendChild(makeUserAvatar(c.by, 'md'));
+      const main = document.createElement('div');
+      main.className = 'td-comment-main';
+      main.innerHTML = `<div class="td-comment-meta"><b>${escapeHtml(c.by)}</b><span>${formatTaskTime(c.at)}</span></div>`
+        + (c.text ? `<div class="td-comment-text">${escapeHtml(c.text)}</div>` : '');
+      const imgs = Array.isArray(c.images) ? c.images : [];
+      if (imgs.length) {
+        const box = document.createElement('div');
+        box.className = 'td-comment-imgs';
+        imgs.forEach((u, i) => {
+          const im = document.createElement('img');
+          im.src = u;
+          im.addEventListener('click', () => openImageLightbox(imgs, i));
+          box.appendChild(im);
+        });
+        main.appendChild(box);
+      }
+      const acts = document.createElement('div');
+      acts.className = 'td-comment-actions';
+      const likes = Array.isArray(c.likes) ? c.likes : [];
+      const like = () => sendTask('problem_task_comment_like', { commentId: c.id });
+      if (likes.length) {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'td-like' + (likes.includes(username) ? ' mine' : '');
+        pill.innerHTML = `👍 ${escapeHtml(likes.join('、'))}`;
+        pill.title = likes.includes(username) ? '再点一下取消' : '我也赞一下';
+        pill.addEventListener('click', like);
+        acts.appendChild(pill);
+      } else {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'td-like-add';
+        add.innerHTML = '👍 赞';
+        add.addEventListener('click', like);
+        acts.appendChild(add);
+      }
+      if (c.by === username || myRole === 'admin') {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'td-comment-del';
+        del.innerHTML = '<i class="ti ti-trash"></i> 删除';
+        del.addEventListener('click', () => { if (confirm('删掉这条评论？')) sendTask('problem_task_comment_delete', { commentId: c.id }); });
+        acts.appendChild(del);
+      }
+      main.appendChild(acts);
+      row.appendChild(main);
+      taskDetailComments.appendChild(row);
+    });
+    if (nearBottom || grew) taskDetailComments.scrollTop = taskDetailComments.scrollHeight;
+  }
+
+  function openTaskDetail(category, reportId, readOnly) {
+    const r = findTaskRecord(category, reportId, !!readOnly);
+    if (!r) return;
+    taskDetail = { category, reportId, readOnly: !!readOnly, lastCommentCount: 0 };
+    taskDetail.refs = buildTaskFields();
+    taskDetailPanel.classList.toggle('read-only', !!readOnly);
+    taskDetailPanel.classList.add('active');
+    taskDetailMsg.textContent = '';
+    clearTaskCommentImages();
+    taskCommentInput.value = '';
+    fillTaskDetail();
+    taskDetailComments.scrollTop = taskDetailComments.scrollHeight;
+  }
+  function closeTaskDetail() {
+    taskDetailPanel.classList.remove('active');
+    taskDetail = null;
+    clearTaskCommentImages();
+  }
+  function refreshTaskDetailIfOpen(report) {
+    if (taskDetail && report && String(report.id) === String(taskDetail.reportId)) fillTaskDetail();
+  }
+
+  // ---- 评论输入：文字 + 图片（选图或粘贴），图片先传，发的时候带地址 ----
+  function clearTaskCommentImages() {
+    taskCommentImages.forEach((x) => URL.revokeObjectURL(x.objectUrl));
+    taskCommentImages = [];
+    taskComposerImgs.innerHTML = '';
+  }
+  function renderTaskComposerImgs() {
+    taskComposerImgs.innerHTML = '';
+    taskCommentImages.forEach((x) => {
+      const box = document.createElement('div');
+      box.className = 'td-img' + (x.uploading ? ' uploading' : '');
+      box.innerHTML = `<img src="${x.objectUrl}" alt="" />`;
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'td-img-del';
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        taskCommentImages = taskCommentImages.filter((y) => y !== x);
+        URL.revokeObjectURL(x.objectUrl);
+        renderTaskComposerImgs();
+      });
+      box.appendChild(del);
+      taskComposerImgs.appendChild(box);
+    });
+  }
+  function addTaskCommentFiles(files) {
+    files.filter((f) => f && f.type && f.type.startsWith('image/')).slice(0, 6 - taskCommentImages.length).forEach((f) => {
+      const x = { objectUrl: URL.createObjectURL(f), url: '', uploading: true };
+      taskCommentImages.push(x);
+      uploadTaskImage(f)
+        .then((u) => { x.url = u; })
+        .catch((e) => { showTaskDetailMsg(e.message || '图片上传失败', true); taskCommentImages = taskCommentImages.filter((y) => y !== x); })
+        .finally(() => { x.uploading = false; renderTaskComposerImgs(); });
+    });
+    renderTaskComposerImgs();
+  }
+  function sendTaskComment() {
+    const text = taskCommentInput.value.trim();
+    if (taskCommentImages.some((x) => x.uploading)) { showTaskDetailMsg('图片还在上传，稍等一下'); return; }
+    const images = taskCommentImages.map((x) => x.url).filter(Boolean);
+    if (!text && !images.length) return;
+    if (sendTask('problem_task_comment', { text, images })) {
+      taskCommentInput.value = '';
+      autoGrow(taskCommentInput);
+      clearTaskCommentImages();
+    }
+  }
+  document.getElementById('task-detail-comment-send').addEventListener('click', sendTaskComment);
+  document.getElementById('task-detail-comment-img').addEventListener('click', async () => addTaskCommentFiles(await pickImages(true)));
+  taskCommentInput.addEventListener('input', () => autoGrow(taskCommentInput));
+  taskCommentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendTaskComment(); }
+  });
+  taskCommentInput.addEventListener('paste', (e) => {
+    const files = Array.from((e.clipboardData && e.clipboardData.items) || [])
+      .filter((it) => it.type && it.type.startsWith('image/')).map((it) => it.getAsFile()).filter(Boolean);
+    if (files.length) { e.preventDefault(); addTaskCommentFiles(files); }
+  });
+  document.getElementById('task-detail-close').addEventListener('click', closeTaskDetail);
+  taskDetailPanel.addEventListener('click', (e) => { if (e.target === taskDetailPanel) closeTaskDetail(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !taskDetailPanel.classList.contains('active')) return;
+    if (document.getElementById('image-lightbox').classList.contains('active')) return;
+    e.stopImmediatePropagation(); // 只关任务详情，下面的问题件面板留着
+    closeTaskDetail();
+  }, true);
+  document.getElementById('task-detail-done').addEventListener('click', () => {
+    if (!taskDetail || taskDetail.readOnly) return;
+    if (!confirm('确认这条任务已完结？完结后从代购代拍任务里移到"完结问题件"。')) return;
+    sendTask('problem_item_result', { result: 'done' });
+  });
 
   // ---- 给已提交的问题件补传照片 ----
   // 典型用法：检品台用电脑提交（登录名对得上人），照片用手机拍了补上来；

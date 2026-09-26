@@ -157,6 +157,11 @@
   /* 右侧栏收起：整个 #app 变成两栏，聊天区把空出来的宽度吃掉 */
   /* 右侧栏收起：空出来的宽度分一点给左侧栏，条目更舒展，剩下的都给聊天区 */
   #app.right-collapsed { grid-template-columns: 240px 1fr; }
+  /* 大屏/最大化：整体放宽，两侧栏也跟着宽一点，不留大片空白 */
+  @media (min-width: 1400px) {
+    #app { max-width: 1680px; grid-template-columns: 236px 1fr 256px; }
+    #app.right-collapsed { grid-template-columns: 276px 1fr; }
+  }
   #app.right-collapsed > #quick-sidebar { display: none; }
   @media (max-width: 900px) { #right-sidebar-toggle { display: none; } }
 

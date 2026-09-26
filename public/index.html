@@ -129,13 +129,13 @@
 
   #chat-col { display: flex; flex-direction: column; border-left: 1px solid var(--border); border-right: 1px solid var(--border); min-width: 0; min-height: 0; overflow: hidden; position: relative; }
   header {
-    padding: 14px 18px;
+    padding: 7px 16px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  header h2 { margin: 0; font-size: 22px; }
+  header h2 { margin: 0; font-size: 17px; font-weight: 700; color: var(--muted); }
   header .status { font-size: 12px; color: var(--muted); }
   .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   #chat-search-btn, #right-sidebar-toggle {
@@ -251,12 +251,12 @@
   .ctx-msg .ctx-text { font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
   .ctx-msg .ctx-imgs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
   .ctx-msg .ctx-imgs img { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; }
-  .header-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .header-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .username-block { position: relative; display: flex; flex-direction: column; gap: 2px; }
   .my-username {
-    font-size: 20px;
+    font-size: 14px;
     font-weight: 700;
-    color: #f0a94e;
+    color: var(--my-role-color, #f0a94e);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1841,7 +1841,7 @@
   .avatar-wrap .dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; border: 1.5px solid var(--panel); box-sizing: content-box; }
   #online-list li.is-offline .avatar { opacity: 0.55; }
   /* 头部自己的头像 */
-  #my-avatar { cursor: pointer; margin-right: 6px; align-self: center; }
+  #my-avatar { cursor: pointer; margin-right: 7px; align-self: center; --av-size: 26px; }
   .username-block { flex-direction: row !important; align-items: center; }
   /* 我的账号 / 群管理里的头像设置 */
   .avatar-edit-row { display: flex; align-items: center; gap: 14px; margin: 4px 0 16px; }
@@ -1858,7 +1858,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     border-bottom: 1px solid var(--border);
     background: var(--panel);
     flex-shrink: 0;
@@ -1875,13 +1875,15 @@
     border: 1px solid transparent;
     border-radius: 999px;
     color: var(--muted);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 600;
-    padding: 5px 12px;
+    padding: 4px 14px 4px 10px;
+    gap: 7px;
     cursor: pointer;
     font-family: inherit;
-    max-width: 180px;
+    max-width: 200px;
   }
+  .group-tab .avatar { --av-size: 24px; }
   .group-tab:hover { background: var(--hover-dark); color: var(--text); }
   .group-tab.active { background: var(--accent); color: #fff; }
   .group-tab .gt-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1942,7 +1944,8 @@
   #group-form-error { color: #e5534b; font-size: 12px; min-height: 16px; margin-bottom: 6px; }
   #group-form-delete-btn.hidden { display: none; }
   @media (max-width: 640px) {
-    .group-tab { font-size: 12px; padding: 4px 10px; max-width: 130px; }
+    .group-tab { font-size: 13.5px; padding: 4px 11px 4px 9px; max-width: 140px; }
+    .group-tab .avatar { --av-size: 22px; }
   }
 
   /* ===== 账号 / 角色 ===== */
@@ -3881,8 +3884,8 @@
     /* iOS 上输入框字号小于16px会自动放大整个页面，聚焦后版式就乱了 */
     input, textarea, select { font-size: 16px; }
 
-    header h2 { font-size: 18px; }
-    .my-username { font-size: 16px; }
+    header h2 { font-size: 15px; }
+    .my-username { font-size: 14px; }
     #messages { padding: 10px 12px; }
     .staff-grid-row { grid-template-columns: 84px 1fr 76px 26px; }
     #staff-body, #timeclock-body { padding-left: 12px; padding-right: 12px; }
@@ -5437,8 +5440,11 @@
     box.dataset.avatarUser = username;
     // 自己的头像地址优先用登录信息里的（名单还没到时也能显示）
     const info = userInfoOf(username);
+    const roleColor = ROLE_COLORS[(info && info.role) || myRole] || '#8a90a0';
+    // 头部自己的名字也用角色颜色
+    document.documentElement.style.setProperty('--my-role-color', roleColor);
     paintAvatar(box, {
-      color: ROLE_COLORS[(info && info.role) || myRole] || '#8a90a0',
+      color: roleColor,
       url: (info && info.avatarUrl) || (myUser && myUser.avatarUrl) || '',
       text: avatarText(username, 'user'),
       title: '我的账号：点这里换头像 / 改密码',

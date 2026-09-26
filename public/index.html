@@ -316,7 +316,9 @@
     gap: 4px;
   }
   /* 每条消息左边挂一个头像，名字缩小变淡放在气泡上面 */
-  .msg { display: flex; flex-direction: column; max-width: 70%; position: relative; padding-left: 44px; min-height: 38px; }
+  /* flex-shrink:0 很重要：#messages 是纵向 flex，消息一多就会被压缩；
+     默认的 min-height:auto 会挡住压缩，但这里写了 min-height 就把那道保护覆盖掉了，必须显式禁止压缩 */
+  .msg { display: flex; flex-direction: column; max-width: 70%; position: relative; padding-left: 44px; min-height: 38px; flex-shrink: 0; }
   .msg > .msg-avatar { position: absolute; left: 0; top: 2px; }
   /* 自己发的也靠左，跟别人的排成一列（只用气泡颜色区分谁发的） */
   .msg.me { align-self: flex-start; align-items: flex-start; }

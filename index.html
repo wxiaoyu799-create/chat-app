@@ -2685,8 +2685,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 14px;
     margin-bottom: 16px;
+    position: sticky;
+    top: -20px;           /* 内容区有 20px 上内边距，往上抵消掉，贴住顶边 */
+    z-index: 5;
+    background: var(--bg);
+    padding: 10px 0;
   }
+  #problem-item-content-header #problem-item-search-bar { flex: 1; margin: 0; justify-content: flex-start; min-width: 0; }
+  #problem-item-list, #problem-item-search-elsewhere { scroll-margin-top: 80px; }
   #problem-item-content-title { font-size: 20px; font-weight: 700; color: var(--text); }
   #problem-item-header-actions { display: flex; gap: 6px; }
 
@@ -2893,6 +2901,25 @@
   .problem-item-divider { border-top: 1px solid var(--border); margin: 22px 0; max-width: 480px; }
 
   #problem-item-list { display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+  #problem-item-search-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; max-width: 720px; }
+  @media (max-width: 640px) { #problem-item-content-header { flex-wrap: wrap; } #problem-item-content-header #problem-item-search-bar { order: 3; flex-basis: 100%; } }
+  #problem-item-search-wrap {
+    display: flex; align-items: center; gap: 7px; flex: 1 1 260px; max-width: 420px;
+    border: 1px solid var(--border); background: var(--panel); border-radius: 9px; padding: 0 10px; color: var(--muted);
+  }
+  #problem-item-search-wrap:focus-within { border-color: var(--accent); }
+  #problem-item-search { flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--text); font-family: inherit; font-size: 13px; padding: 8px 0; }
+  #problem-item-search-count { font-size: 12px; color: var(--muted); }
+  #problem-item-search-elsewhere { display: none; font-size: 12.5px; color: var(--muted); margin: -2px 0 10px; max-width: 720px; }
+  #problem-item-search-elsewhere.active { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #problem-item-search-elsewhere button {
+    background: rgba(63, 111, 214, 0.1); color: var(--accent); border: none; border-radius: 999px;
+    font-size: 12px; font-weight: 600; padding: 3px 10px; cursor: pointer; font-family: inherit;
+  }
+  #problem-item-search-elsewhere button:hover { background: rgba(63, 111, 214, 0.2); }
+  .problem-item-card mark { background: rgba(245, 196, 179, 0.7); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .problem-item-card.search-flash { animation: pi-search-flash 1.4s ease; }
+  @keyframes pi-search-flash { 0%, 30% { box-shadow: 0 0 0 3px rgba(240, 169, 78, 0.8); } 100% { box-shadow: 0 0 0 0 rgba(240, 169, 78, 0); } }
 
   /* ---- 完结问题件：CC里直接看的表格，不用导出 ---- */
   #problem-item-finished-panel { display: none; }
@@ -4990,6 +5017,14 @@
       </div>
       <div id="problem-item-content-header">
         <span id="problem-item-content-title">代购</span>
+        <!-- 搜索放在标题行（钉在顶上），不用滚过提交表单才能找到 -->
+        <div id="problem-item-search-bar">
+          <div id="problem-item-search-wrap">
+            <i class="ti ti-search"></i>
+            <input id="problem-item-search" type="search" placeholder="搜单号 / 问题类型 / 人名 / 备注，扫码枪也行" autocomplete="off" />
+          </div>
+          <span id="problem-item-search-count"></span>
+        </div>
         <div id="problem-item-header-actions">
           <button id="problem-item-export-btn" class="pin-edit-btn" type="button" title="导出已处理的记录"><i class="ti ti-download"></i></button>
           <button id="problem-item-options-gear-btn" class="pin-edit-btn" type="button" title="编辑下拉选项列表"><i class="ti ti-settings"></i></button>
@@ -5061,6 +5096,8 @@
       </div>
 
       <div class="problem-item-divider"></div>
+
+      <div id="problem-item-search-elsewhere"></div>
 
       <div id="problem-item-list"></div>
 
@@ -5778,8 +5815,9 @@
         // 有人给某条问题件下了最终结果：立刻进"已完结"表格，正开着表格的人不用刷新
         if (!Array.isArray(problemItemData.finished)) problemItemData.finished = [];
         problemItemData.finished.push(data.record);
-        if (problemItemOverlay.classList.contains('active') && isFinishedView(currentProblemItemCategory)) {
-          renderFinishedTable();
+        if (problemItemOverlay.classList.contains('active')) {
+          if (isFinishedView(currentProblemItemCategory)) renderFinishedTable();
+          else if (problemItemSearchKey) renderProblemItemList(); // 搜索中的话，"在别处找到"要把完结里的也算上
         }
       } else if (data.type === 'problem_item_report_removed') {
         const cat = data.category;
@@ -7992,6 +8030,8 @@
     if (formEl) formEl.style.display = (isQueue || isFinished) ? 'none' : '';
     if (dividerEl) dividerEl.style.display = (isQueue || isFinished) ? 'none' : '';
     problemItemList.style.display = isFinished ? 'none' : '';
+    document.getElementById('problem-item-search-bar').style.display = isFinished ? 'none' : '';
+    if (isFinished) problemItemSearchElsewhere.classList.remove('active');
     problemItemFinishedPanel.classList.toggle('active', isFinished);
     if (isFinished) {
       renderFinishedTable();
@@ -8133,17 +8173,98 @@
     renderFinishedTable();
   });
 
+  // ---- 问题件搜索：在当前视图里筛；当前没有就看看别的视图里有没有 ----
+  const problemItemSearchInput = document.getElementById('problem-item-search');
+  const problemItemSearchCount = document.getElementById('problem-item-search-count');
+  const problemItemSearchElsewhere = document.getElementById('problem-item-search-elsewhere');
+  let problemItemSearchKey = '';
+  function problemItemHaystack(r) {
+    const stamps = (r.followStamps && typeof r.followStamps === 'object') ? r.followStamps : {};
+    return [
+      r.orderId, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
+      r.submittedBy, r.orderNote, r._fromCategory || r.category, r.handledBy,
+      Object.keys(stamps).map((k) => k + ' ' + ((stamps[k] && stamps[k].by) || '')).join(' '),
+    ].join(' ').toLowerCase();
+  }
+  function problemItemMatches(r, key) { return !key || problemItemHaystack(r).includes(key); }
+  // 当前没搜到时，把能搜到的其他地方列出来，点一下直接跳过去
+  function renderProblemItemElsewhere(key, hereCount) {
+    problemItemSearchElsewhere.innerHTML = '';
+    problemItemSearchElsewhere.classList.remove('active');
+    if (!key || hereCount > 0) return;
+    const places = [];
+    PROBLEM_ITEM_CATEGORIES_CLIENT.forEach((cat) => {
+      const n = (problemItemData.reports[cat] || []).filter((r) => r.status === 'pending' && problemItemMatches(r, key)).length;
+      if (n && cat !== currentProblemItemCategory) places.push({ cat, n });
+    });
+    Object.keys(PROBLEM_ITEM_QUEUES).forEach((q) => {
+      const n = getQueueReports(q).filter((r) => problemItemMatches(r, key)).length;
+      if (n && q !== currentProblemItemCategory) places.push({ cat: q, n });
+    });
+    const fin = (problemItemData.finished || []).filter((r) => problemItemMatches(r, key)).length;
+    if (fin && currentProblemItemCategory !== PROBLEM_ITEM_FINISHED_VIEW) places.push({ cat: PROBLEM_ITEM_FINISHED_VIEW, n: fin });
+    if (!places.length) return;
+    problemItemSearchElsewhere.classList.add('active');
+    const label = document.createElement('span');
+    label.textContent = '这里没有，在这些地方找到了：';
+    problemItemSearchElsewhere.appendChild(label);
+    places.forEach(({ cat, n }) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = `${cat} ${n} 条`;
+      b.addEventListener('click', () => {
+        currentProblemItemCategory = cat;
+        resetProblemItemForm();
+        updateProblemItemPanelForCategory();
+        // 完结问题件那张表有自己的搜索框，把关键词带过去
+        if (cat === PROBLEM_ITEM_FINISHED_VIEW) {
+          finishedSearchKeyword = problemItemSearchInput.value;
+          problemItemFinishedSearch.value = problemItemSearchInput.value;
+          renderFinishedTable();
+        }
+      });
+      problemItemSearchElsewhere.appendChild(b);
+    });
+  }
+  problemItemSearchInput.addEventListener('input', () => {
+    problemItemSearchKey = problemItemSearchInput.value.trim().toLowerCase();
+    renderProblemItemList();
+    if (problemItemSearchKey) {
+      // 结果在提交表单下面，看不到的话直接滚过去（标题行钉在顶上，要把它的高度让出来）
+      const area = document.getElementById('problem-item-content-area');
+      const hdr = document.getElementById('problem-item-content-header');
+      const target = problemItemSearchElsewhere.classList.contains('active') ? problemItemSearchElsewhere : problemItemList;
+      const offset = target.getBoundingClientRect().top - area.getBoundingClientRect().top - hdr.offsetHeight - 12;
+      if (offset > 0 || offset < -hdr.offsetHeight) area.scrollTop += offset;
+    }
+  });
+  // 回车：跳到第一条搜到的卡片并闪一下（扫码枪扫完会自动带回车）
+  problemItemSearchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const first = problemItemList.querySelector('.problem-item-card');
+    if (!first) return;
+    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    first.classList.remove('search-flash');
+    void first.offsetWidth;
+    first.classList.add('search-flash');
+  });
+
   function renderProblemItemList() {
     // 日志商家/任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
     const isQueue = isQueueLike(currentProblemItemCategory);
-    const reports = isQueue
+    const allHere = isQueue
       ? getQueueReports(currentProblemItemCategory)
       : (problemItemData.reports[currentProblemItemCategory] || []).filter((r) => r.status === 'pending');
+    const key = problemItemSearchKey;
+    const reports = allHere.filter((r) => problemItemMatches(r, key));
+    problemItemSearchCount.textContent = key ? `搜到 ${reports.length} 条 / 共 ${allHere.length} 条` : (allHere.length ? `共 ${allHere.length} 条` : '');
+    renderProblemItemElsewhere(key, reports.length);
     problemItemList.innerHTML = '';
     if (reports.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'problem-item-empty';
-      empty.textContent = isQueue ? '这个队列里暂时没有记录' : '暂无待处理的问题件';
+      empty.textContent = key ? `这里没有「${problemItemSearchInput.value.trim()}」` : (isQueue ? '这个队列里暂时没有记录' : '暂无待处理的问题件');
       problemItemList.appendChild(empty);
       return;
     }
@@ -8195,14 +8316,14 @@
       if (report.orderId) {
         const idRow = document.createElement('div');
         idRow.className = 'problem-item-card-id';
-        idRow.textContent = `${idKindLabel(report.idKind)}：${report.orderId}`;
+        idRow.innerHTML = `${escapeHtml(idKindLabel(report.idKind))}：${highlightCell(report.orderId, problemItemSearchInput.value.trim())}`;
         card.appendChild(idRow);
       }
 
       if (report.orderNote) {
         const note = document.createElement('div');
         note.className = 'problem-item-card-note';
-        note.textContent = report.orderNote;
+        note.innerHTML = highlightCell(report.orderNote, problemItemSearchInput.value.trim());
         card.appendChild(note);
       }
 

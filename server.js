@@ -1803,7 +1803,7 @@ async function loadProblemItemDataFromDB() {
 
 async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images) {
   const now = Date.now();
-  let id = `mem-${now}`;
+  let id = `mem-${now}-${Math.round(Math.random() * 1e6)}`; // 没数据库时的临时 ID，同一毫秒提交多条也不撞
   if (dbPool) {
     try {
       const result = await dbPool.query(

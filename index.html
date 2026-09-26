@@ -5128,7 +5128,7 @@
       </div>
       <div class="case-field">
         <label class="problem-item-field-label">单号（选填，默认不公开）</label>
-        <input id="case-order-id" type="text" maxlength="60" placeholder="订单ID / RS单号 / 快递单号" autocomplete="off" />
+        <input id="case-order-id" type="text" maxlength="60" placeholder="订单ID / RS单号 / M单号 / 快递单号" autocomplete="off" />
         <div id="case-order-hint"></div>
         <label class="case-check-row">
           <input id="case-order-public" type="checkbox" />
@@ -8420,20 +8420,23 @@
 
   // 单号有三种：
   //   tracking 快递单号——选了"找不到…"这类问题时（手上没有单号，只有快递单）
-  //   rs       RS单号——代购、煤炉用
+  //   rs       RS单号——代购用
+  //   m        M单号——煤炉用（以前煤炉也记 RS单号，老记录照旧显示 RS单号）
   //   order    订单ID——代拍用
-  const RS_CATEGORIES = ['代购', '煤炉'];
+  const ID_KIND_BY_CATEGORY = { 代购: 'rs', 煤炉: 'm' };
   function currentIdKind() {
     if (Array.from(selectedIssueTypes).some((t) => t.includes('找不到'))) return 'tracking';
-    return RS_CATEGORIES.includes(currentProblemItemCategory) ? 'rs' : 'order';
+    return ID_KIND_BY_CATEGORY[currentProblemItemCategory] || 'order';
   }
   function idKindLabel(kind) {
-    return kind === 'tracking' ? '快递单号' : kind === 'rs' ? 'RS单号' : '订单ID';
+    return kind === 'tracking' ? '快递单号' : kind === 'rs' ? 'RS单号' : kind === 'm' ? 'M单号' : '订单ID';
   }
+  function idKindAlnum(kind) { return kind === 'rs' || kind === 'm'; } // 这两种可以带字母
   function updateProblemItemIdField() {
     const kind = currentIdKind();
     problemItemIdLabel.textContent = idKindLabel(kind);
-    problemItemIdInput.placeholder = kind === 'rs' ? '字母和数字，比如 RS12345678' : '只能填数字';
+    problemItemIdInput.placeholder = kind === 'rs' ? '字母和数字，比如 RS12345678'
+      : kind === 'm' ? '字母和数字，比如 m12345678901' : '只能填数字';
     problemItemIdTip.textContent = kind === 'tracking'
       ? '当前选的问题类型里有"找不到…"，填快递单号'
       : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
@@ -9593,9 +9596,9 @@
       problemItemIdInput.focus();
       return;
     }
-    const idPattern = idKind === 'rs' ? /^[A-Za-z0-9]+$/ : /^\d+$/;
+    const idPattern = idKindAlnum(idKind) ? /^[A-Za-z0-9]+$/ : /^\d+$/;
     if (!idPattern.test(idValue)) {
-      problemItemSubmitHint.textContent = idKind === 'rs' ? 'RS单号只能填字母和数字' : `${idLabel}只能填数字`;
+      problemItemSubmitHint.textContent = idKindAlnum(idKind) ? `${idLabel}只能填字母和数字` : `${idLabel}只能填数字`;
       problemItemSubmitHint.style.color = '#e5534b';
       problemItemIdInput.focus();
       return;
@@ -11547,7 +11550,7 @@
     caseOrderIdInput.value = knownOrder;
     caseOrderIdInput.placeholder = (existing && existing.hasOrderId && !knownOrder)
       ? '已填过单号（未公开，看不到原值）——留空则保持不变'
-      : '订单ID / RS单号 / 快递单号';
+      : '订单ID / RS单号 / M单号 / 快递单号';
     caseOrderHint.textContent = (existing && existing.hasOrderId && !knownOrder)
       ? '想看原来的单号，先关掉这个框、在卡片上点"凭密码查看"'
       : '';

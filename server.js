@@ -327,7 +327,7 @@ app.get('/api/problem-item-export', async (req, res) => {
         escapeCsv(issueTypes),
         escapeCsv(inspectorNames),
         escapeCsv(row.order_id
-          ? `${row.id_kind === 'tracking' ? '快递单号' : row.id_kind === 'rs' ? 'RS单号' : '订单ID'}：${row.order_id}`
+          ? `${row.id_kind === 'tracking' ? '快递单号' : row.id_kind === 'rs' ? 'RS单号' : row.id_kind === 'm' ? 'M单号' : '订单ID'}：${row.order_id}`
           : ''),
         escapeCsv(row.order_note),
         escapeCsv(Array.isArray(row.images) ? row.images.join(' ') : ''),
@@ -1736,7 +1736,7 @@ function rowToProblemItemReport(row) {
     inspectorNames: row.inspector_names,
     orderNote: row.order_note || '',
     orderId: row.order_id || '',
-    idKind: ['tracking', 'rs', 'order'].includes(row.id_kind) ? row.id_kind : 'order',
+    idKind: ['tracking', 'rs', 'm', 'order'].includes(row.id_kind) ? row.id_kind : 'order',
     images: Array.isArray(row.images) ? row.images : [],
     submittedBy: row.submitted_by,
     submittedAt: new Date(row.submitted_at).getTime(),
@@ -2876,17 +2876,18 @@ wss.on('connection', (ws) => {
 
       // 订单ID / 快递单号：必填，而且只能是数字。选了"找不到…"这类问题类型时前端会切成快递单号，
       // 这里只按前端传过来的 idKind 记录是哪一种，校验规则两者一样
-      // order=订单ID（代拍）/ rs=RS单号（代购、煤炉）/ tracking=快递单号（选了"找不到…"时）
-      const idKind = ['tracking', 'rs', 'order'].includes(data.idKind) ? data.idKind : 'order';
+      // order=订单ID（代拍）/ rs=RS单号（代购）/ m=M单号（煤炉）/ tracking=快递单号（选了"找不到…"时）
+      const idKind = ['tracking', 'rs', 'm', 'order'].includes(data.idKind) ? data.idKind : 'order';
       const orderId = String(data.orderId || '').trim().slice(0, 40);
-      // RS单号里可能带字母（比如 RS12345678），所以放宽成"字母+数字"；
+      // RS单号/M单号里带字母（比如 RS12345678、m12345678901），所以放宽成"字母+数字"；
       // 订单ID和快递单号仍然只能是纯数字
-      const idOk = idKind === 'rs' ? /^[A-Za-z0-9]+$/.test(orderId) : /^\d+$/.test(orderId);
+      const idOk = (idKind === 'rs' || idKind === 'm') ? /^[A-Za-z0-9]+$/.test(orderId) : /^\d+$/.test(orderId);
       if (!idOk) {
         ws.send(JSON.stringify({
           type: 'problem_item_error',
           message: idKind === 'tracking' ? '请填写快递单号（只能填数字）'
             : idKind === 'rs' ? '请填写RS单号（只能填字母和数字）'
+            : idKind === 'm' ? '请填写M单号（只能填字母和数字）'
             : '请填写订单ID（只能填数字）',
         }));
         return;

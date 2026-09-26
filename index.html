@@ -315,11 +315,13 @@
     flex-direction: column;
     gap: 4px;
   }
-  .msg { display: flex; flex-direction: column; max-width: 70%; }
+  /* 每条消息左边挂一个头像，名字缩小变淡放在气泡上面 */
+  .msg { display: flex; flex-direction: column; max-width: 70%; position: relative; padding-left: 44px; min-height: 38px; }
+  .msg > .msg-avatar { position: absolute; left: 0; top: 2px; }
   /* 自己发的也靠左，跟别人的排成一列（只用气泡颜色区分谁发的） */
   .msg.me { align-self: flex-start; align-items: flex-start; }
   .msg.other { align-self: flex-start; align-items: flex-start; }
-  .msg .name { font-size: 14px; font-weight: 600; color: var(--muted); margin-bottom: 3px; padding: 0 4px; }
+  .msg .name { font-size: 12px; font-weight: 500; color: var(--muted); opacity: 0.8; margin-bottom: 2px; padding: 0 4px; }
   .msg .name-time { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; opacity: 0.75; }
   .msg .bubble {
     position: relative;
@@ -1309,6 +1311,8 @@
   #online-list .ol-dm { color: var(--muted); font-size: 13px; opacity: 0; flex-shrink: 0; }
   #online-list li:hover .ol-dm { opacity: 1; color: var(--accent); }
   .group-tab .gt-dm-icon { font-size: 13px; opacity: 0.8; }
+  .group-tab .avatar { margin-left: -6px; }
+  .group-tab.active .avatar:not(.has-img) { box-shadow: 0 0 0 1.5px rgba(255,255,255,0.8); }
   .group-tab .gt-close { font-size: 13px; line-height: 1; opacity: 0; margin-left: 2px; }
   .group-tab:hover .gt-close, .group-tab.active .gt-close { opacity: 0.7; }
   .group-tab .gt-close:hover { opacity: 1; color: #e5534b; }
@@ -1802,6 +1806,51 @@
   .problem-item-badge.show { display: block; }
 
   /* ===== 问题件列表全屏面板 ===== */
+  /* ===== 头像 =====
+     默认：角色色的圆，里面写名字（两个字全写，三个字以上写后两个）；
+     换了图片：图片填满圆，外面一圈角色色的环。 */
+  .avatar {
+    --av-color: #8a90a0;
+    --av-size: 34px;
+    width: var(--av-size); height: var(--av-size);
+    flex-shrink: 0;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--av-color);
+    color: #fff;
+    font-weight: 600;
+    font-size: calc(var(--av-size) * 0.36);
+    line-height: 1;
+    letter-spacing: -0.5px;
+    user-select: none;
+    overflow: hidden;
+    position: relative;
+    box-sizing: border-box;
+  }
+  .avatar.has-img { background: var(--bg); border: 2px solid var(--av-color); padding: 1px; }
+  .avatar.has-img img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+  .avatar.sz-xs { --av-size: 20px; }
+  .avatar.sz-sm { --av-size: 24px; }
+  .avatar.sz-md { --av-size: 28px; }
+  .avatar.sz-xl { --av-size: 72px; }
+  .avatar.sz-xs.has-img, .avatar.sz-sm.has-img { border-width: 1.5px; padding: 0; }
+  /* 达人广场：头像右下角挂在线小点 */
+  .avatar-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+  .avatar-wrap .dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; border: 1.5px solid var(--panel); box-sizing: content-box; }
+  #online-list li.is-offline .avatar { opacity: 0.55; }
+  /* 头部自己的头像 */
+  #my-avatar { cursor: pointer; margin-right: 6px; align-self: center; }
+  .username-block { flex-direction: row !important; align-items: center; }
+  /* 我的账号 / 群管理里的头像设置 */
+  .avatar-edit-row { display: flex; align-items: center; gap: 14px; margin: 4px 0 16px; }
+  .avatar-edit-row .avatar-edit-actions { display: flex; flex-direction: column; gap: 6px; }
+  .avatar-edit-row button { font-size: 12px; padding: 6px 12px; }
+  .avatar-edit-row .avatar-edit-hint { font-size: 11.5px; color: var(--muted); }
+  .avatar-edit-row .avatar-edit-msg { font-size: 12px; color: var(--muted); min-height: 14px; }
+  .avatar-edit-row .avatar-edit-msg.err { color: #e5534b; }
+  .avatar-edit-row .avatar-edit-msg.ok { color: #2e9e5b; }
+  #group-avatar-row.hidden { display: none; }
+
   /* ===== 群标签 ===== */
   #group-tabs {
     display: flex;
@@ -2068,6 +2117,21 @@
   #mall-overlay { display: none; position: fixed; inset: 0; z-index: 10000; background: var(--bg); flex-direction: column; }
   #mall-overlay.active { display: flex; }
   #mall-import-btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 12px; padding: 7px 12px; font-weight: 600; }
+  #mall-manual-btn { background: transparent; border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; font-size: 12px; padding: 6px 12px; font-weight: 600; }
+  #mall-manual-btn:hover { background: rgba(63, 111, 214, 0.08); }
+  #mall-manual-panel { display: none; position: fixed; inset: 0; z-index: 10001; background: rgba(10, 12, 18, 0.55); align-items: center; justify-content: center; padding: 20px; }
+  #mall-manual-panel.active { display: flex; }
+  #mall-manual-card { background: var(--bg); border-radius: 14px; padding: 22px 24px; width: 100%; max-width: 540px; }
+  .mall-manual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 12px 0 8px; }
+  .mall-manual-grid label { display: block; font-size: 12px; color: var(--muted); }
+  .mall-manual-grid label.wide { grid-column: 1 / -1; }
+  .mall-manual-grid input { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 7px 9px; font-size: 13px; }
+  #mall-manual-jan { font-family: Consolas, Menlo, monospace; letter-spacing: 0.5px; }
+  #mall-manual-error { color: #e5534b; font-size: 12px; min-height: 16px; }
+  #mall-manual-error.ok { color: #2e9e5b; }
+  .mall-manual-keep { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .mall-manual-keep { white-space: nowrap; }
+  .mall-manual-keep input { width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
   #mall-overlay-close-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-size: 12px; padding: 6px 12px; }
   #mall-overlay-close-btn:hover { color: var(--text); border-color: var(--accent); background: transparent; }
   #mall-overlay-body { flex: 1; display: flex; min-height: 0; }
@@ -3923,6 +3987,7 @@
       <div class="header-left">
         <button id="mobile-menu-btn" type="button" title="菜单"><i class="ti ti-menu-2"></i></button>
         <div class="username-block">
+          <span class="avatar sz-md" id="my-avatar"></span>
           <span class="my-username" id="my-username"></span>
         </div>
         <h2><i class="ti ti-message-circle icon-soft"></i> CC</h2>
@@ -4448,6 +4513,15 @@
     <div id="group-manage-list"></div>
     <div id="group-manage-form">
       <div class="problem-item-options-edit-title" id="group-form-title" style="font-size:14px">新建群</div>
+      <div class="avatar-edit-row hidden" id="group-avatar-row">
+        <span class="avatar sz-xl" id="group-avatar-preview"></span>
+        <div class="avatar-edit-actions">
+          <button id="group-avatar-btn" type="button"><i class="ti ti-photo"></i> 换群头像</button>
+          <button id="group-avatar-reset-btn" type="button" class="pin-edit-btn">恢复默认</button>
+          <span class="avatar-edit-msg" id="group-avatar-msg"></span>
+        </div>
+        <input id="group-avatar-input" type="file" accept="image/*" style="display:none" />
+      </div>
       <input id="group-form-name" type="text" maxlength="30" placeholder="群名" autocomplete="off" />
       <div id="group-form-members-head"><span>成员</span><button id="group-form-select-all" type="button" class="pin-edit-btn">全选 / 全不选</button></div>
       <div id="group-form-members"></div>
@@ -4467,6 +4541,16 @@
   <div id="account-card">
     <div class="problem-item-options-edit-title">我的账号</div>
     <div class="problem-item-options-edit-desc" id="account-desc"></div>
+    <div class="avatar-edit-row">
+      <span class="avatar sz-xl" id="account-avatar-preview"></span>
+      <div class="avatar-edit-actions">
+        <button id="account-avatar-btn" type="button"><i class="ti ti-photo"></i> 换头像</button>
+        <button id="account-avatar-reset-btn" type="button" class="pin-edit-btn">恢复默认</button>
+        <span class="avatar-edit-hint">外圈颜色代表角色，换了图片也会保留</span>
+        <span class="avatar-edit-msg" id="account-avatar-msg"></span>
+      </div>
+      <input id="account-avatar-input" type="file" accept="image/*" style="display:none" />
+    </div>
     <div id="account-must-change-hint">管理员给的是初始密码，建议改一个自己的（不改也能用）。</div>
     <div class="case-field" id="account-old-field">
       <label class="problem-item-field-label">原密码</label>
@@ -4595,6 +4679,7 @@
   <div class="tool-overlay-header-bar">
     <span><i class="ti ti-truck-loading"></i> 商城到货统计</span>
     <div class="case-header-actions">
+      <button id="mall-manual-btn" type="button" class="can-order"><i class="ti ti-plus"></i> 手动添加</button>
       <button id="mall-import-btn" type="button" class="can-order"><i class="ti ti-file-spreadsheet"></i> 导入 Excel</button>
       <input type="file" id="mall-import-input" accept=".xlsx,.xls,.csv" style="display:none" />
       <button id="mall-overlay-close-btn" title="关闭，返回聊天室"><i class="ti ti-x"></i> 返回聊天室</button>
@@ -4654,6 +4739,28 @@
   </div>
 
   <!-- 导入预览 -->
+  <!-- 手动添加一条订货（不用做 Excel） -->
+  <div id="mall-manual-panel">
+    <div id="mall-manual-card">
+      <div class="problem-item-options-edit-title">手动添加订货 · <span id="mall-manual-supplier"></span></div>
+      <div class="mall-manual-grid">
+        <label>订货日期<input id="mall-manual-date" type="date" /></label>
+        <label>JAN <span class="problem-item-required">*</span><input id="mall-manual-jan" type="text" inputmode="numeric" maxlength="14" placeholder="13 位条码" autocomplete="off" /></label>
+        <label class="wide">商品名<input id="mall-manual-cn" type="text" maxlength="200" autocomplete="off" /></label>
+        <label class="wide">日语名<input id="mall-manual-jp" type="text" maxlength="200" autocomplete="off" /></label>
+        <label>订货数 <span class="problem-item-required">*</span><input id="mall-manual-qty" type="number" min="1" value="1" /></label>
+        <label>备注<input id="mall-manual-note" type="text" maxlength="200" placeholder="比如：换jan 4987…" autocomplete="off" /></label>
+      </div>
+      <div id="mall-manual-error"></div>
+      <div class="problem-item-options-edit-actions">
+        <label class="mall-manual-keep"><input id="mall-manual-keep" type="checkbox" checked /> 加完继续加下一条</label>
+        <span style="flex:1"></span>
+        <button id="mall-manual-cancel-btn" type="button" class="pin-edit-btn">关闭</button>
+        <button id="mall-manual-ok-btn" type="button">添加</button>
+      </div>
+    </div>
+  </div>
+
   <div id="mall-import-panel">
     <div id="mall-import-card">
       <div class="problem-item-options-edit-title">导入订货明细</div>
@@ -5219,6 +5326,114 @@
   ];
   const REMOVED_QUICK_CATEGORIES = ['代拍', '代购', '煤炉'];
 
+  // ===== 头像 =====
+  // 一种角色一种颜色；不在账号里的（比如"⏰ 定时提醒"）用灰色
+  const ROLE_COLORS = { admin: '#3f6fd6', manager: '#2e9e5b', inspector: '#7c5cc4', buyer: '#d98a1f', service: '#d1567a' };
+  const GROUP_COLORS = ['#4a7fb5', '#2e9e5b', '#c4693f', '#6f66c9', '#b5487a', '#3a9aa8', '#8a6d3b'];
+  // 圆圈里写的字：两个字全写；三个字以上——人名取后两个（名），群名取前两个（更好认）
+  function avatarText(name, mode) {
+    const chars = Array.from(String(name || '').replace(/\s+/g, '')).filter((c) => /[\u4e00-\u9fff\u3040-\u30ffA-Za-z0-9]/.test(c));
+    if (!chars.length) return (Array.from(String(name || '?'))[0] || '?');
+    if (chars.length <= 2) return chars.join('');
+    return mode === 'group' ? chars.slice(0, 2).join('') : chars.slice(-2).join('');
+  }
+  function userInfoOf(name) {
+    return (typeof userDirectory !== 'undefined' ? userDirectory : []).find((u) => u.username === name) || null;
+  }
+  function groupColorOf(key) {
+    let h = 0;
+    String(key || '').split('').forEach((c) => { h = (h * 31 + c.charCodeAt(0)) >>> 0; });
+    return GROUP_COLORS[h % GROUP_COLORS.length];
+  }
+  // 给一个 .avatar 元素上色、填字或填图
+  function paintAvatar(el, opts) {
+    const color = opts.color || '#8a90a0';
+    el.style.setProperty('--av-color', color);
+    el.title = opts.title || '';
+    if (opts.url) {
+      el.classList.add('has-img');
+      el.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = opts.url;
+      img.alt = '';
+      img.onerror = () => { el.classList.remove('has-img'); el.textContent = opts.text; };
+      el.appendChild(img);
+    } else {
+      el.classList.remove('has-img');
+      el.textContent = opts.text;
+    }
+  }
+  function paintUserAvatar(el, name) {
+    const info = userInfoOf(name);
+    paintAvatar(el, {
+      color: info ? (ROLE_COLORS[info.role] || '#8a90a0') : '#8a90a0',
+      url: info ? info.avatarUrl : '',
+      text: avatarText(name, 'user'),
+      title: info ? `${name} · ${info.roleLabel || ''}` : name,
+    });
+  }
+  function makeUserAvatar(name, size) {
+    const el = document.createElement('span');
+    el.className = 'avatar' + (size ? ' sz-' + size : '');
+    el.dataset.avatarUser = name || '';
+    paintUserAvatar(el, name);
+    return el;
+  }
+  function makeGroupAvatar(g, size) {
+    if (g.isDm) return makeUserAvatar(g.name, size); // 私聊直接用对方的头像
+    const el = document.createElement('span');
+    el.className = 'avatar' + (size ? ' sz-' + size : '');
+    paintAvatar(el, { color: groupColorOf(g.id + g.name), url: g.avatarUrl || '', text: avatarText(g.name, 'group'), title: g.name });
+    return el;
+  }
+  // 达人名单（含头像地址、角色）更新后，把页面上所有人的头像重新刷一遍——
+  // 聊天历史往往比名单先到，先画出来的是灰的，名单一到就补上颜色和图片
+  function refreshAllUserAvatars() {
+    document.querySelectorAll('.avatar[data-avatar-user]').forEach((el) => paintUserAvatar(el, el.dataset.avatarUser));
+    renderMyAvatar();
+  }
+  function renderMyAvatar() {
+    const box = document.getElementById('my-avatar');
+    if (!box || !username) return;
+    box.dataset.avatarUser = username;
+    // 自己的头像地址优先用登录信息里的（名单还没到时也能显示）
+    const info = userInfoOf(username);
+    paintAvatar(box, {
+      color: ROLE_COLORS[(info && info.role) || myRole] || '#8a90a0',
+      url: (info && info.avatarUrl) || (myUser && myUser.avatarUrl) || '',
+      text: avatarText(username, 'user'),
+      title: '我的账号：点这里换头像 / 改密码',
+    });
+  }
+  // 选好的图片裁成正方形、缩到 256px 再传，头像文件很小
+  function cropAvatarFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        canvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, 256, 256);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((b) => (b ? resolve(new File([b], 'avatar.jpg', { type: 'image/jpeg' })) : reject(new Error('处理图片失败'))), 'image/jpeg', 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('这张图片打不开')); };
+      img.src = url;
+    });
+  }
+  async function uploadAvatarImage(file) {
+    const cropped = await cropAvatarFile(file);
+    const fd = new FormData();
+    fd.append('image', cropped, cropped.name);
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok || !data.url) throw new Error(data.error || '上传失败');
+    return data.url;
+  }
+
   // ===== 群组：当前在哪个群、群列表、每个群的未读数 =====
   const LAST_GROUP_KEY = 'ccLastGroup';
   let currentGroupId = ''; // '' = 一个群都没有（新账号还没被拉进任何群）
@@ -5312,6 +5527,7 @@
       } else if (data.type === 'me') {
         roleLabels = data.roles || roleLabels;
         applyRole(data.user);
+        renderMyAvatar();
         // 初始密码没改过：登录后提示一次，可以关掉不改
         if (data.user && data.user.mustChangePassword && !sessionStorage.getItem('ccPwHintShown')) {
           try { sessionStorage.setItem('ccPwHintShown', '1'); } catch (e) { /* 忽略 */ }
@@ -5328,6 +5544,7 @@
         renderReminderGroupOptions();
         if (groupManagePanel.classList.contains('active')) {
           renderGroupManageList();
+          renderGroupAvatarEditor();
           if (editingGroupId && !findGroupLocal(editingGroupId)) selectGroupForEdit(null);
         }
       } else if (data.type === 'group_read_update') {
@@ -5455,8 +5672,24 @@
         renderMallCountBadge();
         if (mallOverlay.classList.contains('active')) renderMall();
       } else if (data.type === 'mall_imported') {
-        mallImportPanel.classList.remove('active');
-        setMallScanMsg(`✓ 导入 ${data.count} 条` + (data.skipped ? `，跳过 ${data.skipped} 条没有 JAN 的` : ''), 'ok');
+        if (mallManualPending) {
+          // 手动添加：保留面板方便连续录，清掉 JAN 等字段
+          mallManualPending = false;
+          if (mallManualKeep.checked) {
+            const added = mallManualCn.value.trim() || mallManualJan.value.trim();
+            [mallManualJan, mallManualCn, mallManualJp, mallManualNote].forEach((el) => { el.value = ''; });
+            mallManualQty.value = '1';
+            mallManualError.className = 'ok';
+            mallManualError.textContent = `✓ 已添加「${added}」，可以接着录下一条`;
+            mallManualJan.focus();
+          } else {
+            mallManualPanel.classList.remove('active');
+            setMallScanMsg('✓ 已添加 1 条订货', 'ok');
+          }
+        } else {
+          mallImportPanel.classList.remove('active');
+          setMallScanMsg(`✓ 导入 ${data.count} 条` + (data.skipped ? `，跳过 ${data.skipped} 条没有 JAN 的` : ''), 'ok');
+        }
       } else if (data.type === 'mall_arrived') {
         mallJustArrivedId = data.item ? data.item.id : null;
         if (mallOverlay.classList.contains('active')) renderMall();
@@ -5465,6 +5698,7 @@
           setMallScanMsg(`✓ ${data.item.nameCn || data.item.nameJp || data.item.jan} 到货 ${data.arrival.qty} 件` + (done ? '，已到齐 → 已入库' : `，累计 ${data.item.qtyArrived}/${data.item.qty}`), 'ok');
         }
       } else if (data.type === 'mall_error') {
+        if (mallManualPending) { mallManualPending = false; mallManualError.className = ''; mallManualError.textContent = data.message || '添加失败'; }
         setMallScanMsg(data.message || '操作失败', 'err');
         mallImportError.textContent = mallImportPanel.classList.contains('active') ? (data.message || '') : '';
       } else if (data.type === 'case_library') {
@@ -5862,7 +6096,6 @@
     // 这样在一堆彩色消息里，"哪些是我自己发的"还是能一眼认出来，不会被弄花了
     if (!isMe && data.username) {
       const userColor = getUserColor(data.username);
-      name.style.color = userColor.text;
       bubble.style.background = userColor.bg;
     }
 
@@ -6011,6 +6244,9 @@
       bubble.appendChild(badgesContainer);
     }
 
+    const avatarEl = makeUserAvatar(data.username, '');
+    avatarEl.classList.add('msg-avatar');
+    wrap.appendChild(avatarEl);
     wrap.appendChild(name);
     wrap.appendChild(bubble);
     wrap.appendChild(metaRow);
@@ -6666,7 +6902,7 @@
   try { plazaCollapsed = JSON.parse(localStorage.getItem(PLAZA_COLLAPSE_KEY) || '{}') || {}; } catch (e) { plazaCollapsed = {}; }
   function renderOnlineList(users, directory) {
     onlineUsers = users;
-    if (Array.isArray(directory)) userDirectory = directory;
+    if (Array.isArray(directory)) { userDirectory = directory; setTimeout(refreshAllUserAvatars, 0); }
     onlineList.innerHTML = '';
     onlineCount.textContent = users.length;
     const onlineSet = new Set(users);
@@ -6705,8 +6941,13 @@
         const isOnline = onlineSet.has(u.username);
         const isMe = u.username === username;
         li.className = 'plaza-user ' + (isOnline ? 'is-online' : 'is-offline') + (isMe ? ' is-me' : '');
-        li.innerHTML = `<span class="dot${isOnline ? '' : ' off'}"></span><span class="ol-name">${escapeHtml(u.username)}</span>`
+        li.innerHTML = `<span class="avatar-wrap"></span><span class="ol-name">${escapeHtml(u.username)}</span>`
           + (isMe ? '<span class="ol-role">我</span>' : '<span class="ol-dm" title="私聊"><i class="ti ti-message-2"></i></span>');
+        const avWrap = li.querySelector('.avatar-wrap');
+        avWrap.appendChild(makeUserAvatar(u.username, 'sm'));
+        const dot = document.createElement('span');
+        dot.className = 'dot' + (isOnline ? '' : ' off');
+        avWrap.appendChild(dot);
         if (!isMe) {
           li.title = `和 ${u.username} 私聊`;
           li.addEventListener('click', () => openDirectMessage(u.username));
@@ -8409,10 +8650,11 @@
       tab.type = 'button';
       tab.className = 'group-tab' + (g.id === currentGroupId ? ' active' : '') + (g.memberOfIt ? '' : ' not-member');
       tab.title = g.isDm ? `和 ${g.name} 的私聊` : (g.memberOfIt ? `${g.name} · ${g.members.length} 人` : `${g.name}（你不在这个群里，只能管理）`);
-      tab.innerHTML = (g.isDm ? '<i class="ti ti-user gt-dm-icon"></i>' : '') + `<span class="gt-name">${escapeHtml(g.name)}</span>`
+      tab.innerHTML = `<span class="gt-name">${escapeHtml(g.name)}</span>`
         + `<span class="gt-pin${g.pinned ? ' on' : ''}" title="${g.pinned ? '取消置顶' : '置顶'}"><i class="ti ${g.pinned ? 'ti-pin-filled' : 'ti-pin'}"></i></span>`
         + `<span class="gt-unread">${g.unread > 0 ? (g.unread > 99 ? '99+' : g.unread) : ''}</span>`
         + (g.isDm ? '<span class="gt-close" title="关闭这个私聊（记录还在，对方再发消息会重新出现）"><i class="ti ti-x"></i></span>' : '');
+      tab.insertBefore(makeGroupAvatar(g, 'xs'), tab.firstChild);
       if (g.isDm) {
         tab.querySelector('.gt-close').addEventListener('click', (e) => {
           e.stopPropagation();
@@ -8563,9 +8805,49 @@
     add.addEventListener('click', () => selectGroupForEdit(null));
     groupManageList.appendChild(add);
   }
+  const groupAvatarRow = document.getElementById('group-avatar-row');
+  const groupAvatarBtn = document.getElementById('group-avatar-btn');
+  const groupAvatarResetBtn = document.getElementById('group-avatar-reset-btn');
+  const groupAvatarInput = document.getElementById('group-avatar-input');
+  const groupAvatarMsg = document.getElementById('group-avatar-msg');
+  function renderGroupAvatarEditor() {
+    const g = editingGroupId ? findGroupLocal(editingGroupId) : null;
+    groupAvatarRow.classList.toggle('hidden', !g);
+    if (!g) return;
+    // 每次都按 id 现找——替换过一次之后，旧的引用就指向已经摘掉的节点了
+    const fresh = makeGroupAvatar(g, 'xl');
+    fresh.id = 'group-avatar-preview';
+    document.getElementById('group-avatar-preview').replaceWith(fresh);
+    groupAvatarResetBtn.hidden = !g.avatarUrl;
+  }
+  groupAvatarBtn.addEventListener('click', () => { groupAvatarInput.value = ''; groupAvatarInput.click(); });
+  groupAvatarInput.addEventListener('change', async () => {
+    const file = groupAvatarInput.files && groupAvatarInput.files[0];
+    if (!file || !editingGroupId) return;
+    groupAvatarMsg.className = 'avatar-edit-msg';
+    groupAvatarMsg.textContent = '上传中…';
+    try {
+      const url = await uploadAvatarImage(file);
+      ws.send(JSON.stringify({ type: 'group_avatar', id: editingGroupId, url }));
+      groupAvatarMsg.className = 'avatar-edit-msg ok';
+      groupAvatarMsg.textContent = '✓ 已换好';
+    } catch (err) {
+      groupAvatarMsg.className = 'avatar-edit-msg err';
+      groupAvatarMsg.textContent = err.message;
+    }
+  });
+  groupAvatarResetBtn.addEventListener('click', () => {
+    if (!editingGroupId) return;
+    ws.send(JSON.stringify({ type: 'group_avatar', id: editingGroupId, url: '' }));
+    groupAvatarMsg.className = 'avatar-edit-msg ok';
+    groupAvatarMsg.textContent = '✓ 已恢复默认';
+  });
+
   function selectGroupForEdit(id) {
     editingGroupId = id;
     const g = id ? findGroupLocal(id) : null;
+    groupAvatarMsg.textContent = '';
+    setTimeout(renderGroupAvatarEditor, 0);
     groupFormTitle.textContent = g ? `编辑：${g.name}` : '新建群';
     groupFormName.value = g ? g.name : '';
     groupFormDeleteBtn.classList.toggle('hidden', !g);
@@ -8763,8 +9045,62 @@
   const accountCancelBtn = document.getElementById('account-cancel-btn');
   const accountLogoutBtn = document.getElementById('account-logout-btn');
 
+  const accountAvatarPreview = document.getElementById('account-avatar-preview');
+  const accountAvatarBtn = document.getElementById('account-avatar-btn');
+  const accountAvatarResetBtn = document.getElementById('account-avatar-reset-btn');
+  const accountAvatarInput = document.getElementById('account-avatar-input');
+  const accountAvatarMsg = document.getElementById('account-avatar-msg');
+  function renderAccountAvatar() {
+    paintAvatar(accountAvatarPreview, {
+      color: ROLE_COLORS[myRole] || '#8a90a0',
+      url: (myUser && myUser.avatarUrl) || '',
+      text: avatarText(username, 'user'),
+    });
+    accountAvatarResetBtn.hidden = !(myUser && myUser.avatarUrl);
+  }
+  async function saveMyAvatar(url) {
+    const res = await authFetch('/api/me/avatar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '保存失败');
+    myUser = data.user;
+    // 名单里自己那条也先改掉，不用等服务器广播
+    const me = userInfoOf(username);
+    if (me) me.avatarUrl = myUser.avatarUrl;
+    renderAccountAvatar();
+    refreshAllUserAvatars();
+  }
+  accountAvatarBtn.addEventListener('click', () => { accountAvatarInput.value = ''; accountAvatarInput.click(); });
+  accountAvatarInput.addEventListener('change', async () => {
+    const file = accountAvatarInput.files && accountAvatarInput.files[0];
+    if (!file) return;
+    accountAvatarMsg.className = 'avatar-edit-msg';
+    accountAvatarMsg.textContent = '上传中…';
+    try {
+      const url = await uploadAvatarImage(file);
+      await saveMyAvatar(url);
+      accountAvatarMsg.className = 'avatar-edit-msg ok';
+      accountAvatarMsg.textContent = '✓ 已换好';
+    } catch (err) {
+      accountAvatarMsg.className = 'avatar-edit-msg err';
+      accountAvatarMsg.textContent = err.message;
+    }
+  });
+  accountAvatarResetBtn.addEventListener('click', async () => {
+    try {
+      await saveMyAvatar('');
+      accountAvatarMsg.className = 'avatar-edit-msg ok';
+      accountAvatarMsg.textContent = '✓ 已恢复默认';
+    } catch (err) {
+      accountAvatarMsg.className = 'avatar-edit-msg err';
+      accountAvatarMsg.textContent = err.message;
+    }
+  });
+  document.getElementById('my-avatar').addEventListener('click', () => openAccountPanel());
+
   function openAccountPanel() {
     accountDesc.textContent = myUser ? `${myUser.username} · ${myUser.roleLabel || ''}` : '';
+    accountAvatarMsg.textContent = '';
+    renderAccountAvatar();
     const mustChange = !!(myUser && myUser.mustChangePassword);
     accountMustChangeHint.classList.toggle('active', mustChange);
     accountOldField.classList.toggle('hidden', mustChange);
@@ -9555,6 +9891,55 @@
     return out;
   }
   mallImportBtn.addEventListener('click', () => { mallImportInput.value = ''; mallImportInput.click(); });
+
+  // ---- 手动添加一条订货：跟导入走同一个接口，只是一次一条 ----
+  const mallManualPanel = document.getElementById('mall-manual-panel');
+  const mallManualDate = document.getElementById('mall-manual-date');
+  const mallManualJan = document.getElementById('mall-manual-jan');
+  const mallManualCn = document.getElementById('mall-manual-cn');
+  const mallManualJp = document.getElementById('mall-manual-jp');
+  const mallManualQty = document.getElementById('mall-manual-qty');
+  const mallManualNote = document.getElementById('mall-manual-note');
+  const mallManualError = document.getElementById('mall-manual-error');
+  const mallManualKeep = document.getElementById('mall-manual-keep');
+  let mallManualPending = false;
+  function mallManualToday() {
+    const d = new Date(); const pad = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  function openMallManual() {
+    const sp = mallData.suppliers.find((x) => x.key === mallSupplier);
+    document.getElementById('mall-manual-supplier').textContent = sp ? `${sp.name}（${sp.code}）` : '';
+    if (!mallManualDate.value) mallManualDate.value = mallManualToday();
+    [mallManualJan, mallManualCn, mallManualJp, mallManualNote].forEach((el) => { el.value = ''; });
+    mallManualQty.value = '1';
+    mallManualError.className = '';
+    mallManualError.textContent = '';
+    mallManualPanel.classList.add('active');
+    mallManualJan.focus();
+  }
+  function submitMallManual() {
+    const jan = mallManualJan.value.replace(/\D/g, '');
+    if (!/^\d{8,14}$/.test(jan)) { mallManualError.className = ''; mallManualError.textContent = 'JAN 要 8~14 位数字'; mallManualJan.focus(); return; }
+    const qty = Math.round(Number(mallManualQty.value));
+    if (!Number.isFinite(qty) || qty < 1) { mallManualError.className = ''; mallManualError.textContent = '订货数至少 1'; mallManualQty.focus(); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { mallManualError.textContent = '连接已断开'; return; }
+    // 日期存成跟 Excel 导入一样的"9月24日"格式，两边统一
+    let orderDate = '';
+    const m = (mallManualDate.value || '').match(/^\d{4}-(\d{2})-(\d{2})$/);
+    if (m) orderDate = `${Number(m[1])}月${Number(m[2])}日`;
+    mallManualPending = true;
+    ws.send(JSON.stringify({
+      type: 'mall_import',
+      supplier: mallSupplier,
+      rows: [{ orderDate, jan, nameCn: mallManualCn.value.trim(), nameJp: mallManualJp.value.trim(), qty, note: mallManualNote.value.trim(), status: 'pending' }],
+    }));
+  }
+  document.getElementById('mall-manual-btn').addEventListener('click', openMallManual);
+  document.getElementById('mall-manual-ok-btn').addEventListener('click', submitMallManual);
+  document.getElementById('mall-manual-cancel-btn').addEventListener('click', () => mallManualPanel.classList.remove('active'));
+  mallManualPanel.addEventListener('click', (e) => { if (e.target === mallManualPanel) mallManualPanel.classList.remove('active'); });
+  [mallManualJan, mallManualCn, mallManualJp, mallManualQty, mallManualNote].forEach((el) => el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitMallManual(); }));
   mallImportInput.addEventListener('change', async () => {
     const file = mallImportInput.files && mallImportInput.files[0];
     if (!file) return;

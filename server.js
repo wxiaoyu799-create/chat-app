@@ -791,7 +791,7 @@ function verifyPassword(user, password) {
 }
 function isEditRole(role) { return EDIT_ROLES.includes(role); }
 function publicUser(u) {
-  return { id: u.id, username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role, disabled: !!u.disabled, mustChangePassword: !!u.mustChangePassword, createdAt: u.createdAt };
+  return { id: u.id, username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role, disabled: !!u.disabled, mustChangePassword: !!u.mustChangePassword, createdAt: u.createdAt, avatarUrl: u.avatarUrl || '' };
 }
 function findUserByName(name) {
   const key = String(name || '').trim().toLowerCase();
@@ -845,6 +845,8 @@ async function ensureUsersTable() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // 自己换的头像（图片地址）；空 = 用默认的"名字圆圈"
+  await dbPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;`);
 }
 function rowToUser(r) {
   return {
@@ -852,6 +854,7 @@ function rowToUser(r) {
     passwordHash: r.password_hash, salt: r.salt, pwVersion: Number(r.pw_version),
     disabled: !!r.disabled, mustChangePassword: !!r.must_change_password,
     createdAt: new Date(r.created_at).getTime(),
+    avatarUrl: r.avatar_url || '',
   };
 }
 async function loadUsersFromDB() {
@@ -955,6 +958,31 @@ app.get('/api/session', (req, res) => {
   if (!user) return res.status(401).json({ error: '登录已失效，请重新登录' });
   res.json({ user: publicUser(user) });
 });
+// 换自己的头像：前端先走 /upload 传图拿到地址，再把地址报到这里；传空 = 恢复默认的名字圆圈
+app.post('/api/me/avatar', express.json(), async (req, res) => {
+  const user = verifyToken(tokenFromReq(req));
+  if (!user) return res.status(401).json({ error: '登录已失效，请重新登录' });
+  const url = String((req.body || {}).url || '').trim();
+  if (url && !isOwnUploadUrl(url)) return res.status(400).json({ error: '图片地址不对，请重新上传' });
+  const old = user.avatarUrl || '';
+  user.avatarUrl = url;
+  if (dbPool) {
+    try {
+      await dbPool.query('UPDATE users SET avatar_url=$1, updated_at=now() WHERE id=$2;', [url || null, user.id]);
+    } catch (err) {
+      console.error('[头像写入数据库失败]', err.message);
+    }
+  }
+  // 旧头像文件顺手删掉，省空间
+  if (old && old !== url && typeof storagePathFromUrl === 'function') {
+    const pth = storagePathFromUrl(old);
+    if (pth) deleteFromStorage(pth);
+  }
+  // 所有人的达人广场/聊天头像跟着刷新
+  broadcast({ type: 'online', users: getOnlineUsers(), directory: getDirectory() });
+  res.json({ user: publicUser(user) });
+});
+
 app.post('/api/change-password', express.json(), async (req, res) => {
   const user = verifyToken(tokenFromReq(req));
   if (!user) return res.status(401).json({ error: '登录已失效，请重新登录' });
@@ -1912,7 +1940,7 @@ function getOnlineUsers() {
 }
 // 达人广场：所有账号（不含停用的）+ 角色，前端配合在线名单显示谁在线，点谁就能私聊
 function getDirectory() {
-  return users.filter((u) => !u.disabled).map((u) => ({ username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role }));
+  return users.filter((u) => !u.disabled).map((u) => ({ username: u.username, role: u.role, roleLabel: ROLES[u.role] || u.role, avatarUrl: u.avatarUrl || '' }));
 }
 
 // ==================== 群组 ====================
@@ -1935,6 +1963,7 @@ async function ensureGroupTables() {
     );
   `);
   await dbPool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_dm BOOLEAN NOT NULL DEFAULT false;`);
+  await dbPool.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS avatar_url TEXT;`);
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS group_members (
       group_id BIGINT NOT NULL,
@@ -1972,7 +2001,7 @@ async function loadGroupsFromDB() {
     const g = await dbPool.query('SELECT * FROM groups ORDER BY id ASC;');
     const mem = await dbPool.query('SELECT * FROM group_members;');
     groups = g.rows.map((r) => ({
-      id: String(r.id), name: r.name, createdBy: r.created_by || '', createdAt: new Date(r.created_at).getTime(), isDm: !!r.is_dm,
+      id: String(r.id), name: r.name, createdBy: r.created_by || '', createdAt: new Date(r.created_at).getTime(), isDm: !!r.is_dm, avatarUrl: r.avatar_url || '',
       members: mem.rows.filter((x) => String(x.group_id) === String(r.id)).map((x) => x.username),
     }));
     const pins = await dbPool.query('SELECT * FROM group_pins;');
@@ -2067,7 +2096,7 @@ function groupsForUser(username, role) {
       out.push({ ...view(g.id, other, g.members, false), isDm: true });
       return;
     }
-    if (role === 'admin' || g.members.includes(username)) out.push({ ...view(g.id, g.name, g.members, false), isDm: false });
+    if (role === 'admin' || g.members.includes(username)) out.push({ ...view(g.id, g.name, g.members, false), isDm: false, avatarUrl: g.avatarUrl || '' });
   });
   return out;
 }
@@ -3359,6 +3388,31 @@ wss.on('connection', (ws) => {
     }
 
     // 关掉一个私聊标签：只对自己隐藏，记录都在；对方再发消息会自动回来
+    // 换群头像：管理员改所有群，仓库现场只能改自己在里面的群；传空 = 恢复默认
+    if (data.type === 'group_avatar') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const g = findGroup(data.id);
+      if (!g || !canEditGroup(g, client)) {
+        ws.send(JSON.stringify({ type: 'group_error', message: '你不能改这个群的头像' }));
+        return;
+      }
+      const url = String(data.url || '').trim();
+      if (url && !isOwnUploadUrl(url)) { ws.send(JSON.stringify({ type: 'group_error', message: '图片地址不对，请重新上传' })); return; }
+      const old = g.avatarUrl || '';
+      g.avatarUrl = url;
+      if (dbPool && !String(g.id).startsWith('mem-')) {
+        try { await dbPool.query('UPDATE groups SET avatar_url=$1 WHERE id=$2;', [url || null, g.id]); } catch (err) { console.error('[群头像写入失败]', err.message); }
+      }
+      if (old && old !== url && typeof storagePathFromUrl === 'function') {
+        const pth = storagePathFromUrl(old);
+        if (pth) deleteFromStorage(pth);
+      }
+      sendGroupsToEveryone();
+      ws.send(JSON.stringify({ type: 'group_saved', id: g.id }));
+      return;
+    }
+
     if (data.type === 'group_dm_close') {
       const client = clients.get(ws);
       if (!client) return;

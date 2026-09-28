@@ -2307,11 +2307,11 @@
   /* 只读角色看不到操作列和扫码条 */
   /* 只读角色看不到各模块的编辑按钮（统计那两个面板另算，见下面） */
   body.role-readonly .editor-only { display: none !important; }
-  /* 质检员不显示"煤炉反查""代购代拍任务""代拍大量任务"这几个队列（以及完结表里的"查看任务"） */
+  /* 质检员不显示"煤炉反查""代购代拍任务""代拍大量工单"这几个队列（以及完结表里的"查看任务"） */
   body.role-inspector .queue-only,
   body.role-inspector [data-category="煤炉反查"],
   body.role-inspector [data-category="代购代拍任务"],
-  body.role-inspector [data-category="代拍大量任务"],
+  body.role-inspector [data-category="代拍大量工单"],
   body.role-inspector .finished-task-btn { display: none !important; }
   /* 统计：谁都能看，但改动分两档——下单侧（管理员/仓库现场/客服）、入库侧（管理员/仓库现场）。
      用 :not() 反着写，这样原来的 display 不会被覆盖掉 */
@@ -4208,10 +4208,10 @@
         <span class="tool-entry-label">代购代拍任务</span>
         <span class="problem-item-badge" id="problem-badge-代购代拍任务"></span>
       </button>
-      <button class="tool-entry-btn problem-item-cat-btn" data-category="代拍大量任务" type="button">
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代拍大量工单" type="button">
         <span class="module-icon-badge"><i class="ti ti-stack-2"></i></span>
-        <span class="tool-entry-label">代拍大量任务</span>
-        <span class="problem-item-badge" id="problem-badge-代拍大量任务"></span>
+        <span class="tool-entry-label">代拍大量工单</span>
+        <span class="problem-item-badge" id="problem-badge-代拍大量工单"></span>
       </button>
       <div class="problem-item-queue-divider"><span>按处理人需关注</span></div>
       <!-- 按转出人分的人名视图，名单从服务器来，这里动态生成 -->
@@ -5230,7 +5230,7 @@
       <div class="problem-item-cat-divider queue-only"></div>
       <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
       <button class="problem-item-panel-cat-btn" data-category="代购代拍任务">代购代拍任务</button>
-      <button class="problem-item-panel-cat-btn" data-category="代拍大量任务">代拍大量任务</button>
+      <button class="problem-item-panel-cat-btn" data-category="代拍大量工单">代拍大量工单</button>
       <div class="problem-item-cat-divider"></div>
       <div id="problem-item-panel-person-entries"></div>
       <div class="problem-item-cat-divider"></div>
@@ -5302,6 +5302,11 @@
           <label class="problem-item-field-label" id="problem-item-id-label">订单ID</label>
           <input type="text" id="problem-item-id-input" inputmode="numeric" maxlength="40" placeholder="只能填数字" />
           <div class="problem-item-field-tip" id="problem-item-id-tip">选了"找不到…"类的问题类型时，这里会自动切成快递单号</div>
+        </div>
+        <!-- 代拍专用：商品ID，必填 -->
+        <div class="problem-item-field" id="problem-item-itemid-field">
+          <label class="problem-item-field-label">商品ID <span class="problem-item-required">*</span></label>
+          <input type="text" id="problem-item-itemid-input" maxlength="40" placeholder="代拍必填，比如 x123456789" autocomplete="off" />
         </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label">简单描述 <span class="problem-item-required">*</span></label>
@@ -5590,6 +5595,8 @@
   const problemItemIdLabel = document.getElementById('problem-item-id-label');
   const problemItemIdInput = document.getElementById('problem-item-id-input');
   const problemItemIdTip = document.getElementById('problem-item-id-tip');
+  const problemItemItemIdField = document.getElementById('problem-item-itemid-field');
+  const problemItemItemIdInput = document.getElementById('problem-item-itemid-input');
   const problemItemCameraBtn = document.getElementById('problem-item-camera-btn');
   const problemItemCameraInput = document.getElementById('problem-item-camera-input');
   const problemItemImageBtn = document.getElementById('problem-item-image-btn');
@@ -8239,8 +8246,8 @@
   // ===== 问题件列表（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
   const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
-  // 代拍大量任务：代拍里跟"大量"有关的问题，用法和代购代拍任务一样（详情+评论，最后点已完结）
-  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量任务': 'transferred_bulk' };
+  // 代拍大量工单：代拍里跟"大量"有关的问题，用法和代购代拍任务一样（详情+评论，最后点已完结）
+  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量工单': 'transferred_bulk' };
   const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
@@ -8598,6 +8605,8 @@
     problemItemIdLabel.textContent = idKindLabel(kind);
     problemItemIdInput.placeholder = kind === 'rs' ? '字母和数字，比如 RS12345678'
       : kind === 'm' ? '字母和数字，比如 m12345678901' : '只能填数字';
+    // 商品ID只有代拍要填
+    problemItemItemIdField.style.display = currentProblemItemCategory === '代拍' ? '' : 'none';
     problemItemIdTip.textContent = kind === 'tracking'
       ? '当前选的问题类型里有"找不到…"，填快递单号'
       : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
@@ -8699,6 +8708,7 @@
   function resetProblemItemForm() {
     selectedIssueTypes = new Set();
     problemItemIdInput.value = '';
+    problemItemItemIdInput.value = '';
     problemItemNoteInput.value = '';
     problemItemPendingImages = [];
     problemItemImageStatus.textContent = '';
@@ -8828,6 +8838,7 @@
         r.category,
         (r.issueTypes || []).join(' '),
         r.orderId,
+        r.itemId,
         idKindLabel(r.idKind),
         r.orderNote,
         (r.inspectorNames || []).join(' '),
@@ -8853,7 +8864,7 @@
         <td>${highlightCell(formatFinishedTime(r.resolvedAt), keyword)}</td>
         <td>${highlightCell(r.category, keyword)}</td>
         <td>${highlightCell((r.issueTypes || []).join('、'), keyword)}</td>
-        <td>${r.orderId ? highlightCell(`${idKindLabel(r.idKind)}：${r.orderId}`, keyword) : ''}</td>
+        <td>${r.orderId ? highlightCell(`${idKindLabel(r.idKind)}：${r.orderId}`, keyword) : ''}${r.itemId ? `<br>${highlightCell(`商品ID：${r.itemId}`, keyword)}` : ''}</td>
         <td class="col-note" title="${escapeHtml(note)}">${highlightCell(note, keyword)}</td>
         <td>${highlightCell((r.inspectorNames || []).join('、'), keyword)}</td>
         <td>${highlightCell(r.submittedBy, keyword)}</td>
@@ -8887,7 +8898,7 @@
   function problemItemHaystack(r) {
     const stamps = (r.followStamps && typeof r.followStamps === 'object') ? r.followStamps : {};
     return [
-      r.orderId, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
+      r.orderId, r.itemId, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
       r.submittedBy, r.orderNote, r._fromCategory || r.category, r.handledBy,
       Object.keys(stamps).map((k) => k + ' ' + ((stamps[k] && stamps[k].by) || '')).join(' '),
       taskHaystack(r),
@@ -8959,7 +8970,7 @@
   });
 
   function renderProblemItemList() {
-    // 煤炉反查/代购代拍任务/代拍大量任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
+    // 煤炉反查/代购代拍任务/代拍大量工单是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
     const isQueue = isQueueLike(currentProblemItemCategory);
     const allHere = isQueue
       ? getQueueReports(currentProblemItemCategory)
@@ -9026,6 +9037,12 @@
         idRow.className = 'problem-item-card-id';
         idRow.innerHTML = `${escapeHtml(idKindLabel(report.idKind))}：${highlightCell(report.orderId, problemItemSearchInput.value.trim())}`;
         card.appendChild(idRow);
+      }
+      if (report.itemId) {
+        const itemRow = document.createElement('div');
+        itemRow.className = 'problem-item-card-id';
+        itemRow.innerHTML = `商品ID：${highlightCell(report.itemId, problemItemSearchInput.value.trim())}`;
+        card.appendChild(itemRow);
       }
 
       if (report.orderNote) {
@@ -9117,7 +9134,7 @@
         { target: 'merchant', label: '转煤炉反查', icon: 'ti-zoom-question' },
         { target: 'task', label: '转任务', icon: 'ti-subtask' },
       ].concat(currentProblemItemCategory === '代拍'
-        ? [{ target: 'bulk', label: '转大量任务', icon: 'ti-stack-2' }] // 代拍里跟"大量"有关的问题
+        ? [{ target: 'bulk', label: '转大量工单', icon: 'ti-stack-2' }] // 代拍里跟"大量"有关的问题
         : [])).forEach(({ target, label, icon }) => {
         const btn = document.createElement('button');
         btn.className = 'transfer-btn';
@@ -9165,7 +9182,7 @@
     });
   }
 
-  // ===== 代购代拍任务 / 代拍大量任务：卡片摘要 + 详情面板 =====
+  // ===== 代购代拍任务 / 代拍大量工单：卡片摘要 + 详情面板 =====
   function taskHaystack(r) {
     const t = r.taskInfo || {};
     return [t.content, t.contact, t.followUp, (t.executors || []).join(' '),
@@ -9406,6 +9423,7 @@
 
     const metaBits = [
       r.orderId ? `${idKindLabel(r.idKind)}：${escapeHtml(r.orderId)}` : '',
+      r.itemId ? `商品ID：${escapeHtml(r.itemId)}` : '',
       `检品：${escapeHtml((r.inspectorNames || []).join('、') || '未填写')} · 提交：${escapeHtml(r.submittedBy || '')} ${formatProblemItemTime(r.submittedAt)}`,
       r.handledBy ? `转任务：${escapeHtml(r.handledBy)}` : '',
       t.updatedBy ? `最后修改：${escapeHtml(t.updatedBy)} ${formatTaskTime(t.updatedAt)}` : '',
@@ -9701,6 +9719,22 @@
       problemItemIdInput.focus();
       return;
     }
+    // 代拍：商品ID必填
+    const itemIdValue = problemItemItemIdInput.value.trim();
+    if (currentProblemItemCategory === '代拍') {
+      if (!itemIdValue) {
+        problemItemSubmitHint.textContent = '请填写商品ID（代拍必填）';
+        problemItemSubmitHint.style.color = '#e5534b';
+        problemItemItemIdInput.focus();
+        return;
+      }
+      if (!/^[A-Za-z0-9-]+$/.test(itemIdValue)) {
+        problemItemSubmitHint.textContent = '商品ID只能填字母和数字';
+        problemItemSubmitHint.style.color = '#e5534b';
+        problemItemItemIdInput.focus();
+        return;
+      }
+    }
     // 简单描述必填：空着的单子后面没人看得懂是什么问题
     if (!problemItemNoteInput.value.trim()) {
       problemItemSubmitHint.textContent = '请填写简单描述';
@@ -9724,6 +9758,7 @@
       issueTypes: Array.from(selectedIssueTypes),
       inspectorNames: [username],
       orderId: idValue,
+      itemId: currentProblemItemCategory === '代拍' ? itemIdValue : '',
       idKind,
       orderNote: problemItemNoteInput.value.trim(),
       images: problemItemPendingImages.filter((img) => img.url).map((img) => img.url),

@@ -303,14 +303,14 @@ app.get('/api/problem-item-export', async (req, res) => {
   try {
     const result = await dbPool.query(query, params);
     const escapeCsv = (val) => `"${String(val == null ? '' : val).replace(/"/g, '""')}"`;
-    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,备注,图片,提交人,提交时间,状态,跟进状态,处理人,处理时间'];
+    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,商品ID,备注,图片,提交人,提交时间,状态,跟进状态,处理人,处理时间'];
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
       const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
         : row.status === 'transferred_merchant' ? '转煤炉反查'
         : row.status === 'transferred_task' ? '转任务'
-        : row.status === 'transferred_bulk' ? '转大量任务'
+        : row.status === 'transferred_bulk' ? '转大量工单'
         : row.status === 'resolved_done' ? '已完结'
         : row.status === 'resolved_stocked' ? '已入库'
         : row.status === 'resolved_reshipped' ? '已补（换）发入库'
@@ -330,6 +330,7 @@ app.get('/api/problem-item-export', async (req, res) => {
         escapeCsv(row.order_id
           ? `${row.id_kind === 'tracking' ? '快递单号' : row.id_kind === 'rs' ? 'RS单号' : row.id_kind === 'm' ? 'M单号' : '订单ID'}：${row.order_id}`
           : ''),
+        escapeCsv(row.item_id || ''),
         escapeCsv(row.order_note),
         escapeCsv(Array.isArray(row.images) ? row.images.join(' ') : ''),
         escapeCsv(row.submitted_by),
@@ -1634,8 +1635,8 @@ function getAllInspectionRulesText() {
 const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
 // （状态值沿用老名字 transferred_merchant，老数据不用迁移）
-// 代拍大量任务：代拍里跟"大量"有关的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
-const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量任务': 'transferred_bulk' };
+// 代拍大量工单：代拍里跟"大量"有关的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
+const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量工单': 'transferred_bulk' };
 const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
 const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_task', 'transferred_bulk'];
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
@@ -1670,7 +1671,7 @@ function problemItemStatusLabel(status) {
   if (status === 'resolved_done') return '已完结';
   if (status === 'transferred_merchant') return '转煤炉反查';
   if (status === 'transferred_task') return '转任务';
-  if (status === 'transferred_bulk') return '转大量任务';
+  if (status === 'transferred_bulk') return '转大量工单';
   return '转处理'; // 老数据（transferred / follow_up）
 }
 function pushProblemItemFinished(record) {
@@ -1724,6 +1725,8 @@ async function ensureProblemItemTables() {
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS follow_stamps JSONB;`);
   // 代购代拍任务：详情字段（执行人/截止日/优先级…）和评论串
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_info JSONB;`);
+  // 代拍的商品ID（代拍问题件必填）
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS item_id TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_comments JSONB;`);
   // "待跟进暂存"这个状态取消了，老数据里的 shelved 一次性归回待处理，免得永远不显示
   await dbPool.query(`UPDATE problem_item_reports SET status = 'pending' WHERE status = 'shelved';`);
@@ -1740,6 +1743,7 @@ function rowToProblemItemReport(row) {
     inspectorNames: row.inspector_names,
     orderNote: row.order_note || '',
     orderId: row.order_id || '',
+    itemId: row.item_id || '',
     idKind: ['tracking', 'rs', 'm', 'order'].includes(row.id_kind) ? row.id_kind : 'order',
     images: Array.isArray(row.images) ? row.images : [],
     submittedBy: row.submitted_by,
@@ -1818,21 +1822,21 @@ async function loadProblemItemDataFromDB() {
   }
 }
 
-async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images) {
+async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images, itemId) {
   const now = Date.now();
   let id = `mem-${now}-${Math.round(Math.random() * 1e6)}`; // 没数据库时的临时 ID，同一毫秒提交多条也不撞
   if (dbPool) {
     try {
       const result = await dbPool.query(
-        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by, order_id, id_kind, images) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, submitted_at;',
-        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy, orderId, idKind, JSON.stringify(images)]
+        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by, order_id, id_kind, images, item_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, submitted_at;',
+        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy, orderId, idKind, JSON.stringify(images), itemId || null]
       );
       id = result.rows[0].id;
     } catch (err) {
       console.error('[问题件列表记录写入数据库失败]', err.message);
     }
   }
-  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {}, taskInfo: {}, taskComments: [] };
+  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, itemId: itemId || '', idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {}, taskInfo: {}, taskComments: [] };
   problemItemReports[category].push(report);
   return report;
 }
@@ -1894,7 +1898,7 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
 
   let finished = null;
   if (TRANSFER_STATUSES.includes(status)) {
-    // 转煤炉反查 / 转任务 / 转大量任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
+    // 转煤炉反查 / 转任务 / 转大量工单：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
     problemItemReports[category][idx].handledBy = byUsername;
@@ -2894,6 +2898,16 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      // 代拍：商品ID必填（字母、数字、横杠），不填不收
+      let itemId = '';
+      if (category === '代拍') {
+        itemId = String(data.itemId || '').trim().slice(0, 40);
+        if (!/^[A-Za-z0-9-]+$/.test(itemId)) {
+          ws.send(JSON.stringify({ type: 'problem_item_error', message: '代拍问题件必须填商品ID（字母、数字）' }));
+          return;
+        }
+      }
+
       // 图片：只接受我们自己 /upload 接口生成的路径，最多3张
       const images = Array.isArray(data.images)
         ? data.images.filter((u) => isOwnUploadUrl(u)).slice(0, 3)
@@ -2904,7 +2918,7 @@ wss.on('connection', (ws) => {
       // 改成：先让单子进来，列表里标红"待补照片"，之后用手机点"补传照片"补上。
 
       // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
-      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images);
+      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images, itemId);
       broadcast({ type: 'problem_item_report_added', category, report });
       return;
     }
@@ -3010,7 +3024,7 @@ wss.on('connection', (ws) => {
           : data.target === 'merchant' ? 'transferred_merchant'
           : data.target === 'bulk' ? 'transferred_bulk'
           : 'transferred';
-        if (status === 'transferred_bulk' && category !== '代拍') return; // 大量任务只收代拍的
+        if (status === 'transferred_bulk' && category !== '代拍') return; // 大量工单只收代拍的
       }
       else return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);

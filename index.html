@@ -1099,6 +1099,38 @@
   .image-preview-item:hover .item-edit-badge { opacity: 1; }
   @media (hover: none) { .image-preview-item .item-edit-badge { opacity: 0.85; } }
 
+  /* ===== 头像名片（悬停放大） ===== */
+  #avatar-card {
+    position: fixed; z-index: 10010; width: 224px; display: none; flex-direction: column; align-items: center;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22); padding-bottom: 12px;
+    opacity: 0; transform: translateY(4px); transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+  #avatar-card.show { display: flex; }
+  #avatar-card.visible { opacity: 1; transform: none; }
+  #avatar-card-banner { width: 100%; height: 44px; background: var(--ac-color, #8a90a0); opacity: 0.9; }
+  #avatar-card-avatar { --av-size: 88px; margin-top: -40px; box-shadow: 0 0 0 4px var(--bg); font-size: 30px; }
+  #avatar-card-avatar.has-img { cursor: zoom-in; border-width: 3px; }
+  #avatar-card-name { margin-top: 8px; font-size: 16px; font-weight: 700; color: var(--text); max-width: 200px; text-align: center; word-break: break-all; }
+  #avatar-card-tags { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+  #avatar-card-role { font-size: 12px; font-weight: 700; color: #fff; background: var(--ac-color, #8a90a0); border-radius: 999px; padding: 2px 10px; }
+  #avatar-card-role:empty { display: none; }
+  #avatar-card-status { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+  #avatar-card-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #b3b8c4; }
+  #avatar-card-status.on { color: #2e9e5b; }
+  #avatar-card-status.on::before { background: #2e9e5b; }
+  #avatar-card-actions { display: flex; gap: 6px; margin-top: 12px; padding: 0 12px; width: 100%; box-sizing: border-box; }
+  #avatar-card-actions:empty { display: none; }
+  #avatar-card-actions button {
+    flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px;
+    font-size: 12.5px; font-weight: 600; padding: 7px 6px; cursor: pointer; font-family: inherit;
+  }
+  #avatar-card-actions button:hover { border-color: var(--ac-color, var(--accent)); color: var(--ac-color, var(--accent)); }
+  #avatar-card-actions button.primary { background: var(--ac-color, var(--accent)); border-color: transparent; color: #fff; }
+  #avatar-card-actions button.primary:hover { filter: brightness(1.08); color: #fff; }
+  .avatar[data-avatar-user] { cursor: pointer; }
+
   /* ===== 图片标注（发图前框选/箭头/文字/马赛克） ===== */
   #img-edit-panel {
     display: none; position: fixed; inset: 0; z-index: 10002;
@@ -2275,10 +2307,11 @@
   /* 只读角色看不到操作列和扫码条 */
   /* 只读角色看不到各模块的编辑按钮（统计那两个面板另算，见下面） */
   body.role-readonly .editor-only { display: none !important; }
-  /* 质检员不显示"煤炉反查""代购代拍任务"这两个队列（以及完结表里的"查看任务"） */
+  /* 质检员不显示"煤炉反查""代购代拍任务""代拍大量任务"这几个队列（以及完结表里的"查看任务"） */
   body.role-inspector .queue-only,
   body.role-inspector [data-category="煤炉反查"],
   body.role-inspector [data-category="代购代拍任务"],
+  body.role-inspector [data-category="代拍大量任务"],
   body.role-inspector .finished-task-btn { display: none !important; }
   /* 统计：谁都能看，但改动分两档——下单侧（管理员/仓库现场/客服）、入库侧（管理员/仓库现场）。
      用 :not() 反着写，这样原来的 display 不会被覆盖掉 */
@@ -4175,6 +4208,11 @@
         <span class="tool-entry-label">代购代拍任务</span>
         <span class="problem-item-badge" id="problem-badge-代购代拍任务"></span>
       </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代拍大量任务" type="button">
+        <span class="module-icon-badge"><i class="ti ti-stack-2"></i></span>
+        <span class="tool-entry-label">代拍大量任务</span>
+        <span class="problem-item-badge" id="problem-badge-代拍大量任务"></span>
+      </button>
       <div class="problem-item-queue-divider"><span>按处理人需关注</span></div>
       <!-- 按转出人分的人名视图，名单从服务器来，这里动态生成 -->
       <div id="problem-item-person-entries"></div>
@@ -5192,6 +5230,7 @@
       <div class="problem-item-cat-divider queue-only"></div>
       <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
       <button class="problem-item-panel-cat-btn" data-category="代购代拍任务">代购代拍任务</button>
+      <button class="problem-item-panel-cat-btn" data-category="代拍大量任务">代拍大量任务</button>
       <div class="problem-item-cat-divider"></div>
       <div id="problem-item-panel-person-entries"></div>
       <div class="problem-item-cat-divider"></div>
@@ -5399,6 +5438,18 @@
         <button type="button" id="task-detail-done" class="editor-only"><i class="ti ti-circle-check"></i> 已完结</button>
       </div>
     </div>
+  </div>
+
+  <!-- 头像名片：鼠标停在任意人的头像上弹出，大头像 + 角色 + 在线状态 + 私聊/@/换头像 -->
+  <div id="avatar-card" role="dialog" aria-hidden="true">
+    <div id="avatar-card-banner"></div>
+    <span class="avatar sz-xl" id="avatar-card-avatar"></span>
+    <div id="avatar-card-name"></div>
+    <div id="avatar-card-tags">
+      <span id="avatar-card-role"></span>
+      <span id="avatar-card-status"></span>
+    </div>
+    <div id="avatar-card-actions"></div>
   </div>
 
   <!-- 发图前的简单标注：框选 / 箭头 / 画笔 / 文字 / 马赛克 -->
@@ -5661,7 +5712,7 @@
       color: info ? (ROLE_COLORS[info.role] || '#8a90a0') : '#8a90a0',
       url: info ? info.avatarUrl : '',
       text: avatarText(name, 'user'),
-      title: info ? `${name} · ${info.roleLabel || ''}` : name,
+      title: '', // 鼠标放上去会弹出名片（大头像 + 角色），不用浏览器自带的小提示
     });
   }
   function makeUserAvatar(name, size) {
@@ -5697,7 +5748,7 @@
       color: roleColor,
       url: (info && info.avatarUrl) || (myUser && myUser.avatarUrl) || '',
       text: avatarText(username, 'user'),
-      title: '我的账号：点这里换头像 / 改密码',
+      title: '',
     });
   }
   // 选好的图片裁成正方形、缩到 256px 再传，头像文件很小
@@ -7143,6 +7194,124 @@
     })();
   });
 
+  // ===== 头像名片：鼠标停在头像上 0.3 秒弹出；移到名片上不消失，离开后稍等一下再收 =====
+  const avatarCard = document.getElementById('avatar-card');
+  const avatarCardAvatar = document.getElementById('avatar-card-avatar');
+  let avatarCardShowTimer = null;
+  let avatarCardHideTimer = null;
+  let avatarCardFor = null; // 当前名片对应的那个头像元素
+  function positionAvatarCard(anchor) {
+    const r = anchor.getBoundingClientRect();
+    const cw = avatarCard.offsetWidth || 224;
+    const ch = avatarCard.offsetHeight || 230;
+    const gap = 10;
+    // 优先放在头像右边，放不下放左边；上下尽量跟头像对齐，别出屏幕
+    let left = r.right + gap;
+    if (left + cw > window.innerWidth - 8) left = r.left - gap - cw;
+    if (left < 8) left = Math.min(Math.max(8, r.left), window.innerWidth - cw - 8);
+    let top = r.top + r.height / 2 - 60;
+    top = Math.min(Math.max(8, top), window.innerHeight - ch - 8);
+    avatarCard.style.left = left + 'px';
+    avatarCard.style.top = top + 'px';
+  }
+  function avatarCardButton(icon, label, onClick, primary) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (primary) b.className = 'primary';
+    b.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
+    b.addEventListener('click', () => { hideAvatarCard(true); onClick(); });
+    return b;
+  }
+  function showAvatarCard(anchor) {
+    const name = anchor.dataset.avatarUser;
+    if (!name) return;
+    const info = userInfoOf(name);
+    const color = info ? (ROLE_COLORS[info.role] || '#8a90a0') : '#8a90a0';
+    avatarCardFor = anchor;
+    avatarCard.style.setProperty('--ac-color', color);
+    paintAvatar(avatarCardAvatar, {
+      color,
+      url: (info && info.avatarUrl) || (name === username && myUser && myUser.avatarUrl) || '',
+      text: avatarText(name, 'user'),
+      title: '',
+    });
+    document.getElementById('avatar-card-name').textContent = name;
+    document.getElementById('avatar-card-role').textContent = info ? (info.roleLabel || '') : (name === username ? (ROLES_LABEL_FALLBACK[myRole] || '') : '');
+    const online = name === username || onlineUsers.includes(name);
+    const st = document.getElementById('avatar-card-status');
+    st.textContent = online ? '在线' : '离线';
+    st.className = online ? 'on' : '';
+    const acts = document.getElementById('avatar-card-actions');
+    acts.innerHTML = '';
+    if (name === username) {
+      acts.appendChild(avatarCardButton('ti-camera', '换头像', () => openAccountPanel(), true));
+    } else if (info) {
+      acts.appendChild(avatarCardButton('ti-message-circle', '私聊', () => {
+        if (typeof closeTaskDetail === 'function' && taskDetail) closeTaskDetail();
+        if (problemItemOverlay.classList.contains('active')) closeProblemItemOverlay();
+        openDirectMessage(name);
+      }, true));
+      acts.appendChild(avatarCardButton('ti-at', '提醒', () => {
+        if (typeof closeTaskDetail === 'function' && taskDetail) closeTaskDetail();
+        if (problemItemOverlay.classList.contains('active')) closeProblemItemOverlay();
+        const mention = `@${name} `;
+        if (!textInput.value.includes(mention)) {
+          const pos = textInput.selectionStart != null ? textInput.selectionStart : textInput.value.length;
+          textInput.value = textInput.value.slice(0, pos) + mention + textInput.value.slice(pos);
+        }
+        autoResizeTextInput();
+        textInput.focus();
+        textInput.setSelectionRange(textInput.value.length, textInput.value.length);
+      }));
+    }
+    avatarCard.classList.add('show');
+    avatarCard.setAttribute('aria-hidden', 'false');
+    positionAvatarCard(anchor);
+    void avatarCard.offsetWidth; // 先让 display 生效，再加 visible，淡入动画才会跑
+    avatarCard.classList.add('visible');
+  }
+  function hideAvatarCard(now) {
+    clearTimeout(avatarCardShowTimer);
+    clearTimeout(avatarCardHideTimer);
+    const done = () => {
+      avatarCard.classList.remove('visible', 'show');
+      avatarCard.setAttribute('aria-hidden', 'true');
+      avatarCardFor = null;
+    };
+    if (now) done(); else avatarCardHideTimer = setTimeout(done, 180);
+  }
+  // 名片里的角色名：名单还没到时，自己的角色用这个兜底
+  const ROLES_LABEL_FALLBACK = { admin: '管理员', manager: '仓库现场', inspector: '质检员', buyer: '代购', service: '客服' };
+  function avatarHoverTarget(el) {
+    const av = el && el.closest ? el.closest('.avatar[data-avatar-user]') : null;
+    if (!av || av.closest('#avatar-card') || av.closest('.avatar-edit-row')) return null;
+    return av;
+  }
+  document.addEventListener('mouseover', (e) => {
+    if (e.target.closest && e.target.closest('#avatar-card')) { clearTimeout(avatarCardHideTimer); return; }
+    const av = avatarHoverTarget(e.target);
+    if (!av) return;
+    clearTimeout(avatarCardHideTimer);
+    if (avatarCardFor === av && avatarCard.classList.contains('show')) return;
+    clearTimeout(avatarCardShowTimer);
+    avatarCardShowTimer = setTimeout(() => showAvatarCard(av), avatarCard.classList.contains('show') ? 60 : 300);
+  });
+  document.addEventListener('mouseout', (e) => {
+    const from = avatarHoverTarget(e.target) || (e.target.closest && e.target.closest('#avatar-card'));
+    if (!from) return;
+    const to = e.relatedTarget;
+    if (to && (to.closest && (to.closest('#avatar-card') || (avatarCardFor && avatarCardFor.contains(to))))) return;
+    clearTimeout(avatarCardShowTimer);
+    if (avatarCard.classList.contains('show')) hideAvatarCard(false);
+  });
+  // 名片里的大头像是图片的话，点一下看原图
+  avatarCardAvatar.addEventListener('click', () => {
+    const img = avatarCardAvatar.querySelector('img');
+    if (img) { const src = img.src; hideAvatarCard(true); openImageLightbox([src], 0); }
+  });
+  window.addEventListener('scroll', () => { if (avatarCard.classList.contains('show')) hideAvatarCard(true); }, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && avatarCard.classList.contains('show')) hideAvatarCard(true); });
+
   imagePickBtn.addEventListener('click', () => imageFileInput.click());
   imageFileInput.addEventListener('change', () => {
     handleImageFiles(imageFileInput.files);
@@ -8070,7 +8239,9 @@
   // ===== 问题件列表（代购/代拍/煤炉三个分类，问卷式提交+红点计数+待处理列表） =====
   const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
-  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task' };
+  // 代拍大量任务：代拍里跟"大量"有关的问题，用法和代购代拍任务一样（详情+评论，最后点已完结）
+  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量任务': 'transferred_bulk' };
+  const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
   let problemItemHandlers = [];
@@ -8788,7 +8959,7 @@
   });
 
   function renderProblemItemList() {
-    // 煤炉反查/代购代拍任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
+    // 煤炉反查/代购代拍任务/代拍大量任务是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
     const isQueue = isQueueLike(currentProblemItemCategory);
     const allHere = isQueue
       ? getQueueReports(currentProblemItemCategory)
@@ -8819,7 +8990,7 @@
         catChip.textContent = report._fromCategory;
         tagsRow.appendChild(catChip);
       }
-      // 人名视图是把两条队列合在一起看的，所以再多一枚章标明它现在在"煤炉反查"还是"代购代拍任务"里
+      // 人名视图是把几条队列合在一起看的，所以再多一枚章标明它现在在哪条队列里
       if (isQueue && report._queueName) {
         const qChip = document.createElement('span');
         qChip.className = 'problem-item-queue-chip';
@@ -8890,7 +9061,7 @@
         card.appendChild(imgRow);
       }
 
-      const isTask = isQueue && report.status === 'transferred_task';
+      const isTask = isQueue && TASK_QUEUE_STATUSES.includes(report.status);
       // 任务卡片上挂一行摘要：优先级、截止、执行人、最新评论，点一下打开详情
       if (isTask) card.appendChild(buildTaskSummary(report));
 
@@ -8945,7 +9116,9 @@
       (isQueue ? [] : [
         { target: 'merchant', label: '转煤炉反查', icon: 'ti-zoom-question' },
         { target: 'task', label: '转任务', icon: 'ti-subtask' },
-      ]).forEach(({ target, label, icon }) => {
+      ].concat(currentProblemItemCategory === '代拍'
+        ? [{ target: 'bulk', label: '转大量任务', icon: 'ti-stack-2' }] // 代拍里跟"大量"有关的问题
+        : [])).forEach(({ target, label, icon }) => {
         const btn = document.createElement('button');
         btn.className = 'transfer-btn';
         btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;
@@ -8992,7 +9165,7 @@
     });
   }
 
-  // ===== 代购代拍任务：卡片摘要 + 详情面板 =====
+  // ===== 代购代拍任务 / 代拍大量任务：卡片摘要 + 详情面板 =====
   function taskHaystack(r) {
     const t = r.taskInfo || {};
     return [t.content, t.contact, t.followUp, (t.executors || []).join(' '),
@@ -9399,7 +9572,7 @@
   }, true);
   document.getElementById('task-detail-done').addEventListener('click', () => {
     if (!taskDetail || taskDetail.readOnly) return;
-    if (!confirm('确认这条任务已完结？完结后从代购代拍任务里移到"完结问题件"。')) return;
+    if (!confirm('确认这条任务已完结？完结后移到"完结问题件"。')) return;
     sendTask('problem_item_result', { result: 'done' });
   });
 

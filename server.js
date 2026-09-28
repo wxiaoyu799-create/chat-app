@@ -284,7 +284,7 @@ app.get('/api/problem-item-export', async (req, res) => {
 
   // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
   // 不然老记录会被漏掉
-  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done')";
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'transferred_bulk', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done')";
   const params = [];
   if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
     params.push(category);
@@ -310,6 +310,7 @@ app.get('/api/problem-item-export', async (req, res) => {
       const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
         : row.status === 'transferred_merchant' ? '转煤炉反查'
         : row.status === 'transferred_task' ? '转任务'
+        : row.status === 'transferred_bulk' ? '转大量任务'
         : row.status === 'resolved_done' ? '已完结'
         : row.status === 'resolved_stocked' ? '已入库'
         : row.status === 'resolved_reshipped' ? '已补（换）发入库'
@@ -1633,7 +1634,10 @@ function getAllInspectionRulesText() {
 const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
 // （状态值沿用老名字 transferred_merchant，老数据不用迁移）
-const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task' };
+// 代拍大量任务：代拍里跟"大量"有关的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
+const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量任务': 'transferred_bulk' };
+const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
+const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_task', 'transferred_bulk'];
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
 // 队列里的结束方式：点完这条记录就从队列里退场，
 // 具体是哪种结果存在 status 里，导出的时候分开统计。
@@ -1642,7 +1646,7 @@ const PROBLEM_ITEM_RESULTS = {
   stocked: { status: 'resolved_stocked', label: '已入库', queue: 'transferred_merchant' },
   reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库', queue: 'transferred_merchant' },
   cancelled: { status: 'resolved_cancelled', label: '已取消', queue: 'transferred_merchant' },
-  done: { status: 'resolved_done', label: '已完结', queue: 'transferred_task' },
+  done: { status: 'resolved_done', label: '已完结', queue: TASK_QUEUE_STATUSES },
 };
 // 任务详情里的几个下拉选项
 const TASK_CONTACT_OPTIONS = ['需要', '不需要'];
@@ -1666,6 +1670,7 @@ function problemItemStatusLabel(status) {
   if (status === 'resolved_done') return '已完结';
   if (status === 'transferred_merchant') return '转煤炉反查';
   if (status === 'transferred_task') return '转任务';
+  if (status === 'transferred_bulk') return '转大量任务';
   return '转处理'; // 老数据（transferred / follow_up）
 }
 function pushProblemItemFinished(record) {
@@ -1786,7 +1791,7 @@ async function loadProblemItemDataFromDB() {
     // 只是不计入侧栏红点。已解决/转处理这两种是终结状态，留在数据库当历史，不占内存也不用同步给客户端
     for (const cat of PROBLEM_ITEM_CATEGORIES) {
       const reportRows = await dbPool.query(
-        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'transferred_merchant', 'transferred_task') ORDER BY submitted_at ASC;",
+        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'transferred_merchant', 'transferred_task', 'transferred_bulk') ORDER BY submitted_at ASC;",
         [cat]
       );
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
@@ -1853,7 +1858,7 @@ async function appendProblemItemImages(category, reportId, newImages) {
 // 只有还在"代购代拍任务"队列里的记录能改；各角色都能跟进（写字段、发评论、点赞）
 function findTaskReport(category, reportId) {
   const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(reportId));
-  return report && report.status === 'transferred_task' ? report : null;
+  return report && TASK_QUEUE_STATUSES.includes(report.status) ? report : null;
 }
 function cleanTaskText(v, max) { return String(v == null ? '' : v).replace(/\r/g, '').trim().slice(0, max); }
 function cleanTaskImages(list, max) {
@@ -1888,8 +1893,8 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
   if (idx === -1) return false;
 
   let finished = null;
-  if (status === 'transferred_merchant' || status === 'transferred_task') {
-    // 转煤炉反查 / 转任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
+  if (TRANSFER_STATUSES.includes(status)) {
+    // 转煤炉反查 / 转任务 / 转大量任务：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
     problemItemReports[category][idx].handledBy = byUsername;
@@ -2936,7 +2941,7 @@ wss.on('connection', (ws) => {
       const result = PROBLEM_ITEM_RESULTS[String(data.result || '')];
       if (!result) return;
       const cur = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
-      if (!cur || cur.status !== result.queue) return; // 结果要跟它所在的队列对得上
+      if (!cur || ![].concat(result.queue).includes(cur.status)) return; // 结果要跟它所在的队列对得上
       const ok = await updateProblemItemReportStatus(category, data.reportId, result.status, client.username);
       if (ok) {
         broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
@@ -3003,12 +3008,14 @@ wss.on('connection', (ws) => {
       else if (data.type === 'problem_item_transfer') {
         status = data.target === 'task' ? 'transferred_task'
           : data.target === 'merchant' ? 'transferred_merchant'
+          : data.target === 'bulk' ? 'transferred_bulk'
           : 'transferred';
+        if (status === 'transferred_bulk' && category !== '代拍') return; // 大量任务只收代拍的
       }
       else return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {
-        if (status === 'transferred_merchant' || status === 'transferred_task') {
+        if (TRANSFER_STATUSES.includes(status)) {
           // 转出去的记录没有消失，只是从原分类挪到了"煤炉反查/代购代拍任务"队列里，
           // 所以广播状态变更（带上完整记录），让各端把它从原列表移走、加进对应队列
           const moved = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));

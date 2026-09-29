@@ -310,7 +310,7 @@ app.get('/api/problem-item-export', async (req, res) => {
       const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
         : row.status === 'transferred_merchant' ? '转煤炉反查'
         : row.status === 'transferred_task' ? '转任务'
-        : row.status === 'transferred_bulk' ? '转大量工单'
+        : row.status === 'transferred_bulk' ? '转工单'
         : row.status === 'resolved_done' ? '已完结'
         : row.status === 'resolved_stocked' ? '已入库'
         : row.status === 'resolved_reshipped' ? '已补（换）发入库'
@@ -1635,8 +1635,8 @@ function getAllInspectionRulesText() {
 const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
 // （状态值沿用老名字 transferred_merchant，老数据不用迁移）
-// 代拍大量工单：代拍里跟"大量"有关的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
-const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍大量工单': 'transferred_bulk' };
+// 代拍工单：代拍的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
+const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
 const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
 const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_task', 'transferred_bulk'];
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
@@ -1671,7 +1671,7 @@ function problemItemStatusLabel(status) {
   if (status === 'resolved_done') return '已完结';
   if (status === 'transferred_merchant') return '转煤炉反查';
   if (status === 'transferred_task') return '转任务';
-  if (status === 'transferred_bulk') return '转大量工单';
+  if (status === 'transferred_bulk') return '转工单';
   return '转处理'; // 老数据（transferred / follow_up）
 }
 function pushProblemItemFinished(record) {
@@ -1799,6 +1799,8 @@ async function loadProblemItemDataFromDB() {
         [cat]
       );
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
+      // 这个功能上线前就已经在任务里的单子，也补上默认执行人
+      problemItemReports[cat].filter((r) => TASK_QUEUE_STATUSES.includes(r.status)).forEach(applyDefaultTaskExecutors);
     }
 
     // 已完结的记录：只读最近的一批进内存，给"已完结问题件"表格用（完整历史还在数据库里，导出走导出）
@@ -1883,6 +1885,14 @@ function applyTaskPatch(info, patch) {
   if ('images' in patch) out.images = cleanTaskImages(patch.images, TASK_MAX_IMAGES);
   return out;
 }
+// 任务的执行人默认勾上所有仓库现场账号（只在还没设过执行人时填，之后谁删了就按删了的来）
+function applyDefaultTaskExecutors(report) {
+  const info = (report.taskInfo && typeof report.taskInfo === 'object') ? report.taskInfo : {};
+  if (Array.isArray(info.executors)) return false;
+  report.taskInfo = { ...info, executors: users.filter((u) => u.role === 'manager' && !u.disabled).map((u) => u.username) };
+  saveTaskColumn(report.id, 'task_info', report.taskInfo);
+  return true;
+}
 async function saveTaskColumn(reportId, column, value) {
   if (!dbPool || String(reportId).startsWith('mem-')) return;
   try {
@@ -1898,10 +1908,11 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
 
   let finished = null;
   if (TRANSFER_STATUSES.includes(status)) {
-    // 转煤炉反查 / 转任务 / 转大量工单：从原分类的待处理列表里"消失"，但记录本身留在内存里，
+    // 转煤炉反查 / 转任务 / 转工单：从原分类的待处理列表里"消失"，但记录本身留在内存里，
     // 换到对应的去向队列里继续显示（红点只按 pending 计数，所以转出后不再计入红点）
     problemItemReports[category][idx].status = status;
     problemItemReports[category][idx].handledBy = byUsername;
+    if (TASK_QUEUE_STATUSES.includes(status)) applyDefaultTaskExecutors(problemItemReports[category][idx]);
   } else {
     // 已完结：从待处理/队列里移除，转到"已完结问题件"表格里继续能查能搜
     const gone = problemItemReports[category].splice(idx, 1)[0];
@@ -2898,12 +2909,12 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // 代拍：商品ID必填（字母、数字、横杠），不填不收
+      // 代拍：商品ID必填（字母、数字、横杠），不填不收；涉及多个商品时用空格隔开
       let itemId = '';
       if (category === '代拍') {
-        itemId = String(data.itemId || '').trim().slice(0, 40);
-        if (!/^[A-Za-z0-9-]+$/.test(itemId)) {
-          ws.send(JSON.stringify({ type: 'problem_item_error', message: '代拍问题件必须填商品ID（字母、数字）' }));
+        itemId = String(data.itemId || '').replace(/[\s　]+/g, ' ').trim().slice(0, 300);
+        if (!/^[A-Za-z0-9-]+( [A-Za-z0-9-]+)*$/.test(itemId)) {
+          ws.send(JSON.stringify({ type: 'problem_item_error', message: '代拍问题件必须填商品ID（字母、数字，多个用空格隔开）' }));
           return;
         }
       }
@@ -3024,7 +3035,8 @@ wss.on('connection', (ws) => {
           : data.target === 'merchant' ? 'transferred_merchant'
           : data.target === 'bulk' ? 'transferred_bulk'
           : 'transferred';
-        if (status === 'transferred_bulk' && category !== '代拍') return; // 大量工单只收代拍的
+        if (status === 'transferred_bulk' && category !== '代拍') return; // 代拍工单只收代拍的
+        if (status === 'transferred_task' && category === '煤炉') return; // 煤炉不转任务，只转煤炉反查
       }
       else return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
@@ -3749,9 +3761,14 @@ function formatShiftStartText(startMin) {
   return m === 0 ? `${h}点` : `${h}点${String(m).padStart(2, '0')}分`;
 }
 
-function fireShiftAlert(entry) {
+// 同一个时间上班的几个人合成一条："王苏雅、齐家驹、乔倩芸将14点上班，请注意工作内容安排。"
+function fireShiftAlert(entries) {
+  const names = entries
+    .slice()
+    .sort((a, b) => (staffNameRank(a.personName) - staffNameRank(b.personName)) || a.personName.localeCompare(b.personName, 'zh'))
+    .map((e) => e.personName);
   sendPrivateToManagers(
-    `${entry.personName}将${formatShiftStartText(entry.startMin)}上班，请注意工作内容安排。`,
+    `${Array.from(new Set(names)).join('、')}将${formatShiftStartText(entries[0].startMin)}上班，请注意工作内容安排。`,
     '班表提醒'
   );
 }
@@ -3829,6 +3846,7 @@ setInterval(checkMorningSummary, 30 * 1000);
 function checkShiftAlerts() {
   const { dateStr, hour, minute } = getJSTParts(new Date());
   const nowMin = hour * 60 + minute;
+  const dueByStart = new Map(); // 上班时间 -> 这一轮要提醒的人
   shiftEntries.forEach((entry) => {
     if (entry.workDate !== dateStr) return;
     if (entry.startMin < SHIFT_ALERT_MIN_START || entry.startMin > SHIFT_ALERT_MAX_START) return;
@@ -3839,8 +3857,11 @@ function checkShiftAlerts() {
     const key = `${dateStr}-${entry.id}-${entry.startMin}`;
     if (shiftAlertFired[key]) return;
     shiftAlertFired[key] = true;
-    fireShiftAlert(entry);
+    if (!dueByStart.has(entry.startMin)) dueByStart.set(entry.startMin, []);
+    dueByStart.get(entry.startMin).push(entry);
   });
+  // 同一时间上班的人合成一条发，不再一人一条刷屏
+  dueByStart.forEach((entries) => fireShiftAlert(entries));
 }
 
 setInterval(checkShiftAlerts, 30 * 1000);

@@ -1372,6 +1372,16 @@
   #sidebar #timeclock-open-btn, #sidebar #staff-open-btn, #sidebar #accounts-open-btn { padding: 5px 0 6px; flex-shrink: 0; }
   /* 四个人名跟上面的入口一样，一人一整行、同宽同样式（并成两列太挤，红点会压到名字） */
   #problem-item-person-entries .tool-entry-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .person-hidden { display: none !important; }
+  .problem-item-person-toggle {
+    position: relative; display: flex; align-items: center; gap: 5px; width: 100%;
+    background: transparent; border: none; color: var(--muted); font-size: 12px; font-family: inherit;
+    padding: 4px 8px; margin: 1px 0 3px; cursor: pointer; border-radius: 7px; text-align: left; white-space: nowrap;
+  }
+  .problem-item-person-toggle:hover { background: var(--hover-dark); color: var(--text); }
+  .problem-item-person-toggle i { font-size: 13px; }
+  .problem-item-person-toggle.in-panel { font-size: 13px; padding: 8px 10px; }
+  .problem-item-person-toggle .problem-item-badge { margin-left: auto; position: static; }
   .sidebar-toggle {
     width: 100%;
     display: flex;
@@ -2312,6 +2322,7 @@
   body.role-inspector [data-category="煤炉反查"],
   body.role-inspector [data-category="代购代拍任务"],
   body.role-inspector [data-category="代拍工单"],
+  body.role-inspector [data-category="代购日志"],
   body.role-inspector .finished-task-btn { display: none !important; }
   /* 统计：谁都能看，但改动分两档——下单侧（管理员/仓库现场/客服）、入库侧（管理员/仓库现场）。
      用 :not() 反着写，这样原来的 display 不会被覆盖掉 */
@@ -4203,6 +4214,11 @@
         <span class="tool-entry-label">煤炉反查</span>
         <span class="problem-item-badge" id="problem-badge-煤炉反查"></span>
       </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="代购日志" type="button">
+        <span class="module-icon-badge"><i class="ti ti-notebook"></i></span>
+        <span class="tool-entry-label">代购日志</span>
+        <span class="problem-item-badge" id="problem-badge-代购日志"></span>
+      </button>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="代购代拍任务" type="button">
         <span class="module-icon-badge"><i class="ti ti-subtask"></i></span>
         <span class="tool-entry-label">代购代拍任务</span>
@@ -5229,6 +5245,7 @@
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
       <div class="problem-item-cat-divider queue-only"></div>
       <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
+      <button class="problem-item-panel-cat-btn" data-category="代购日志">代购日志</button>
       <button class="problem-item-panel-cat-btn" data-category="代购代拍任务">代购代拍任务</button>
       <button class="problem-item-panel-cat-btn" data-category="代拍工单">代拍工单</button>
       <div class="problem-item-cat-divider"></div>
@@ -8248,7 +8265,8 @@
   const PROBLEM_ITEM_CATEGORIES_CLIENT = ['代购', '代拍', '煤炉'];
   // 两个"去向队列"：转出去的记录按去向汇总，不是提交入口
   // 代拍工单：代拍的问题单独转到这里，用法和代购代拍任务一样（详情+评论，最后点已完结）
-  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
+  // 代购日志：代购转出来的，用法跟煤炉反查一样（三种处理结果）
+  const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购日志': 'transferred_log', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
   const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
@@ -8320,13 +8338,44 @@
     return out;
   }
 
-  // 两个侧栏里的人名入口：名单来自服务器，改名单不用动前端
+  // 两个侧栏里的人名入口：名单来自服务器，改名单不用动前端。
+  // 默认只露出自己那一行，别人的折在"其他处理人"里，点一下展开（记在本机）
+  const PERSON_EXPAND_KEY = 'ccProblemPersonExpanded';
+  let personExpanded = false;
+  try { personExpanded = localStorage.getItem(PERSON_EXPAND_KEY) === '1'; } catch (e) { /* 读不到就按默认折叠 */ }
+  function makePersonToggle(isPanel) {
+    const others = problemItemHandlers.filter((n) => n !== username);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'problem-item-person-toggle' + (isPanel ? ' in-panel' : '');
+    const label = problemItemHandlers.includes(username) ? '其他' : '处理人';
+    btn.title = personExpanded ? '收起其他处理人' : '展开其他处理人';
+    btn.innerHTML = `<i class="ti ti-chevron-${personExpanded ? 'down' : 'right'}"></i><span>${label} (${others.length})</span>`
+      + '<span class="problem-item-badge person-others-badge"></span>';
+    btn.addEventListener('click', () => {
+      personExpanded = !personExpanded;
+      try { localStorage.setItem(PERSON_EXPAND_KEY, personExpanded ? '1' : '0'); } catch (e) { /* 存不了就只管这一次 */ }
+      renderProblemItemPersonEntries();
+      renderProblemItemBadges();
+    });
+    return btn;
+  }
   function renderProblemItemPersonEntries() {
     const sideWrap = document.getElementById('problem-item-person-entries');
     const panelWrap = document.getElementById('problem-item-panel-person-entries');
     sideWrap.innerHTML = '';
     panelWrap.innerHTML = '';
-    problemItemHandlers.forEach((name) => {
+    // 自己排第一个，其他人跟在折叠按钮后面
+    const mine = problemItemHandlers.filter((n) => n === username);
+    const others = problemItemHandlers.filter((n) => n !== username);
+    const addToggle = () => {
+      if (!others.length) return;
+      sideWrap.appendChild(makePersonToggle(false));
+      panelWrap.appendChild(makePersonToggle(true));
+    };
+    mine.concat(others).forEach((name, i) => {
+      if (i === mine.length) addToggle();
+      const hidden = name !== username && !personExpanded;
       const sideBtn = document.createElement('button');
       sideBtn.type = 'button';
       sideBtn.className = 'tool-entry-btn problem-item-cat-btn';
@@ -8335,6 +8384,7 @@
         + `<span class="tool-entry-label">${escapeHtml(name)}</span>`
         + `<span class="problem-item-badge" id="problem-badge-${escapeHtml(name)}"></span>`;
       sideBtn.addEventListener('click', () => openProblemItemOverlay(name));
+      if (hidden) sideBtn.classList.add('person-hidden');
       sideWrap.appendChild(sideBtn);
 
       const panelBtn = document.createElement('button');
@@ -8348,11 +8398,22 @@
         resetProblemItemForm();
         updateProblemItemPanelForCategory();
       });
+      // 正在看的那个人即使折叠着也露出来，免得"当前页"在侧栏里找不到
+      if (hidden && currentProblemItemCategory !== name) panelBtn.classList.add('person-hidden');
       panelWrap.appendChild(panelBtn);
     });
   }
 
+  function renderPersonOthersBadge() {
+    const n = problemItemHandlers.filter((x) => x !== username).reduce((sum, x) => sum + getQueueReports(x).length, 0);
+    document.querySelectorAll('.person-others-badge').forEach((b) => {
+      const show = n > 0 && !personExpanded;
+      b.textContent = show ? n : '';
+      b.classList.toggle('show', show);
+    });
+  }
   function renderProblemItemBadges() {
+    renderPersonOthersBadge();
     PROBLEM_ITEM_CATEGORIES_CLIENT.concat(Object.keys(PROBLEM_ITEM_QUEUES), problemItemHandlers).forEach((cat) => {
       const badge = document.getElementById(`problem-badge-${cat}`);
       if (!badge) return;
@@ -9131,13 +9192,13 @@
       }
 
       // 转出去向：点哪个就记哪个，导出时能分开统计。
-      // 煤炉只能转煤炉反查；代购、代拍能转任务；代拍另外能转工单
+      // 代购 → 转日志 / 转任务；代拍 → 转任务 / 转工单；煤炉 → 转煤炉反查
       (isQueue ? [] : [
-        { target: 'merchant', label: '转煤炉反查', icon: 'ti-zoom-question' },
-        { target: 'task', label: '转任务', icon: 'ti-subtask', not: ['煤炉'] },
+        { target: 'log', label: '转日志', icon: 'ti-notebook', only: ['代购'] },
+        { target: 'merchant', label: '转煤炉反查', icon: 'ti-zoom-question', only: ['煤炉'] },
+        { target: 'task', label: '转任务', icon: 'ti-subtask', only: ['代购', '代拍'] },
         { target: 'bulk', label: '转工单', icon: 'ti-stack-2', only: ['代拍'] },
-      ].filter((t) => !(t.not && t.not.includes(currentProblemItemCategory))
-        && !(t.only && !t.only.includes(currentProblemItemCategory)))).forEach(({ target, label, icon }) => {
+      ].filter((t) => t.only.includes(currentProblemItemCategory))).forEach(({ target, label, icon }) => {
         const btn = document.createElement('button');
         btn.className = 'transfer-btn';
         btn.innerHTML = `<i class="ti ${icon}"></i> ${label}`;

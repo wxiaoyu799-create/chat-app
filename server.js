@@ -284,7 +284,7 @@ app.get('/api/problem-item-export', async (req, res) => {
 
   // 兼容老数据：这个功能刚上线之前，"转处理"这个状态叫"follow_up"，导出的时候两个名字都当"转处理"处理，
   // 不然老记录会被漏掉
-  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_task', 'transferred_bulk', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done')";
+  let query = "SELECT * FROM problem_item_reports WHERE status IN ('resolved', 'transferred', 'follow_up', 'transferred_merchant', 'transferred_log', 'transferred_task', 'transferred_bulk', 'resolved_stocked', 'resolved_reshipped', 'resolved_cancelled', 'resolved_done')";
   const params = [];
   if (category !== 'all' && PROBLEM_ITEM_CATEGORIES.includes(category)) {
     params.push(category);
@@ -309,6 +309,7 @@ app.get('/api/problem-item-export', async (req, res) => {
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
       const statusLabel = row.status === 'resolved' ? '已入库' // 三个分类里直接点的"已入库"（老名字叫已解决，状态值没改）
         : row.status === 'transferred_merchant' ? '转煤炉反查'
+        : row.status === 'transferred_log' ? '转日志'
         : row.status === 'transferred_task' ? '转任务'
         : row.status === 'transferred_bulk' ? '转工单'
         : row.status === 'resolved_done' ? '已完结'
@@ -1636,17 +1637,19 @@ const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 队列名 -> 对应的记录状态
 // （状态值沿用老名字 transferred_merchant，老数据不用迁移）
 // 代拍工单：代拍的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
-const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
+// 代购日志：代购转出来的，用法跟煤炉反查一样（已入库 / 已补（换）发入库 / 已取消）
+const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购日志': 'transferred_log', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
 const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
-const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_task', 'transferred_bulk'];
+const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_log', 'transferred_task', 'transferred_bulk'];
+const RESULT_QUEUE_STATUSES = ['transferred_merchant', 'transferred_log']; // 这两条队列用三种处理结果
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
 // 队列里的结束方式：点完这条记录就从队列里退场，
 // 具体是哪种结果存在 status 里，导出的时候分开统计。
 // 煤炉反查用前三种；代购代拍任务的进展都写在任务详情里，结束时只有"已完结"一种
 const PROBLEM_ITEM_RESULTS = {
-  stocked: { status: 'resolved_stocked', label: '已入库', queue: 'transferred_merchant' },
-  reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库', queue: 'transferred_merchant' },
-  cancelled: { status: 'resolved_cancelled', label: '已取消', queue: 'transferred_merchant' },
+  stocked: { status: 'resolved_stocked', label: '已入库', queue: RESULT_QUEUE_STATUSES },
+  reshipped: { status: 'resolved_reshipped', label: '已补（换）发入库', queue: RESULT_QUEUE_STATUSES },
+  cancelled: { status: 'resolved_cancelled', label: '已取消', queue: RESULT_QUEUE_STATUSES },
   done: { status: 'resolved_done', label: '已完结', queue: TASK_QUEUE_STATUSES },
 };
 // 任务详情里的几个下拉选项
@@ -1670,6 +1673,7 @@ function problemItemStatusLabel(status) {
   if (status === 'resolved_cancelled') return '已取消';
   if (status === 'resolved_done') return '已完结';
   if (status === 'transferred_merchant') return '转煤炉反查';
+  if (status === 'transferred_log') return '转日志';
   if (status === 'transferred_task') return '转任务';
   if (status === 'transferred_bulk') return '转工单';
   return '转处理'; // 老数据（transferred / follow_up）
@@ -1795,7 +1799,7 @@ async function loadProblemItemDataFromDB() {
     // 只是不计入侧栏红点。已解决/转处理这两种是终结状态，留在数据库当历史，不占内存也不用同步给客户端
     for (const cat of PROBLEM_ITEM_CATEGORIES) {
       const reportRows = await dbPool.query(
-        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'transferred_merchant', 'transferred_task', 'transferred_bulk') ORDER BY submitted_at ASC;",
+        "SELECT * FROM problem_item_reports WHERE category = $1 AND status IN ('pending', 'transferred_merchant', 'transferred_log', 'transferred_task', 'transferred_bulk') ORDER BY submitted_at ASC;",
         [cat]
       );
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
@@ -3029,20 +3033,23 @@ wss.on('connection', (ws) => {
       if (!PROBLEM_ITEM_CATEGORIES.includes(category)) return;
       let status;
       if (data.type === 'problem_item_resolve') status = 'resolved';
-      // "转处理"拆成了两种去向：转煤炉反查、转成任务。老的 'transferred' 保留，只用来读历史数据
+      // 转出去向，各分类能转哪几个是固定的：
+      //   代购 → 转日志 / 转任务；代拍 → 转任务 / 转工单；煤炉 → 转煤炉反查
+      // 老的 'transferred' 保留，只用来读历史数据
       else if (data.type === 'problem_item_transfer') {
         status = data.target === 'task' ? 'transferred_task'
           : data.target === 'merchant' ? 'transferred_merchant'
+          : data.target === 'log' ? 'transferred_log'
           : data.target === 'bulk' ? 'transferred_bulk'
           : 'transferred';
-        if (status === 'transferred_bulk' && category !== '代拍') return; // 代拍工单只收代拍的
-        if (status === 'transferred_task' && category === '煤炉') return; // 煤炉不转任务，只转煤炉反查
+        const allowed = { 代购: ['transferred_log', 'transferred_task'], 代拍: ['transferred_task', 'transferred_bulk'], 煤炉: ['transferred_merchant'] };
+        if (!(allowed[category] || []).includes(status)) return;
       }
       else return;
       const ok = await updateProblemItemReportStatus(category, data.reportId, status, client.username);
       if (ok) {
         if (TRANSFER_STATUSES.includes(status)) {
-          // 转出去的记录没有消失，只是从原分类挪到了"煤炉反查/代购代拍任务"队列里，
+          // 转出去的记录没有消失，只是从原分类挪到了对应的去向队列里，
           // 所以广播状态变更（带上完整记录），让各端把它从原列表移走、加进对应队列
           const moved = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
           broadcast({ type: 'problem_item_report_status_changed', category, reportId: data.reportId, status, report: moved });

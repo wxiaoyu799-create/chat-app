@@ -3193,7 +3193,7 @@
   .pi-site-handler .pi-sh-value { color: var(--text); font-weight: 600; }
   .pi-site-handler .pi-sh-value.empty { color: var(--muted); font-weight: 400; }
   /* 煤炉反查：现场 / 代购 两栏进度 */
-  .pi-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .pi-progress { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .pi-progress-box { border-radius: 8px; padding: 6px 8px 4px; border: 1px solid var(--border); background: var(--bg); }
   .pi-progress-box.side-site { border-left: 3px solid #2e9e5b; }
   .pi-progress-box.side-buyer { border-left: 3px solid #d98a1f; }
@@ -3204,12 +3204,12 @@
   .pi-progress-head span { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pi-progress-input {
     width: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent;
-    color: var(--text); font-size: 13px; font-family: inherit; line-height: 1.5; min-height: 40px; overflow: hidden; padding: 3px 0;
+    color: var(--text); font-size: 13px; font-family: inherit; line-height: 1.5; min-height: 20px; overflow: hidden; padding: 2px 0;
   }
+  .pi-progress-box.side-site .pi-progress-input { min-height: 60px; }
   .pi-progress-input:disabled { color: var(--text); cursor: default; }
   .pi-progress-input:disabled::placeholder { color: var(--muted); }
   .pi-progress-box:focus-within { border-color: var(--accent); }
-  @media (max-width: 640px) { .pi-progress { grid-template-columns: 1fr; } }
 
   /* 任务卡片上的摘要行 */
   .task-summary {
@@ -9338,7 +9338,9 @@
   function buildSiteHandlerRow(report) {
     const row = document.createElement('div');
     row.className = 'pi-site-handler';
-    const cur = (report.taskInfo && report.taskInfo.siteHandler) || '';
+    // 没设过就算在转过来的人头上（跟服务器的默认一致）
+    const info = report.taskInfo || {};
+    const cur = typeof info.siteHandler === 'string' ? info.siteHandler : (report.handledBy || '');
     row.innerHTML = '<i class="ti ti-user-check"></i><span class="pi-sh-label">现场处理人</span>';
     if (myRole === 'admin' || myRole === 'manager') {
       const sel = document.createElement('select');
@@ -9367,10 +9369,11 @@
     const wrap = document.createElement('div');
     wrap.className = 'pi-progress';
     const progress = (report.taskInfo && report.taskInfo.progress) || {};
+    // 上下排：现场在上、大一些；代购在下，大约现场的 1/3
     [
-      { side: 'site', title: '现场进度', roles: ['admin', 'manager'], ph: '仓库现场：处理到哪一步了…' },
-      { side: 'buyer', title: '代购进度', roles: ['admin', 'buyer'], ph: '代购：联系商家/顾客的进展…' },
-    ].forEach(({ side, title, roles, ph }) => {
+      { side: 'site', title: '现场进度', roles: ['admin', 'manager'], ph: '仓库现场：处理到哪一步了…', rows: 3 },
+      { side: 'buyer', title: '代购进度', roles: ['admin', 'buyer'], ph: '代购：联系商家/顾客的进展…', rows: 1 },
+    ].forEach(({ side, title, roles, ph, rows }) => {
       const cur = progress[side] || {};
       const box = document.createElement('div');
       box.className = `pi-progress-box side-${side}`;
@@ -9381,7 +9384,7 @@
       const ta = document.createElement('textarea');
       ta.className = 'pi-progress-input';
       ta.dataset.key = `${report.id}-${side}`;
-      ta.rows = 2;
+      ta.rows = rows;
       ta.value = cur.text || '';
       const canWrite = roles.includes(myRole);
       ta.disabled = !canWrite;

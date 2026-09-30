@@ -1805,6 +1805,7 @@ async function loadProblemItemDataFromDB() {
       problemItemReports[cat] = reportRows.rows.map(rowToProblemItemReport);
       // 这个功能上线前就已经在任务里的单子，也补上默认执行人
       problemItemReports[cat].filter((r) => TASK_QUEUE_STATUSES.includes(r.status)).forEach(applyDefaultTaskExecutors);
+      problemItemReports[cat].filter((r) => TRANSFER_STATUSES.includes(r.status)).forEach(applyDefaultSiteHandler);
     }
 
     // 已完结的记录：只读最近的一批进内存，给"已完结问题件"表格用（完整历史还在数据库里，导出走导出）
@@ -1889,6 +1890,14 @@ function applyTaskPatch(info, patch) {
   if ('images' in patch) out.images = cleanTaskImages(patch.images, TASK_MAX_IMAGES);
   return out;
 }
+// 现场处理人默认算在"谁转过来的"头上（没设过才填，之后改了就按改的来）
+function applyDefaultSiteHandler(report) {
+  const info = (report.taskInfo && typeof report.taskInfo === 'object') ? report.taskInfo : {};
+  if (typeof info.siteHandler === 'string' || !report.handledBy) return false;
+  report.taskInfo = { ...info, siteHandler: report.handledBy };
+  saveTaskColumn(report.id, 'task_info', report.taskInfo);
+  return true;
+}
 // 任务的执行人默认勾上所有仓库现场账号（只在还没设过执行人时填，之后谁删了就按删了的来）
 function applyDefaultTaskExecutors(report) {
   const info = (report.taskInfo && typeof report.taskInfo === 'object') ? report.taskInfo : {};
@@ -1917,6 +1926,7 @@ async function updateProblemItemReportStatus(category, reportId, status, byUsern
     problemItemReports[category][idx].status = status;
     problemItemReports[category][idx].handledBy = byUsername;
     if (TASK_QUEUE_STATUSES.includes(status)) applyDefaultTaskExecutors(problemItemReports[category][idx]);
+    applyDefaultSiteHandler(problemItemReports[category][idx]);
   } else {
     // 已完结：从待处理/队列里移除，转到"已完结问题件"表格里继续能查能搜
     const gone = problemItemReports[category].splice(idx, 1)[0];

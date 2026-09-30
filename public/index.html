@@ -2866,6 +2866,34 @@
   #problem-item-export-confirm-btn:hover { background: var(--accent-dark); }
 
   #problem-item-form { max-width: 480px; }
+  /* 集货 */
+  #jihuo-panel { display: none; max-width: 820px; }
+  #jihuo-panel.active { display: block; }
+  #jihuo-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  #jihuo-form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--text); flex: 1 1 160px; }
+  #jihuo-form input { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 8px; padding: 9px 10px; font-size: 14px; font-family: Consolas, Menlo, monospace; }
+  #jihuo-form input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  #jihuo-add-btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  #jihuo-hint { font-size: 12px; color: var(--muted); margin: 8px 0 14px; min-height: 16px; }
+  #jihuo-hint.err { color: #e5534b; }
+  #jihuo-hint.ok { color: #2e9e5b; }
+  #jihuo-list { display: flex; flex-direction: column; gap: 8px; }
+  .jihuo-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr auto; grid-template-rows: auto auto; gap: 2px 14px; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+  }
+  .jihuo-cell { display: flex; flex-direction: column; min-width: 0; }
+  .jihuo-cell span { font-size: 11.5px; color: var(--muted); }
+  .jihuo-cell b { font-size: 14px; font-family: Consolas, Menlo, monospace; word-break: break-all; }
+  .jihuo-none { color: var(--muted); font-style: normal; font-weight: 400; }
+  .jihuo-meta { grid-column: 1 / 4; font-size: 11.5px; color: var(--muted); }
+  .jihuo-done-btn { grid-column: 4; grid-row: 1 / 3; background: #2e9e5b; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .jihuo-row.search-flash { animation: pi-search-flash 1.4s ease; }
+  @media (max-width: 640px) {
+    .jihuo-row { grid-template-columns: 1fr 1fr; }
+    .jihuo-meta { grid-column: 1 / 3; }
+    .jihuo-done-btn { grid-column: 1 / 3; grid-row: auto; }
+  }
   .pi-id-row { display: flex; gap: 6px; }
   .pi-id-row input { flex: 1; min-width: 0; }
   #problem-item-id-prefix {
@@ -3207,15 +3235,6 @@
   .problem-item-card-row { display: flex; align-items: flex-start; gap: 14px; }
   .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
   #problem-item-list.queue-mode { max-width: 720px; }
-  @media (min-width: 1400px) {
-    #problem-item-content-area { zoom: 1.12; }
-    #problem-item-list, #problem-item-list.queue-mode {
-      max-width: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); align-items: start;
-    }
-    #problem-item-search-bar { max-width: 900px; }
-    #problem-item-content-header #problem-item-search-bar { max-width: none; }
-    #problem-item-search-wrap { max-width: 560px; }
-  }
   /* 去向队列：现场处理人 */
   .pi-site-handler { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
   .pi-site-handler i { font-size: 15px; color: #2e9e5b; }
@@ -4274,6 +4293,11 @@
         <span class="tool-entry-label">煤炉</span>
         <span class="problem-item-badge" id="problem-badge-煤炉"></span>
       </button>
+      <button class="tool-entry-btn problem-item-cat-btn" data-category="集货" type="button">
+        <span class="module-icon-badge"><i class="ti ti-packages"></i></span>
+        <span class="tool-entry-label">集货</span>
+        <span class="problem-item-badge" id="problem-badge-集货"></span>
+      </button>
       <div class="problem-item-queue-divider queue-only"><span>按类别需关注</span></div>
       <button class="tool-entry-btn problem-item-cat-btn" data-category="煤炉反查" type="button">
         <span class="module-icon-badge"><i class="ti ti-zoom-question"></i></span>
@@ -5311,6 +5335,7 @@
       <button class="problem-item-panel-cat-btn" data-category="代购">代购</button>
       <button class="problem-item-panel-cat-btn" data-category="代拍">代拍</button>
       <button class="problem-item-panel-cat-btn" data-category="煤炉">煤炉</button>
+      <button class="problem-item-panel-cat-btn" data-category="集货">集货</button>
       <div class="problem-item-cat-divider queue-only"></div>
       <button class="problem-item-panel-cat-btn" data-category="煤炉反查">煤炉反查</button>
       <button class="problem-item-panel-cat-btn" data-category="代购日志">代购日志</button>
@@ -5432,6 +5457,17 @@
       <div id="problem-item-list"></div>
 
       <!-- 完结问题件：不用导出也能直接在CC里翻和搜，实时跟着处理结果更新 -->
+      <!-- 集货：M单号 / 运单号 / 入库码，点已完结就消失（不进完结、不导出） -->
+      <div id="jihuo-panel">
+        <div id="jihuo-form">
+          <label>M单号<input id="jihuo-m" type="text" maxlength="60" placeholder="m123456789" autocomplete="off" /></label>
+          <label>运单号<input id="jihuo-tracking" type="text" maxlength="60" inputmode="numeric" placeholder="快递单号" autocomplete="off" /></label>
+          <label>入库码<input id="jihuo-stock" type="text" maxlength="60" placeholder="入库码" autocomplete="off" /></label>
+          <button type="button" id="jihuo-add-btn"><i class="ti ti-plus"></i> 添加</button>
+        </div>
+        <div id="jihuo-hint">三个至少填一个；回车跳到下一格，最后一格回车直接添加（扫码枪也行）。点"已完结"这条就删掉，不留记录。</div>
+        <div id="jihuo-list"></div>
+      </div>
       <div id="problem-item-finished-panel">
         <div id="problem-item-finished-toolbar">
           <div id="problem-item-finished-search-wrap">
@@ -6273,6 +6309,15 @@
         }
         renderProblemItemBadges();
         if (problemItemOverlay.classList.contains('active')) renderProblemItemList();
+      } else if (data.type === 'jihuo_list') {
+        jihuoItems = Array.isArray(data.items) ? data.items : [];
+        renderProblemItemBadges();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === JIHUO_VIEW) renderJihuoList();
+      } else if (data.type === 'jihuo_added') {
+        jihuoFlashId = data.id;
+        showJihuoHint('✓ 已添加', false);
+      } else if (data.type === 'jihuo_error') {
+        showJihuoHint(data.message || '操作失败', true);
       } else if (data.type === 'problem_item_options_updated') {
         let key = 'inspectorNames';
         if (data.optionType === 'issue_type') key = 'issueTypes';
@@ -8367,6 +8412,9 @@
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
   let problemItemHandlers = [];
+  // 集货：单独一个视图（不是分类也不是队列），列表由服务器推
+  const JIHUO_VIEW = '集货';
+  let jihuoItems = [];
   function isPersonView(cat) { return problemItemHandlers.includes(cat); }
   // 队列和人名视图长得一样（结果按钮 + 跟进图章），只是筛选条件不同
   function isQueueLike(cat) { return isQueueCategory(cat) || isPersonView(cat); }
@@ -8510,6 +8558,8 @@
   }
   function renderProblemItemBadges() {
     renderPersonOthersBadge();
+    const jb = document.getElementById('problem-badge-集货');
+    if (jb) { jb.textContent = jihuoItems.length || ''; jb.classList.toggle('show', jihuoItems.length > 0); }
     PROBLEM_ITEM_CATEGORIES_CLIENT.concat(Object.keys(PROBLEM_ITEM_QUEUES), problemItemHandlers).forEach((cat) => {
       const badge = document.getElementById(`problem-badge-${cat}`);
       if (!badge) return;
@@ -8937,11 +8987,20 @@
     // 已完结视图更彻底——表单、分隔线、卡片列表全收起来，只留那张表格
     const isQueue = isQueueLike(currentProblemItemCategory);
     const isFinished = isFinishedView(currentProblemItemCategory);
+    const isJihuo = currentProblemItemCategory === JIHUO_VIEW;
     const formEl = document.getElementById('problem-item-form');
     const dividerEl = document.querySelector('.problem-item-divider');
-    if (formEl) formEl.style.display = (isQueue || isFinished) ? 'none' : '';
-    if (dividerEl) dividerEl.style.display = (isQueue || isFinished) ? 'none' : '';
-    problemItemList.style.display = isFinished ? 'none' : '';
+    if (formEl) formEl.style.display = (isQueue || isFinished || isJihuo) ? 'none' : '';
+    if (dividerEl) dividerEl.style.display = (isQueue || isFinished || isJihuo) ? 'none' : '';
+    problemItemList.style.display = (isFinished || isJihuo) ? 'none' : '';
+    jihuoPanel.classList.toggle('active', isJihuo);
+    if (isJihuo) {
+      problemItemFinishedPanel.classList.remove('active');
+      document.getElementById('problem-item-search-bar').style.display = '';
+      problemItemSearchElsewhere.classList.remove('active');
+      renderJihuoList();
+      return;
+    }
     document.getElementById('problem-item-search-bar').style.display = isFinished ? 'none' : '';
     if (isFinished) problemItemSearchElsewhere.classList.remove('active');
     problemItemFinishedPanel.classList.toggle('active', isFinished);
@@ -9170,6 +9229,7 @@
   });
 
   function renderProblemItemList() {
+    if (currentProblemItemCategory === JIHUO_VIEW) { renderJihuoList(); return; }
     // 列表要整个重画：先记下正在输入的进度框（内容+光标），画完放回去，别人一更新不会冲掉你正在打的字
     const typing = document.activeElement && document.activeElement.classList.contains('pi-progress-input')
       ? { key: document.activeElement.dataset.key, value: document.activeElement.value,
@@ -9996,6 +10056,68 @@
       autoResizeTextInput();
       textInput.setSelectionRange(textInput.value.length, textInput.value.length);
     }
+  }
+
+  // ===== 集货 =====
+  let jihuoFlashId = null;
+  const jihuoPanel = document.getElementById('jihuo-panel');
+  const jihuoListEl = document.getElementById('jihuo-list');
+  const jihuoHintEl = document.getElementById('jihuo-hint');
+  const jihuoInputs = ['jihuo-m', 'jihuo-tracking', 'jihuo-stock'].map((id) => document.getElementById(id));
+  const JIHUO_HINT_DEFAULT = jihuoHintEl.textContent;
+  let jihuoHintTimer = null;
+  function showJihuoHint(text, isErr) {
+    jihuoHintEl.textContent = text;
+    jihuoHintEl.className = isErr ? 'err' : 'ok';
+    clearTimeout(jihuoHintTimer);
+    jihuoHintTimer = setTimeout(() => { jihuoHintEl.textContent = JIHUO_HINT_DEFAULT; jihuoHintEl.className = ''; }, 2500);
+  }
+  function addJihuo() {
+    const [m, t, st] = jihuoInputs.map((el) => el.value.replace(/\s+/g, ''));
+    if (!m && !t && !st) { showJihuoHint('M单号、运单号、入库码至少填一个', true); jihuoInputs[0].focus(); return; }
+    if (![m, t, st].every((v) => !v || /^[A-Za-z0-9-]+$/.test(v))) { showJihuoHint('只能填字母、数字和横杠', true); return; }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { showJihuoHint('连接已断开，稍后再试', true); return; }
+    ws.send(JSON.stringify({ type: 'jihuo_add', mNo: m, trackingNo: t, stockCode: st }));
+    jihuoInputs.forEach((el) => { el.value = ''; });
+    jihuoInputs[0].focus();
+  }
+  document.getElementById('jihuo-add-btn').addEventListener('click', addJihuo);
+  jihuoInputs.forEach((el, i) => el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    if (i < jihuoInputs.length - 1) jihuoInputs[i + 1].focus(); else addJihuo();
+  }));
+  function renderJihuoList() {
+    const key = problemItemSearchKey;
+    const all = jihuoItems;
+    const rows = [...all].reverse().filter((x) => !key || [x.mNo, x.trackingNo, x.stockCode, x.createdBy].join(' ').toLowerCase().includes(key));
+    problemItemSearchCount.textContent = key ? `搜到 ${rows.length} 条 / 共 ${all.length} 条` : (all.length ? `共 ${all.length} 条` : '');
+    jihuoListEl.innerHTML = '';
+    if (!rows.length) {
+      jihuoListEl.innerHTML = `<div class="problem-item-empty">${key ? '没搜到' : '暂时没有集货'}</div>`;
+      return;
+    }
+    const kw = problemItemSearchInput.value.trim();
+    const canDone = myRole === 'admin' || myRole === 'manager';
+    rows.forEach((x) => {
+      const row = document.createElement('div');
+      row.className = 'jihuo-row' + (x.id === jihuoFlashId ? ' search-flash' : '');
+      const cell = (label, v) => `<div class="jihuo-cell"><span>${label}</span><b>${v ? highlightCell(v, kw) : '<i class="jihuo-none">—</i>'}</b></div>`;
+      row.innerHTML = cell('M单号', x.mNo) + cell('运单号', x.trackingNo) + cell('入库码', x.stockCode)
+        + `<div class="jihuo-meta">${escapeHtml(x.createdBy)} · ${formatProblemItemTime(x.createdAt)}</div>`;
+      if (canDone) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'jihuo-done-btn';
+        btn.innerHTML = '<i class="ti ti-circle-check"></i> 已完结';
+        btn.addEventListener('click', () => {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'jihuo_done', id: x.id }));
+        });
+        row.appendChild(btn);
+      }
+      jihuoListEl.appendChild(row);
+    });
+    jihuoFlashId = null;
   }
 
   // ---- 煤炉 M单号前面的"0几" ----

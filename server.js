@@ -1840,6 +1840,31 @@ async function loadProblemItemDataFromDB() {
   }
 }
 
+// ===== 集货：M单号 / 运单号 / 入库码，点"已完结"就整条删掉 =====
+// 不进完结问题件、不导出、不留历史，数据库里只存还没完结的那些（重启不丢）
+let jihuoItems = [];
+async function loadJihuoItems() {
+  if (!dbPool) return;
+  try {
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS jihuo_items (
+        id BIGSERIAL PRIMARY KEY,
+        m_no TEXT, tracking_no TEXT, stock_code TEXT,
+        created_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+    const { rows } = await dbPool.query('SELECT * FROM jihuo_items ORDER BY created_at ASC;');
+    jihuoItems = rows.map((r) => ({
+      id: String(r.id), mNo: r.m_no || '', trackingNo: r.tracking_no || '', stockCode: r.stock_code || '',
+      createdBy: r.created_by, createdAt: new Date(r.created_at).getTime(),
+    }));
+  } catch (err) {
+    console.error('[集货加载失败]', err.message);
+  }
+}
+function cleanJihuoField(v) { return String(v || '').replace(/\s+/g, '').slice(0, 60); }
+
 async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images, itemId, platform) {
   const now = Date.now();
   let id = `mem-${now}-${Math.round(Math.random() * 1e6)}`; // 没数据库时的临时 ID，同一毫秒提交多条也不撞
@@ -2333,7 +2358,7 @@ wss.on('connection', (ws) => {
       case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
       special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
       inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
-      problem_item_result: 'problem_item_error',
+      problem_item_result: 'problem_item_error', jihuo_done: 'jihuo_error',
       problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
       problem_item_options_update: 'problem_item_options_error',
       reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
@@ -2419,6 +2444,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'reminder_list', reminders }));
       ws.send(JSON.stringify({ type: 'inspection_rules_all', rules: getAllInspectionRulesText() }));
       ws.send(JSON.stringify({ type: 'problem_item_data', ...getProblemItemSnapshot() }));
+      ws.send(JSON.stringify({ type: 'jihuo_list', items: jihuoItems }));
       ws.send(JSON.stringify(timeclockPayload(getJSTParts(new Date()).dateStr)));
       ws.send(JSON.stringify(shiftPayload()));
 
@@ -3128,6 +3154,43 @@ wss.on('connection', (ws) => {
           if (ok !== true) broadcast({ type: 'problem_item_finished_added', record: ok });
         }
       }
+      return;
+    }
+
+    // 集货：谁都能加；已完结（整条删掉）只有管理员 / 仓库现场（上面 EDITOR_ONLY_TYPES 已经挡过）
+    if (data.type === 'jihuo_add') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const mNo = cleanJihuoField(data.mNo);
+      const trackingNo = cleanJihuoField(data.trackingNo);
+      const stockCode = cleanJihuoField(data.stockCode);
+      const okChars = (v) => !v || /^[A-Za-z0-9-]+$/.test(v);
+      if (!mNo && !trackingNo && !stockCode) { ws.send(JSON.stringify({ type: 'jihuo_error', message: 'M单号、运单号、入库码至少填一个' })); return; }
+      if (![mNo, trackingNo, stockCode].every(okChars)) { ws.send(JSON.stringify({ type: 'jihuo_error', message: '只能填字母、数字和横杠' })); return; }
+      if (jihuoItems.length >= 2000) { ws.send(JSON.stringify({ type: 'jihuo_error', message: '集货太多了，先把完结的点掉一些' })); return; }
+      const item = { id: `mem-${Date.now()}-${Math.round(Math.random() * 1e6)}`, mNo, trackingNo, stockCode, createdBy: client.username, createdAt: Date.now() };
+      if (dbPool) {
+        try {
+          const { rows } = await dbPool.query(
+            'INSERT INTO jihuo_items (m_no, tracking_no, stock_code, created_by) VALUES ($1, $2, $3, $4) RETURNING id;',
+            [mNo || null, trackingNo || null, stockCode || null, client.username]
+          );
+          item.id = String(rows[0].id);
+        } catch (err) { console.error('[集货写入失败]', err.message); }
+      }
+      jihuoItems.push(item);
+      broadcast({ type: 'jihuo_list', items: jihuoItems });
+      ws.send(JSON.stringify({ type: 'jihuo_added', id: item.id }));
+      return;
+    }
+    if (data.type === 'jihuo_done') {
+      const idx = jihuoItems.findIndex((x) => x.id === String(data.id || ''));
+      if (idx === -1) return;
+      const [gone] = jihuoItems.splice(idx, 1);
+      if (dbPool && !gone.id.startsWith('mem-')) {
+        try { await dbPool.query('DELETE FROM jihuo_items WHERE id = $1;', [gone.id]); } catch (err) { console.error('[集货删除失败]', err.message); }
+      }
+      broadcast({ type: 'jihuo_list', items: jihuoItems });
       return;
     }
 
@@ -4622,6 +4685,7 @@ async function startServer() {
   await loadDriveIndexFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
+  await loadJihuoItems();
   await loadRemindersFromDB();
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();

@@ -2358,7 +2358,7 @@ wss.on('connection', (ws) => {
       case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
       special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
       inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
-      problem_item_result: 'problem_item_error', jihuo_done: 'jihuo_error',
+      problem_item_result: 'problem_item_error',
       problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
       problem_item_options_update: 'problem_item_options_error',
       reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
@@ -2366,6 +2366,7 @@ wss.on('connection', (ws) => {
       timeclock_name_delete: 'timeclock_error', timeclock_name_add: 'timeclock_error', work_items_update: 'timeclock_error',
       shift_save: 'shift_error', shift_delete: 'shift_error', shift_import: 'shift_error', shift_verify_password: 'shift_error',
       staff_manager_remove: 'shift_error', staff_manager_add: 'shift_error',
+      jihuo_manager_remove: 'shift_error', jihuo_manager_add: 'shift_error',
     };
     // 统计（商城/PayPay）单独一套：谁都能看，但改动分两档——
     //   下单侧（管理员 / 仓库现场 / 客服）：导入订货明细、写备注
@@ -3157,7 +3158,7 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // 集货：谁都能加；已完结（整条删掉）只有管理员 / 仓库现场（上面 EDITOR_ONLY_TYPES 已经挡过）
+    // 集货：谁都能加；已完结（整条删掉）：管理员 / 仓库现场，以及人员管理里设成"集货"的人
     if (data.type === 'jihuo_add') {
       const client = clients.get(ws);
       if (!client) return;
@@ -3184,6 +3185,12 @@ wss.on('connection', (ws) => {
       return;
     }
     if (data.type === 'jihuo_done') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (!isEditRole(client.role) && !jihuoManagers.includes(client.username)) {
+        ws.send(JSON.stringify({ type: 'jihuo_error', message: '只有管理员、仓库现场和集货负责人能点已完结' }));
+        return;
+      }
       const idx = jihuoItems.findIndex((x) => x.id === String(data.id || ''));
       if (idx === -1) return;
       const [gone] = jihuoItems.splice(idx, 1);
@@ -3557,6 +3564,19 @@ wss.on('connection', (ws) => {
         return;
       }
       ws.send(JSON.stringify({ type: 'shift_password_ok' }));
+      return;
+    }
+
+    // B 集货负责人名单：跟现场管理人员一样，勾上/取消都要编辑密码
+    if (data.type === 'jihuo_manager_add' || data.type === 'jihuo_manager_remove') {
+      if (String(data.password || '') !== PIN_EDIT_PASSWORD) {
+        ws.send(JSON.stringify({ type: 'shift_error', message: '密码错误，无法修改集货人员' }));
+        return;
+      }
+      const name = String(data.name || '').trim().slice(0, 20);
+      if (!name) { ws.send(JSON.stringify({ type: 'shift_error', message: '名字不能为空' })); return; }
+      await setJihuoManager(name, data.type === 'jihuo_manager_add');
+      broadcast(shiftPayload());
       return;
     }
 
@@ -4416,6 +4436,31 @@ async function loadStaffManagersFromDB() {
   }
 }
 
+// B 集货负责人：人员管理里单独一栏勾选，显示在问题件"集货"页面顶上，这些人也能点集货的已完结
+let jihuoManagers = [];
+async function loadJihuoManagersFromDB() {
+  if (!dbPool) return;
+  try {
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS jihuo_members (name TEXT PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL DEFAULT now());`);
+    const { rows } = await dbPool.query('SELECT name FROM jihuo_members ORDER BY created_at ASC;');
+    jihuoManagers = rows.map((r) => r.name);
+  } catch (err) {
+    console.error('[加载集货人员失败]', err.message);
+  }
+}
+async function setJihuoManager(name, on) {
+  const has = jihuoManagers.includes(name);
+  if (on === has) return;
+  if (on) jihuoManagers.push(name); else jihuoManagers.splice(jihuoManagers.indexOf(name), 1);
+  if (!dbPool) return;
+  try {
+    if (on) await dbPool.query('INSERT INTO jihuo_members (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;', [name]);
+    else await dbPool.query('DELETE FROM jihuo_members WHERE name = $1;', [name]);
+  } catch (err) {
+    console.error('[修改集货人员失败]', err.message);
+  }
+}
+
 async function addStaffManager(name) {
   if (staffManagers.includes(name)) return false;
   staffManagers.push(name);
@@ -4465,7 +4510,7 @@ function getShiftsForWindow() {
 
 function shiftPayload() {
   const { dates, shifts } = getShiftsForWindow();
-  return { type: 'shift_update', dates, shifts, managers: staffManagers };
+  return { type: 'shift_update', dates, shifts, managers: staffManagers, jihuoManagers };
 }
 
 async function addShiftEntry(workDate, personName, startMin, endMin) {
@@ -4686,6 +4731,7 @@ async function startServer() {
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();
   await loadJihuoItems();
+  await loadJihuoManagersFromDB();
   await loadRemindersFromDB();
   await loadTimeRecordsFromDB();
   await loadTimeclockNamesFromDB();

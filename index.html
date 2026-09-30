@@ -3966,8 +3966,12 @@
   .staff-members-title { font-size: 14px; font-weight: 700; color: var(--text); }
   .staff-members-hint { font-size: 11px; color: var(--muted); }
   .staff-members-pick-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .staff-members-head-b { margin-top: 14px; }
+  .staff-role-tag { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .staff-role-tag.role-a { background: #2e9e5b; }
+  .staff-role-tag.role-b { background: #d98a1f; }
   .staff-members-pick-row .multi-select-dropdown { min-width: 240px; }
-  #staff-member-input { width: 200px; font-size: 13px; }
+  #staff-member-input, #jihuo-member-input { width: 200px; font-size: 13px; }
 
   .staff-bell {
     background: transparent;
@@ -4204,7 +4208,7 @@
     .staff-grid-row { grid-template-columns: 84px 1fr 76px 26px; }
     #staff-body, #timeclock-body { padding-left: 12px; padding-right: 12px; }
     .staff-members-pick-row .multi-select-dropdown { min-width: 160px; }
-    #staff-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
+    #staff-member-input, #jihuo-member-input, #timeclock-work-edit-input, #staff-password-input { width: 100%; }
 
     /* 输入行图标多了，手机上按钮收小一圈，把宽度让给输入框 */
     #input-row { padding: 8px 10px; }
@@ -4748,8 +4752,9 @@
     </div>
     <div id="staff-members-box">
       <div class="staff-members-head">
-        <span class="staff-members-title">现场管理人员</span>
-        <span class="staff-members-hint">勾中的人会收到上班提醒（私信，按聊天登录名匹配），也是问题件本周负责人的候选</span>
+        <span class="staff-role-tag role-a">A</span>
+        <span class="staff-members-title">现场管理 · 问题件</span>
+        <span class="staff-members-hint">勾中的人收上班提醒（私信，按聊天登录名匹配），同步到问题件顶上的"本周问题件负责人"</span>
       </div>
       <div class="staff-members-pick-row">
         <div class="multi-select-dropdown" id="staff-manager-dropdown">
@@ -4758,6 +4763,19 @@
         </div>
         <input type="text" id="staff-member-input" maxlength="20" placeholder="名单里没有的名字，输入后回车添加…" />
         <button id="staff-member-add-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-plus"></i> 添加</button>
+      </div>
+      <div class="staff-members-head staff-members-head-b">
+        <span class="staff-role-tag role-b">B</span>
+        <span class="staff-members-title">集货</span>
+        <span class="staff-members-hint">同步到问题件"集货"页面顶上的"集货负责人"，这些人也能点集货的"已完结"</span>
+      </div>
+      <div class="staff-members-pick-row">
+        <div class="multi-select-dropdown" id="jihuo-manager-dropdown">
+          <button type="button" class="multi-select-trigger" id="jihuo-manager-trigger">请选择集货人员…</button>
+          <div class="multi-select-panel" id="jihuo-manager-panel"></div>
+        </div>
+        <input type="text" id="jihuo-member-input" maxlength="20" placeholder="名单里没有的名字，输入后回车添加…" />
+        <button id="jihuo-member-add-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-plus"></i> 添加</button>
       </div>
     </div>
     <div id="staff-msg"></div>
@@ -5348,7 +5366,7 @@
     </div>
     <div id="problem-item-content-area">
       <div id="problem-item-owner-bar">
-        <span class="owner-label">本周问题件负责人</span>
+        <span class="owner-label" id="problem-item-owner-label">本周问题件负责人</span>
         <span id="problem-item-owner-names">（未指定）</span>
         <span id="problem-item-owner-hint">跟人员管理里的现场管理人员同步，在那边改</span>
       </div>
@@ -6371,8 +6389,10 @@
         staffDates = Array.isArray(data.dates) ? data.dates : [];
         staffShifts = Array.isArray(data.shifts) ? data.shifts : [];
         staffManagers = Array.isArray(data.managers) ? data.managers : [];
-        // 问题件面板上的"本周负责人"就是这份名单的镜像，一起刷新
+        jihuoManagers = Array.isArray(data.jihuoManagers) ? data.jihuoManagers : [];
+        // 问题件面板上的"本周负责人 / 集货负责人"就是这两份名单的镜像，一起刷新
         renderProblemItemOwner();
+        if (problemItemOverlay.classList.contains('active') && currentProblemItemCategory === JIHUO_VIEW) renderJihuoList();
         if (staffOverlay.classList.contains('active')) {
           renderStaffManagers();
           renderStaffDays();
@@ -9045,11 +9065,15 @@
   }
 
   // ---- 本周问题件负责人：直接同步人员管理里的"现场管理人员"名单，这边只读显示，不单独选人 ----
+  // 集货页面换成"集货负责人"（人员管理里的 B 集货）
   function renderProblemItemOwner() {
-    problemItemOwnerNames.textContent = staffManagers.length ? staffManagers.join('、') : '（未指定）';
-    problemItemOwnerHint.textContent = staffManagers.length
-      ? '跟人员管理里的现场管理人员同步，要改去那边改'
-      : '还没有现场管理人员，去人员管理里勾选';
+    const isJihuo = currentProblemItemCategory === JIHUO_VIEW;
+    const list = isJihuo ? jihuoManagers : staffManagers;
+    document.getElementById('problem-item-owner-label').textContent = isJihuo ? '集货负责人' : '本周问题件负责人';
+    problemItemOwnerNames.textContent = list.length ? list.join('、') : '（未指定）';
+    problemItemOwnerHint.textContent = list.length
+      ? `跟人员管理里的"${isJihuo ? 'B 集货' : 'A 现场管理 · 问题件'}"同步，要改去那边改`
+      : `还没有人，去人员管理里的"${isJihuo ? 'B 集货' : 'A 现场管理 · 问题件'}"勾选`;
   }
 
   // ---- 完结问题件表格 ----
@@ -10098,7 +10122,7 @@
       return;
     }
     const kw = problemItemSearchInput.value.trim();
-    const canDone = myRole === 'admin' || myRole === 'manager';
+    const canDone = myRole === 'admin' || myRole === 'manager' || jihuoManagers.includes(username);
     rows.forEach((x) => {
       const row = document.createElement('div');
       row.className = 'jihuo-row' + (x.id === jihuoFlashId ? ' search-flash' : '');
@@ -13232,7 +13256,8 @@
 
   let staffShifts = [];
   let staffDates = [];
-  let staffManagers = []; // 现场管理人员（勾中的名字）
+  let staffManagers = []; // A 现场管理 · 问题件（勾中的名字）
+  let jihuoManagers = [];  // B 集货
   let staffPassword = '';         // 解锁后记在内存里，刷新页面要重新输
   let staffPendingPassword = '';
   let staffEditing = null; // { id?, workDate, personName, startMin, endMin }
@@ -13252,10 +13277,49 @@
   // 没勾中的人不会显示在面板上，只在下拉里能看到。
   function staffManagerCandidates() {
     const fromShifts = staffShifts.map((sh) => sh.personName);
-    return Array.from(new Set(STAFF_NAME_ORDER.concat(fromShifts, staffManagers))).sort(compareStaffName);
+    return Array.from(new Set(STAFF_NAME_ORDER.concat(fromShifts, staffManagers, jihuoManagers))).sort(compareStaffName);
   }
 
+  const jihuoManagerTrigger = document.getElementById('jihuo-manager-trigger');
+  const jihuoManagerPanel = document.getElementById('jihuo-manager-panel');
+  const jihuoMemberInput = document.getElementById('jihuo-member-input');
+  function renderJihuoManagers() {
+    const selected = new Set(jihuoManagers);
+    jihuoManagerPanel.innerHTML = '';
+    staffManagerCandidates().forEach((name) => {
+      const label = document.createElement('label');
+      label.className = 'multi-select-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selected.has(name);
+      checkbox.addEventListener('change', (e) => {
+        if (!requireStaffUnlock()) { e.preventDefault(); checkbox.checked = !checkbox.checked; return; }
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: checkbox.checked ? 'jihuo_manager_add' : 'jihuo_manager_remove', name, password: staffPassword }));
+      });
+      label.appendChild(checkbox);
+      const span = document.createElement('span');
+      span.textContent = name;
+      label.appendChild(span);
+      jihuoManagerPanel.appendChild(label);
+    });
+    updateMultiSelectTrigger(jihuoManagerTrigger, selected, '请选择集货人员…');
+  }
+  function addJihuoManagerFromInput() {
+    const name = jihuoMemberInput.value.trim();
+    if (!name) { showStaffMsg('请输入名字', 'error'); return; }
+    if (!requireStaffUnlock()) return;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'jihuo_manager_add', name, password: staffPassword }));
+      jihuoMemberInput.value = '';
+    }
+  }
+  document.getElementById('jihuo-member-add-btn').addEventListener('click', addJihuoManagerFromInput);
+  jihuoMemberInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addJihuoManagerFromInput(); } });
+  setupMultiSelectDropdown(jihuoManagerTrigger, jihuoManagerPanel);
+
   function renderStaffManagers() {
+    renderJihuoManagers(); // A、B 两栏一起刷新
     const selected = new Set(staffManagers);
     const options = staffManagerCandidates();
     staffManagerPanel.innerHTML = '';

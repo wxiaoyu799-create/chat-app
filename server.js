@@ -303,7 +303,7 @@ app.get('/api/problem-item-export', async (req, res) => {
   try {
     const result = await dbPool.query(query, params);
     const escapeCsv = (val) => `"${String(val == null ? '' : val).replace(/"/g, '""')}"`;
-    const lines = ['分类,问题类型,检品人员,订单ID/快递单号,商品ID,备注,图片,提交人,提交时间,状态,跟进状态,处理人,处理时间'];
+    const lines = ['分类,平台,问题类型,检品人员,订单ID/快递单号,商品ID,备注,图片,提交人,提交时间,状态,跟进状态,处理人,处理时间'];
     result.rows.forEach((row) => {
       const issueTypes = Array.isArray(row.issue_types) ? row.issue_types.join('、') : '';
       const inspectorNames = Array.isArray(row.inspector_names) ? row.inspector_names.join('、') : '';
@@ -326,6 +326,7 @@ app.get('/api/problem-item-export', async (req, res) => {
       const resolvedTime = row.resolved_at ? new Date(row.resolved_at).toLocaleString('zh-CN') : '';
       lines.push([
         escapeCsv(row.category),
+        escapeCsv(row.platform || ''),
         escapeCsv(issueTypes),
         escapeCsv(inspectorNames),
         escapeCsv(row.order_id
@@ -1643,6 +1644,11 @@ const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
 const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_log', 'transferred_task', 'transferred_bulk'];
 const RESULT_QUEUE_STATUSES = ['transferred_merchant', 'transferred_log']; // 这两条队列用三种处理结果
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
+// 代购问题件的"平台"下拉：默认几个常用网站，提交时也能直接输入新的加进来（option_type='buy_platform'）
+const DEFAULT_BUY_PLATFORMS = ['亚马逊', '乐天', '雅虎购物', '骏河屋', 'ZOZOTOWN', '官网'];
+const PROBLEM_OPTION_TYPES = ['issue_type', 'buy_platform'];
+// 煤炉 M单号前面的"0几"（哪个账号），下拉里固定这几个
+const MERCARI_PREFIXES = ['02', '05', '04', '06', '07'];
 // 队列里的结束方式：点完这条记录就从队列里退场，
 // 具体是哪种结果存在 status 里，导出的时候分开统计。
 // 煤炉反查用前三种；代购代拍任务的进展都写在任务详情里，结束时只有"已完结"一种
@@ -1689,7 +1695,7 @@ function getIssueTypeOptionKey() {
   return 'issue_type';
 }
 
-let problemItemOptions = { issue_type: [], inspector_name: [] };
+let problemItemOptions = { issue_type: [], inspector_name: [], buy_platform: [] };
 // 每个分类当前"待处理"（未点已解决/需跟进）的记录列表，已处理的记录不放在内存里，只留在数据库里当历史
 let problemItemReports = {};
 PROBLEM_ITEM_CATEGORIES.forEach((cat) => { problemItemReports[cat] = []; });
@@ -1731,6 +1737,8 @@ async function ensureProblemItemTables() {
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_info JSONB;`);
   // 代拍的商品ID（代拍问题件必填）
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS item_id TEXT;`);
+  // 代购的平台（亚马逊/乐天…）
+  await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS platform TEXT;`);
   await dbPool.query(`ALTER TABLE problem_item_reports ADD COLUMN IF NOT EXISTS task_comments JSONB;`);
   // "待跟进暂存"这个状态取消了，老数据里的 shelved 一次性归回待处理，免得永远不显示
   await dbPool.query(`UPDATE problem_item_reports SET status = 'pending' WHERE status = 'shelved';`);
@@ -1748,6 +1756,7 @@ function rowToProblemItemReport(row) {
     orderNote: row.order_note || '',
     orderId: row.order_id || '',
     itemId: row.item_id || '',
+    platform: row.platform || '',
     idKind: ['tracking', 'rs', 'm', 'order'].includes(row.id_kind) ? row.id_kind : 'order',
     images: Array.isArray(row.images) ? row.images : [],
     submittedBy: row.submitted_by,
@@ -1765,6 +1774,7 @@ async function loadProblemItemDataFromDB() {
   if (!dbPool) {
     problemItemOptions.issue_type = DEFAULT_ISSUE_TYPES.map((v, i) => ({ id: `mem-issue-${i}`, value: v }));
     problemItemOptions.inspector_name = [];
+    problemItemOptions.buy_platform = DEFAULT_BUY_PLATFORMS.map((v, i) => ({ id: `mem-plat-${i}`, value: v }));
     return;
   }
   try {
@@ -1794,6 +1804,7 @@ async function loadProblemItemDataFromDB() {
 
     problemItemOptions.issue_type = await loadOptionGroup('issue_type', DEFAULT_ISSUE_TYPES);
     problemItemOptions.inspector_name = await loadOptionGroup('inspector_name', []);
+    problemItemOptions.buy_platform = await loadOptionGroup('buy_platform', DEFAULT_BUY_PLATFORMS);
 
     // 加载"待处理"和"待跟进暂存"这两种状态的记录到内存里——暂存的记录还要继续在列表里显示，
     // 只是不计入侧栏红点。已解决/转处理这两种是终结状态，留在数据库当历史，不占内存也不用同步给客户端
@@ -1829,21 +1840,21 @@ async function loadProblemItemDataFromDB() {
   }
 }
 
-async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images, itemId) {
+async function addProblemItemReport(category, issueTypes, inspectorNames, orderNote, submittedBy, orderId, idKind, images, itemId, platform) {
   const now = Date.now();
   let id = `mem-${now}-${Math.round(Math.random() * 1e6)}`; // 没数据库时的临时 ID，同一毫秒提交多条也不撞
   if (dbPool) {
     try {
       const result = await dbPool.query(
-        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by, order_id, id_kind, images, item_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, submitted_at;',
-        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy, orderId, idKind, JSON.stringify(images), itemId || null]
+        'INSERT INTO problem_item_reports (category, issue_types, inspector_names, order_note, submitted_by, order_id, id_kind, images, item_id, platform) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, submitted_at;',
+        [category, JSON.stringify(issueTypes), JSON.stringify(inspectorNames), orderNote, submittedBy, orderId, idKind, JSON.stringify(images), itemId || null, platform || null]
       );
       id = result.rows[0].id;
     } catch (err) {
       console.error('[问题件列表记录写入数据库失败]', err.message);
     }
   }
-  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, itemId: itemId || '', idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {}, taskInfo: {}, taskComments: [] };
+  const report = { id, category, issueTypes, inspectorNames, orderNote, orderId, itemId: itemId || '', platform: platform || '', idKind, images, submittedBy, submittedAt: now, status: 'pending', followStamps: {}, taskInfo: {}, taskComments: [] };
   problemItemReports[category].push(report);
   return report;
 }
@@ -1975,7 +1986,9 @@ function getProblemItemSnapshot() {
     options: {
       issueTypes: problemItemOptions.issue_type.map((o) => o.value),
       inspectorNames: problemItemOptions.inspector_name.map((o) => o.value),
+      platforms: (problemItemOptions.buy_platform || []).map((o) => o.value),
     },
+    mercariPrefixes: MERCARI_PREFIXES,
     reports: problemItemReports,
     finished: problemItemFinished,
     handlers: PROBLEM_ITEM_HANDLERS,
@@ -2911,13 +2924,14 @@ wss.on('connection', (ws) => {
       const orderId = String(data.orderId || '').trim().slice(0, 40);
       // RS单号/M单号里带字母（比如 RS12345678、m12345678901），所以放宽成"字母+数字"；
       // 订单ID和快递单号仍然只能是纯数字
-      const idOk = (idKind === 'rs' || idKind === 'm') ? /^[A-Za-z0-9]+$/.test(orderId) : /^\d+$/.test(orderId);
+      const idOk = idKind === 'm' ? new RegExp(`^(${MERCARI_PREFIXES.join('|')})[A-Za-z0-9]+$`).test(orderId) // 煤炉：0几 + M单号
+        : idKind === 'rs' ? /^[A-Za-z0-9]+$/.test(orderId) : /^\d+$/.test(orderId);
       if (!idOk) {
         ws.send(JSON.stringify({
           type: 'problem_item_error',
           message: idKind === 'tracking' ? '请填写快递单号（只能填数字）'
             : idKind === 'rs' ? '请填写RS单号（只能填字母和数字）'
-            : idKind === 'm' ? '请填写M单号（只能填字母和数字）'
+            : idKind === 'm' ? `请选"0几"再填M单号（${MERCARI_PREFIXES.join('/')} + 字母数字）`
             : '请填写订单ID（只能填数字）',
         }));
         return;
@@ -2933,6 +2947,16 @@ wss.on('connection', (ws) => {
         }
       }
 
+      // 代购：平台必选，而且得是下拉里有的（新平台先通过"添加"进了下拉，再提交）
+      let platform = '';
+      if (category === '代购') {
+        platform = String(data.platform || '').trim().slice(0, 30);
+        if (!platform || !(problemItemOptions.buy_platform || []).some((o) => o.value === platform)) {
+          ws.send(JSON.stringify({ type: 'problem_item_error', message: '代购问题件请选择平台' }));
+          return;
+        }
+      }
+
       // 图片：只接受我们自己 /upload 接口生成的路径，最多3张
       const images = Array.isArray(data.images)
         ? data.images.filter((u) => isOwnUploadUrl(u)).slice(0, 3)
@@ -2943,7 +2967,7 @@ wss.on('connection', (ws) => {
       // 改成：先让单子进来，列表里标红"待补照片"，之后用手机点"补传照片"补上。
 
       // 提交是日常操作，不需要密码——密码只用来保护"编辑下拉选项列表"这种管理性操作
-      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images, itemId);
+      const report = await addProblemItemReport(category, issueTypes, inspectorNames, orderNote, client.username, orderId, idKind, images, itemId, platform);
       broadcast({ type: 'problem_item_report_added', category, report });
       return;
     }
@@ -3107,10 +3131,24 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // 提交代购问题件时，平台下拉里没有的，直接输入就能加进去（不用密码；删改还是走齿轮里的选项编辑）
+    if (data.type === 'problem_item_platform_add') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const value = String(data.value || '').replace(/\s+/g, ' ').trim().slice(0, 30);
+      const list = problemItemOptions.buy_platform || [];
+      if (!value || list.some((o) => o.value === value)) return;
+      if (list.length >= 100) { ws.send(JSON.stringify({ type: 'problem_item_error', message: '平台选项太多了，先去齿轮里删掉一些' })); return; }
+      await updateProblemItemOptions('buy_platform', list.map((o) => o.value).concat(value));
+      broadcast({ type: 'problem_item_options_updated', optionType: 'buy_platform', values: problemItemOptions.buy_platform.map((o) => o.value) });
+      return;
+    }
+
     if (data.type === 'problem_item_options_update') {
       const client = clients.get(ws);
       if (!client) return;
       const optionType = String(data.optionType || '');
+      if (!PROBLEM_OPTION_TYPES.includes(optionType)) return;
       const providedPassword = String(data.password || '');
       if (providedPassword !== PIN_EDIT_PASSWORD) {
         ws.send(JSON.stringify({ type: 'problem_item_options_error', message: '密码错误，无法修改选项列表' }));

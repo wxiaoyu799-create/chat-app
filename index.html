@@ -2866,6 +2866,31 @@
   #problem-item-export-confirm-btn:hover { background: var(--accent-dark); }
 
   #problem-item-form { max-width: 480px; }
+  .pi-id-row { display: flex; gap: 6px; }
+  .pi-id-row input { flex: 1; min-width: 0; }
+  #problem-item-id-prefix {
+    flex-shrink: 0; width: 72px; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 8px; padding: 0 6px; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .pi-combo { position: relative; }
+  .pi-combo input { width: 100%; box-sizing: border-box; padding-right: 30px !important; }
+  .pi-combo input.locked { font-weight: 700; color: var(--accent); }
+  .pi-combo-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); cursor: pointer; font-size: 16px; }
+  .pi-combo-list {
+    display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; max-height: 240px; overflow-y: auto;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 9px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14); padding: 4px;
+  }
+  .pi-combo-list.open { display: block; }
+  .pi-combo-item { padding: 7px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; color: var(--text); }
+  .pi-combo-item.active, .pi-combo-item:hover { background: var(--hover-dark); }
+  .pi-combo-item.selected { font-weight: 700; color: var(--accent); }
+  .pi-combo-item.is-new { color: #2e9e5b; font-weight: 600; }
+  .pi-combo-empty { padding: 8px 10px; font-size: 12.5px; color: var(--muted); }
+  .problem-item-platform-chip {
+    display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px;
+    background: rgba(217, 138, 31, 0.14); color: #b8741a;
+  }
+  .finished-platform { font-size: 11.5px; color: #b8741a; }
   .problem-item-field { margin-bottom: 14px; }
   .problem-item-field .problem-item-field-label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
   .problem-item-required { color: #e5534b; font-weight: 700; margin-left: 2px; }
@@ -3182,6 +3207,15 @@
   .problem-item-card-row { display: flex; align-items: flex-start; gap: 14px; }
   .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
   #problem-item-list.queue-mode { max-width: 720px; }
+  @media (min-width: 1400px) {
+    #problem-item-content-area { zoom: 1.12; }
+    #problem-item-list, #problem-item-list.queue-mode {
+      max-width: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); align-items: start;
+    }
+    #problem-item-search-bar { max-width: 900px; }
+    #problem-item-content-header #problem-item-search-bar { max-width: none; }
+    #problem-item-search-wrap { max-width: 560px; }
+  }
   /* 去向队列：现场处理人 */
   .pi-site-handler { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
   .pi-site-handler i { font-size: 15px; color: #2e9e5b; }
@@ -5349,9 +5383,22 @@
           <label class="problem-item-field-label">检品人员姓名</label>
           <div id="problem-item-inspector-display"></div>
         </div>
+        <!-- 代购专用：平台，可以下拉选，也可以打字筛选/加新的 -->
+        <div class="problem-item-field" id="problem-item-platform-field">
+          <label class="problem-item-field-label">平台 <span class="problem-item-required">*</span></label>
+          <div class="pi-combo" id="problem-item-platform-combo">
+            <input type="text" id="problem-item-platform-input" maxlength="30" placeholder="点开选，或输入筛选 / 新增…" autocomplete="off" />
+            <i class="ti ti-chevron-down pi-combo-caret"></i>
+            <div class="pi-combo-list" id="problem-item-platform-list"></div>
+          </div>
+        </div>
         <div class="problem-item-field">
           <label class="problem-item-field-label" id="problem-item-id-label">订单ID</label>
-          <input type="text" id="problem-item-id-input" inputmode="numeric" maxlength="40" placeholder="只能填数字" />
+          <div class="pi-id-row">
+            <!-- 煤炉专用：M单号前面的"0几" -->
+            <select id="problem-item-id-prefix" title="0几"></select>
+            <input type="text" id="problem-item-id-input" inputmode="numeric" maxlength="40" placeholder="只能填数字" />
+          </div>
           <div class="problem-item-field-tip" id="problem-item-id-tip">选了"找不到…"类的问题类型时，这里会自动切成快递单号</div>
         </div>
         <!-- 代拍专用：商品ID，必填 -->
@@ -5419,7 +5466,7 @@
 
   <div id="problem-item-options-edit-panel">
     <div id="problem-item-options-edit-card">
-      <div class="problem-item-options-edit-title">编辑问题类型选项</div>
+      <div class="problem-item-options-edit-title">编辑下拉选项</div>
       <div class="problem-item-options-edit-desc">这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。</div>
 
       <div class="problem-item-options-group">
@@ -5428,6 +5475,15 @@
         <div class="problem-item-options-add-row">
           <input type="text" id="issue-type-add-input" placeholder="输入新的问题类型…" maxlength="20" />
           <button type="button" id="issue-type-add-btn">添加</button>
+        </div>
+      </div>
+
+      <div class="problem-item-options-group">
+        <div class="problem-item-options-group-title">代购平台</div>
+        <div class="problem-item-options-tags" id="platform-options-tags"></div>
+        <div class="problem-item-options-add-row">
+          <input type="text" id="platform-add-input" placeholder="输入新的平台…" maxlength="30" />
+          <button type="button" id="platform-add-btn">添加</button>
         </div>
       </div>
 
@@ -5647,6 +5703,10 @@
   const problemItemIdInput = document.getElementById('problem-item-id-input');
   const problemItemIdTip = document.getElementById('problem-item-id-tip');
   const problemItemItemIdField = document.getElementById('problem-item-itemid-field');
+  const problemItemIdPrefix = document.getElementById('problem-item-id-prefix');
+  const problemItemPlatformField = document.getElementById('problem-item-platform-field');
+  const problemItemPlatformInput = document.getElementById('problem-item-platform-input');
+  const problemItemPlatformList = document.getElementById('problem-item-platform-list');
   const problemItemItemIdInput = document.getElementById('problem-item-itemid-input');
   const problemItemCameraBtn = document.getElementById('problem-item-camera-btn');
   const problemItemCameraInput = document.getElementById('problem-item-camera-input');
@@ -6153,6 +6213,7 @@
         inspectionEditPassword.focus();
       } else if (data.type === 'problem_item_data') {
         problemItemData.options = data.options || { issueTypes: [], inspectorNames: [] };
+        if (Array.isArray(data.mercariPrefixes)) mercariPrefixes = data.mercariPrefixes;
         problemItemData.reports = data.reports || { 代购: [], 代拍: [], 煤炉: [] };
         problemItemData.finished = Array.isArray(data.finished) ? data.finished : [];
         problemItemHandlers = Array.isArray(data.handlers) ? data.handlers : [];
@@ -6215,6 +6276,7 @@
       } else if (data.type === 'problem_item_options_updated') {
         let key = 'inspectorNames';
         if (data.optionType === 'issue_type') key = 'issueTypes';
+        if (data.optionType === 'buy_platform') key = 'platforms';
         problemItemData.options[key] = data.values || [];
         if (problemItemOverlay.classList.contains('active')) updateProblemItemPanelForCategory();
         if (pendingOptionsSaveCount > 0) {
@@ -8737,9 +8799,12 @@
     const kind = currentIdKind();
     problemItemIdLabel.textContent = idKindLabel(kind);
     problemItemIdInput.placeholder = kind === 'rs' ? '字母和数字，比如 RS12345678'
-      : kind === 'm' ? '字母和数字，比如 m12345678901' : '只能填数字';
-    // 商品ID只有代拍要填
+      : kind === 'm' ? 'M单号，比如 m12345678901' : '只能填数字';
+    // 商品ID只有代拍要填；平台只有代购要选；0几 只有煤炉的 M单号要选
     problemItemItemIdField.style.display = currentProblemItemCategory === '代拍' ? '' : 'none';
+    problemItemPlatformField.style.display = currentProblemItemCategory === '代购' ? '' : 'none';
+    renderMercariPrefixOptions();
+    problemItemIdPrefix.style.display = kind === 'm' ? '' : 'none';
     problemItemIdTip.textContent = kind === 'tracking'
       ? '当前选的问题类型里有"找不到…"，填快递单号'
       : '选了"找不到…"类的问题类型时，这里会自动切成快递单号';
@@ -8841,6 +8906,7 @@
   function resetProblemItemForm() {
     selectedIssueTypes = new Set();
     problemItemIdInput.value = '';
+    // 平台、0几 不清空：连续录同一个平台/账号的单子时不用每次重选
     problemItemItemIdInput.value = '';
     problemItemNoteInput.value = '';
     problemItemPendingImages = [];
@@ -8972,6 +9038,7 @@
         (r.issueTypes || []).join(' '),
         r.orderId,
         r.itemId,
+        r.platform,
         idKindLabel(r.idKind),
         r.orderNote,
         (r.inspectorNames || []).join(' '),
@@ -8995,7 +9062,7 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${highlightCell(formatFinishedTime(r.resolvedAt), keyword)}</td>
-        <td>${highlightCell(r.category, keyword)}</td>
+        <td>${highlightCell(r.category, keyword)}${r.platform ? `<br><span class="finished-platform">${highlightCell(r.platform, keyword)}</span>` : ''}</td>
         <td>${highlightCell((r.issueTypes || []).join('、'), keyword)}</td>
         <td>${r.orderId ? highlightCell(`${idKindLabel(r.idKind)}：${r.orderId}`, keyword) : ''}${r.itemId ? `<br>${highlightCell(`商品ID：${r.itemId}`, keyword)}` : ''}</td>
         <td class="col-note" title="${escapeHtml(note)}">${highlightCell(note, keyword)}</td>
@@ -9031,7 +9098,7 @@
   function problemItemHaystack(r) {
     const stamps = (r.followStamps && typeof r.followStamps === 'object') ? r.followStamps : {};
     return [
-      r.orderId, r.itemId, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
+      r.orderId, r.itemId, r.platform, idKindLabel(r.idKind), (r.issueTypes || []).join(' '), (r.inspectorNames || []).join(' '),
       r.submittedBy, r.orderNote, r._fromCategory || r.category, r.handledBy,
       Object.keys(stamps).map((k) => k + ' ' + ((stamps[k] && stamps[k].by) || '')).join(' '),
       taskHaystack(r),
@@ -9145,6 +9212,12 @@
         qChip.className = 'problem-item-queue-chip';
         qChip.textContent = report._queueName;
         tagsRow.appendChild(qChip);
+      }
+      if (report.platform) {
+        const pChip = document.createElement('span');
+        pChip.className = 'problem-item-platform-chip';
+        pChip.innerHTML = `<i class="ti ti-building-store"></i>${escapeHtml(report.platform)}`;
+        tagsRow.appendChild(pChip);
       }
       (report.issueTypes || []).forEach((t) => {
         const tag = document.createElement('span');
@@ -9615,6 +9688,7 @@
     }
 
     refs.types.innerHTML = `<span class="td-chip cat">${escapeHtml(r.category)}</span>`
+      + (r.platform ? `<span class="td-chip cat">${escapeHtml(r.platform)}</span>` : '')
       + (r.issueTypes || []).map((x) => `<span class="td-chip">${escapeHtml(x)}</span>`).join('');
 
     // 执行人：从账号列表里挑
@@ -9924,6 +9998,85 @@
     }
   }
 
+  // ---- 煤炉 M单号前面的"0几" ----
+  let mercariPrefixes = ['02', '05', '04', '06', '07'];
+  function renderMercariPrefixOptions() {
+    const keep = problemItemIdPrefix.value;
+    problemItemIdPrefix.innerHTML = '<option value="">0几</option>' + mercariPrefixes.map((p) => `<option value="${p}">${p}</option>`).join('');
+    if (mercariPrefixes.includes(keep)) problemItemIdPrefix.value = keep;
+  }
+
+  // ---- 代购平台：下拉选，或打字筛选；下拉里没有的可以直接加成新平台 ----
+  let selectedPlatform = '';
+  let platformActiveIdx = 0;
+  function platformOptions() { return problemItemData.options.platforms || []; }
+  function renderPlatformList() {
+    const q = problemItemPlatformInput.value.trim().toLowerCase();
+    const opts = platformOptions();
+    // 输入框里是已选中的那个时，列出全部；否则按输入筛选
+    const matches = (q && problemItemPlatformInput.value.trim() !== selectedPlatform)
+      ? opts.filter((o) => o.toLowerCase().includes(q)) : opts;
+    const exact = opts.some((o) => o.toLowerCase() === q);
+    const items = matches.map((o) => ({ value: o, label: o }));
+    if (q && !exact) items.push({ value: problemItemPlatformInput.value.trim(), label: `＋ 添加「${problemItemPlatformInput.value.trim()}」为新平台`, isNew: true });
+    if (platformActiveIdx >= items.length) platformActiveIdx = 0;
+    problemItemPlatformList.innerHTML = '';
+    items.forEach((it, i) => {
+      const div = document.createElement('div');
+      div.className = 'pi-combo-item' + (it.isNew ? ' is-new' : '') + (it.value === selectedPlatform ? ' selected' : '') + (i === platformActiveIdx ? ' active' : '');
+      div.textContent = it.label;
+      div.addEventListener('mousedown', (e) => { e.preventDefault(); pickPlatform(it); });
+      problemItemPlatformList.appendChild(div);
+    });
+    if (!items.length) problemItemPlatformList.innerHTML = '<div class="pi-combo-empty">还没有平台，输入一个新的</div>';
+    problemItemPlatformList.dataset.count = items.length;
+    problemItemPlatformList._items = items;
+  }
+  function openPlatformList() { platformActiveIdx = 0; renderPlatformList(); problemItemPlatformList.classList.add('open'); }
+  function closePlatformList() { problemItemPlatformList.classList.remove('open'); }
+  function pickPlatform(it) {
+    if (it.isNew) {
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'problem_item_platform_add', value: it.value }));
+      // 先本地加上，服务器广播回来会覆盖成正式列表
+      if (!platformOptions().includes(it.value)) problemItemData.options.platforms = platformOptions().concat(it.value);
+    }
+    selectedPlatform = it.value;
+    problemItemPlatformInput.value = it.value;
+    problemItemPlatformInput.classList.add('locked');
+    closePlatformList();
+  }
+  // 离开输入框：打的字正好是某个平台就选中它；否则退回之前选的（"锁定"在选中的值上）
+  function commitPlatformInput() {
+    const v = problemItemPlatformInput.value.trim();
+    const hit = platformOptions().find((o) => o.toLowerCase() === v.toLowerCase());
+    if (hit) selectedPlatform = hit;
+    problemItemPlatformInput.value = selectedPlatform;
+    problemItemPlatformInput.classList.toggle('locked', !!selectedPlatform);
+  }
+  problemItemPlatformInput.addEventListener('focus', () => { problemItemPlatformInput.select(); openPlatformList(); });
+  problemItemPlatformInput.addEventListener('click', () => { if (!problemItemPlatformList.classList.contains('open')) openPlatformList(); });
+  problemItemPlatformInput.addEventListener('input', () => { problemItemPlatformInput.classList.remove('locked'); platformActiveIdx = 0; renderPlatformList(); problemItemPlatformList.classList.add('open'); });
+  problemItemPlatformInput.addEventListener('keydown', (e) => {
+    const items = problemItemPlatformList._items || [];
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!problemItemPlatformList.classList.contains('open')) { openPlatformList(); return; }
+      platformActiveIdx = (platformActiveIdx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % Math.max(items.length, 1);
+      renderPlatformList();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (items[platformActiveIdx]) pickPlatform(items[platformActiveIdx]);
+    } else if (e.key === 'Escape') {
+      closePlatformList();
+      commitPlatformInput();
+    }
+  });
+  problemItemPlatformInput.addEventListener('blur', () => { closePlatformList(); commitPlatformInput(); });
+  document.querySelector('#problem-item-platform-combo .pi-combo-caret').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    if (problemItemPlatformList.classList.contains('open')) closePlatformList(); else problemItemPlatformInput.focus();
+  });
+
   // ---- 提交表单 ----
   function submitProblemItem() {
     if (selectedIssueTypes.size === 0) {
@@ -9931,9 +10084,30 @@
       problemItemSubmitHint.style.color = '#e5534b';
       return;
     }
+    // 代购：平台必选
+    if (currentProblemItemCategory === '代购') {
+      commitPlatformInput();
+      if (!selectedPlatform) {
+        problemItemSubmitHint.textContent = '请选择平台（可以下拉选，也可以直接输入新的）';
+        problemItemSubmitHint.style.color = '#e5534b';
+        problemItemPlatformInput.focus();
+        return;
+      }
+    }
     const idKind = currentIdKind();
-    const idValue = problemItemIdInput.value.trim();
+    let idValue = problemItemIdInput.value.trim();
     const idLabel = idKindLabel(idKind);
+    // 煤炉：0几 必选，拼在 M单号前面存（自己已经打了 05m… 的就不重复拼）
+    if (idKind === 'm' && idValue) {
+      const prefix = problemItemIdPrefix.value;
+      if (!prefix) {
+        problemItemSubmitHint.textContent = '请先选 M单号前面的"0几"';
+        problemItemSubmitHint.style.color = '#e5534b';
+        problemItemIdPrefix.focus();
+        return;
+      }
+      if (!idValue.startsWith(prefix)) idValue = prefix + idValue;
+    }
     if (!idValue) {
       problemItemSubmitHint.textContent = `请填写${idLabel}`;
       problemItemSubmitHint.style.color = '#e5534b';
@@ -9988,6 +10162,7 @@
       inspectorNames: [username],
       orderId: idValue,
       itemId: currentProblemItemCategory === '代拍' ? itemIdValue : '',
+      platform: currentProblemItemCategory === '代购' ? selectedPlatform : '',
       idKind,
       orderNote: problemItemNoteInput.value.trim(),
       images: problemItemPendingImages.filter((img) => img.url).map((img) => img.url),
@@ -10033,14 +10208,32 @@
     });
   }
 
+  let editingPlatforms = [];
+  const platformOptionsTags = document.getElementById('platform-options-tags');
+  const platformAddInput = document.getElementById('platform-add-input');
+  function renderPlatformEditTags() {
+    renderOptionsTagList(platformOptionsTags, editingPlatforms, (idx) => {
+      editingPlatforms.splice(idx, 1);
+      renderPlatformEditTags();
+    });
+  }
+  document.getElementById('platform-add-btn').addEventListener('click', () => {
+    const val = platformAddInput.value.trim();
+    if (val && !editingPlatforms.includes(val)) editingPlatforms.push(val);
+    platformAddInput.value = '';
+    renderPlatformEditTags();
+  });
+  platformAddInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('platform-add-btn').click(); });
   function openProblemItemOptionsEdit() {
     editingIssueTypes = [...getIssueTypesForCategory(currentProblemItemCategory)];
     renderIssueTypeEditTags();
+    editingPlatforms = [...(problemItemData.options.platforms || [])];
+    renderPlatformEditTags();
     problemItemOptionsPassword.value = '';
     problemItemOptionsError.textContent = '';
     const descEl = document.querySelector('.problem-item-options-edit-desc');
     if (descEl) {
-      descEl.textContent = '这个列表是代购/代拍/煤炉三个分类共用的，改一次三边都会生效。';
+      descEl.textContent = '问题类型是代购/代拍/煤炉三个分类共用的；代购平台只在代购里用。';
     }
     problemItemOptionsEditPanel.classList.add('active');
   }
@@ -10099,9 +10292,10 @@
       return;
     }
     problemItemOptionsError.textContent = '';
-    pendingOptionsSaveCount = 1;
+    pendingOptionsSaveCount = 2;
     const optionType = getIssueTypeOptionKey(currentProblemItemCategory);
     ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType, values: editingIssueTypes, password }));
+    ws.send(JSON.stringify({ type: 'problem_item_options_update', optionType: 'buy_platform', values: editingPlatforms, password }));
   });
 
   document.addEventListener('keydown', (e) => {

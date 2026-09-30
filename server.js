@@ -2979,6 +2979,42 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // 去向队列卡片上的"现场处理人"：从仓库现场账号里挑一个（管理员 / 仓库现场能改）
+    if (data.type === 'problem_queue_site_handler') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (!['admin', 'manager'].includes(client.role)) { ws.send(JSON.stringify({ type: 'problem_item_error', message: '只有管理员和仓库现场能指定现场处理人' })); return; }
+      const category = String(data.category || '');
+      const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!report || !TRANSFER_STATUSES.includes(report.status)) return;
+      const name = String(data.name || '').trim();
+      if (name && !users.some((u) => u.username === name && u.role === 'manager' && !u.disabled)) return;
+      report.taskInfo = { ...(report.taskInfo || {}), siteHandler: name };
+      await saveTaskColumn(report.id, 'task_info', report.taskInfo);
+      broadcast({ type: 'problem_item_report_updated', category, report });
+      return;
+    }
+    // 煤炉反查的处理进度：卡片上分"现场""代购"两栏直接写。
+    // 现场栏：管理员 / 仓库现场；代购栏：管理员 / 代购
+    if (data.type === 'problem_progress_update') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const side = data.side === 'buyer' ? 'buyer' : data.side === 'site' ? 'site' : '';
+      if (!side) return;
+      const canWrite = side === 'site' ? ['admin', 'manager'] : ['admin', 'buyer'];
+      if (!canWrite.includes(client.role)) { ws.send(JSON.stringify({ type: 'problem_item_error', message: side === 'site' ? '现场进度只有仓库现场能写' : '代购进度只有代购能写' })); return; }
+      const category = String(data.category || '');
+      const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!report || report.status !== 'transferred_merchant') return;
+      const info = report.taskInfo || {};
+      const progress = { ...(info.progress || {}) };
+      progress[side] = { text: cleanTaskText(data.text, 1000), by: client.username, at: Date.now() };
+      report.taskInfo = { ...info, progress };
+      await saveTaskColumn(report.id, 'task_info', report.taskInfo);
+      broadcast({ type: 'problem_item_report_updated', category, report });
+      return;
+    }
+
     // 代购代拍任务：改详情字段（执行人、截止日、优先级、附件……），谁都能改，改完实时同步
     if (data.type === 'problem_task_update') {
       const client = clients.get(ws);

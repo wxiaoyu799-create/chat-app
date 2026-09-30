@@ -3182,6 +3182,35 @@
   .problem-item-card-row { display: flex; align-items: flex-start; gap: 14px; }
   .problem-item-card-row .problem-item-card { flex: 1; min-width: 0; }
   #problem-item-list.queue-mode { max-width: 720px; }
+  /* 去向队列：现场处理人 */
+  .pi-site-handler { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .pi-site-handler i { font-size: 15px; color: #2e9e5b; }
+  .pi-site-handler select {
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 7px;
+    padding: 3px 6px; font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .pi-site-handler select.empty { color: var(--muted); font-weight: 400; }
+  .pi-site-handler .pi-sh-value { color: var(--text); font-weight: 600; }
+  .pi-site-handler .pi-sh-value.empty { color: var(--muted); font-weight: 400; }
+  /* 煤炉反查：现场 / 代购 两栏进度 */
+  .pi-progress { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .pi-progress-box { border-radius: 8px; padding: 6px 8px 4px; border: 1px solid var(--border); background: var(--bg); }
+  .pi-progress-box.side-site { border-left: 3px solid #2e9e5b; }
+  .pi-progress-box.side-buyer { border-left: 3px solid #d98a1f; }
+  .pi-progress-head { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .pi-progress-head b { font-size: 12px; color: var(--text); }
+  .pi-progress-box.side-site .pi-progress-head b { color: #2e9e5b; }
+  .pi-progress-box.side-buyer .pi-progress-head b { color: #c07a14; }
+  .pi-progress-head span { margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pi-progress-input {
+    width: 100%; box-sizing: border-box; border: none; outline: none; resize: none; background: transparent;
+    color: var(--text); font-size: 13px; font-family: inherit; line-height: 1.5; min-height: 40px; overflow: hidden; padding: 3px 0;
+  }
+  .pi-progress-input:disabled { color: var(--text); cursor: default; }
+  .pi-progress-input:disabled::placeholder { color: var(--muted); }
+  .pi-progress-box:focus-within { border-color: var(--accent); }
+  @media (max-width: 640px) { .pi-progress { grid-template-columns: 1fr; } }
+
   /* 任务卡片上的摘要行 */
   .task-summary {
     display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
@@ -3616,6 +3645,9 @@
   .timeclock-row-edit-btn:hover { color: var(--accent); background: transparent; }
 
   /* ===== 摄像头拍照弹层（电脑和手机通用，直接调摄像头，不走文件选择框）===== */
+  #camera-device-wrap { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; }
+  #camera-device-wrap[hidden] { display: none; }
+  #camera-device-select { max-width: 220px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; font-family: inherit; }
   #camera-overlay {
     display: none;
     position: fixed;
@@ -4757,6 +4789,8 @@
       <div id="camera-hint">正在打开摄像头…</div>
     </div>
     <div class="camera-actions">
+      <!-- 电脑插了多个摄像头时出现：选一个，本机记住，以后 CC 一直用它 -->
+      <label id="camera-device-wrap" hidden><i class="ti ti-video"></i><select id="camera-device-select" title="选一个摄像头，这台电脑会记住"></select></label>
       <button id="camera-switch-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-refresh"></i> 切换摄像头</button>
       <button id="camera-file-btn" class="timeclock-mini-btn" type="button"><i class="ti ti-folder"></i> 改用选文件</button>
       <button id="camera-snap-btn" type="button"><i class="ti ti-camera"></i> 拍摄</button>
@@ -8500,6 +8534,12 @@
   const cameraUseBtn = document.getElementById('camera-use-btn');
   const cameraSwitchBtn = document.getElementById('camera-switch-btn');
   const cameraFileBtn = document.getElementById('camera-file-btn');
+  const cameraDeviceWrap = document.getElementById('camera-device-wrap');
+  const cameraDeviceSelect = document.getElementById('camera-device-select');
+  // 选过的摄像头记在这台电脑上（插了专门给 CC 用的 USB 摄像头时，选一次就行）
+  const CAMERA_PREF_KEY = 'ccCameraDeviceId';
+  function savedCameraId() { try { return localStorage.getItem(CAMERA_PREF_KEY) || ''; } catch (e) { return ''; } }
+  function saveCameraId(id) { try { if (id) localStorage.setItem(CAMERA_PREF_KEY, id); else localStorage.removeItem(CAMERA_PREF_KEY); } catch (e) { /* 存不了就只管这一次 */ } }
 
   let cameraStream = null;
   let cameraFacing = 'environment';
@@ -8513,7 +8553,9 @@
     cameraShot.classList.toggle('active', mode === 'shot');
     cameraHint.style.display = mode === 'error' ? 'block' : 'none';
     cameraSnapBtn.hidden = mode !== 'live';
-    cameraSwitchBtn.hidden = mode !== 'live';
+    // 有多个摄像头可选时用下拉框；只有一个（或拿不到列表，比如手机）时才用"切换摄像头"
+    cameraDeviceWrap.hidden = mode !== 'live' || cameraDeviceSelect.options.length < 2;
+    cameraSwitchBtn.hidden = mode !== 'live' || !cameraDeviceWrap.hidden;
     cameraRetakeBtn.hidden = mode !== 'shot';
     cameraUseBtn.hidden = mode !== 'shot';
   }
@@ -8536,10 +8578,19 @@
       return;
     }
     try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: cameraFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
+      const size = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      const wantId = savedCameraId();
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: wantId ? { deviceId: { exact: wantId }, ...size } : { facingMode: cameraFacing, ...size },
+          audio: false,
+        });
+      } catch (err) {
+        // 记住的那个摄像头拔掉了 / 被别的程序占着：退回默认摄像头，别让人拍不了
+        if (!wantId) throw err;
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacing, ...size }, audio: false });
+      }
+      await refreshCameraDeviceList();
       cameraVideo.srcObject = cameraStream;
       await cameraVideo.play().catch(() => {});
       setCameraStage('live');
@@ -8554,6 +8605,26 @@
       setCameraStage('error');
     }
   }
+
+  // 摄像头列表：授权以后浏览器才给名字，所以每次打开成功后刷新一次
+  async function refreshCameraDeviceList() {
+    let cams = [];
+    try { cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput'); } catch (e) { cams = []; }
+    const track = cameraStream && cameraStream.getVideoTracks()[0];
+    const currentId = track && track.getSettings ? (track.getSettings().deviceId || '') : '';
+    cameraDeviceSelect.innerHTML = '';
+    cams.forEach((c, i) => {
+      const o = document.createElement('option');
+      o.value = c.deviceId;
+      o.textContent = c.label || `摄像头 ${i + 1}`;
+      cameraDeviceSelect.appendChild(o);
+    });
+    if (currentId) cameraDeviceSelect.value = currentId;
+  }
+  cameraDeviceSelect.addEventListener('change', () => {
+    saveCameraId(cameraDeviceSelect.value);
+    startCameraStream();
+  });
 
   function openCameraModal(title, onDone, onFallback) {
     cameraTitle.textContent = title || '拍照';
@@ -9032,6 +9103,11 @@
   });
 
   function renderProblemItemList() {
+    // 列表要整个重画：先记下正在输入的进度框（内容+光标），画完放回去，别人一更新不会冲掉你正在打的字
+    const typing = document.activeElement && document.activeElement.classList.contains('pi-progress-input')
+      ? { key: document.activeElement.dataset.key, value: document.activeElement.value,
+          start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd }
+      : null;
     // 煤炉反查/代购代拍任务/代拍工单是"去向队列"：跨分类汇总已经转出去的记录，不是提交入口
     const isQueue = isQueueLike(currentProblemItemCategory);
     const allHere = isQueue
@@ -9143,6 +9219,10 @@
       const isTask = isQueue && TASK_QUEUE_STATUSES.includes(report.status);
       // 任务卡片上挂一行摘要：优先级、截止、执行人、最新评论，点一下打开详情
       if (isTask) card.appendChild(buildTaskSummary(report));
+      // 去向队列：每张卡都有"现场处理人"
+      if (isQueue) card.appendChild(buildSiteHandlerRow(report));
+      // 煤炉反查：现场 / 代购 两栏处理进度，直接写在卡片上，不用点进详情
+      if (isQueue && report.status === 'transferred_merchant') card.appendChild(buildProgressBoxes(report));
 
       const actions = document.createElement('div');
       actions.className = 'problem-item-card-actions';
@@ -9243,12 +9323,88 @@
 
       problemItemList.appendChild(card);
     });
+    if (typing) {
+      const again = problemItemList.querySelector(`.pi-progress-input[data-key="${typing.key}"]`);
+      if (again && !again.disabled) {
+        again.value = typing.value;
+        autoGrow(again);
+        again.focus();
+        try { again.setSelectionRange(typing.start, typing.end); } catch (e) { /* 忽略 */ }
+      }
+    }
+  }
+
+  // ===== 去向队列：现场处理人 =====
+  function buildSiteHandlerRow(report) {
+    const row = document.createElement('div');
+    row.className = 'pi-site-handler';
+    const cur = (report.taskInfo && report.taskInfo.siteHandler) || '';
+    row.innerHTML = '<i class="ti ti-user-check"></i><span class="pi-sh-label">现场处理人</span>';
+    if (myRole === 'admin' || myRole === 'manager') {
+      const sel = document.createElement('select');
+      const managers = (userDirectory || []).filter((u) => u.role === 'manager').map((u) => u.username);
+      if (cur && !managers.includes(cur)) managers.unshift(cur);
+      sel.innerHTML = '<option value="">未指定</option>' + managers.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      sel.value = cur;
+      sel.classList.toggle('empty', !cur);
+      sel.addEventListener('change', () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'problem_queue_site_handler', category: report._fromCategory || report.category, reportId: report.id, name: sel.value }));
+      });
+      row.appendChild(sel);
+    } else {
+      const v = document.createElement('span');
+      v.className = 'pi-sh-value' + (cur ? '' : ' empty');
+      v.textContent = cur || '未指定';
+      row.appendChild(v);
+    }
+    return row;
+  }
+
+  // ===== 煤炉反查：现场 / 代购 两栏处理进度 =====
+  // 现场栏：管理员 / 仓库现场能写；代购栏：管理员 / 代购能写；其他人只看。点出框就保存
+  function buildProgressBoxes(report) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pi-progress';
+    const progress = (report.taskInfo && report.taskInfo.progress) || {};
+    [
+      { side: 'site', title: '现场进度', roles: ['admin', 'manager'], ph: '仓库现场：处理到哪一步了…' },
+      { side: 'buyer', title: '代购进度', roles: ['admin', 'buyer'], ph: '代购：联系商家/顾客的进展…' },
+    ].forEach(({ side, title, roles, ph }) => {
+      const cur = progress[side] || {};
+      const box = document.createElement('div');
+      box.className = `pi-progress-box side-${side}`;
+      const head = document.createElement('div');
+      head.className = 'pi-progress-head';
+      head.innerHTML = `<b>${title}</b>` + (cur.by ? `<span>${escapeHtml(cur.by)} · ${formatTaskTime(cur.at)}</span>` : '');
+      box.appendChild(head);
+      const ta = document.createElement('textarea');
+      ta.className = 'pi-progress-input';
+      ta.dataset.key = `${report.id}-${side}`;
+      ta.rows = 2;
+      ta.value = cur.text || '';
+      const canWrite = roles.includes(myRole);
+      ta.disabled = !canWrite;
+      ta.placeholder = canWrite ? ph : '（还没写）';
+      ta.addEventListener('input', () => autoGrow(ta));
+      ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) ta.blur(); });
+      ta.addEventListener('blur', () => {
+        if (!canWrite || ta.value.trim() === String(cur.text || '').trim()) return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'problem_progress_update', category: report._fromCategory || report.category, reportId: report.id, side, text: ta.value }));
+      });
+      box.appendChild(ta);
+      wrap.appendChild(box);
+      requestAnimationFrame(() => autoGrow(ta));
+    });
+    return wrap;
   }
 
   // ===== 代购代拍任务 / 代拍工单：卡片摘要 + 详情面板 =====
   function taskHaystack(r) {
     const t = r.taskInfo || {};
-    return [t.content, t.contact, t.followUp, (t.executors || []).join(' '),
+    const pg = t.progress || {};
+    return [t.content, t.contact, t.followUp, t.siteHandler, pg.site && pg.site.text, pg.buyer && pg.buyer.text, (t.executors || []).join(' '),
       (r.taskComments || []).map((c) => `${c.by} ${c.text}`).join(' ')].join(' ');
   }
   function formatTaskTime(ts) {

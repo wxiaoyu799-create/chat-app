@@ -104,6 +104,9 @@ const TABLES = [
   { name: 'mall_items', id: true },
   { name: 'mall_arrivals', id: true },
   { name: 'paypay_records', id: true },
+  { name: 'paypay_openings', id: false },
+  { name: 'jihuo_items', id: true },
+  { name: 'jihuo_members', id: false },
   { name: 'staff_shifts', id: true },
   { name: 'staff_members', id: true },
   { name: 'time_records', id: true },
@@ -120,10 +123,10 @@ const TABLE_LABELS = {
   chat_messages: '聊天记录',
   problem_item_reports: '问题件', problem_item_options: '问题件选项',
   case_library: '案例库', special_requirements: '特殊要求', inspection_rules_history: '检品规则历史',
-  mall_items: '商城订货', mall_arrivals: '商城到货', paypay_records: 'PayPay充值',
+  mall_items: '商城订货', mall_arrivals: '商城到货', paypay_records: 'PayPay充值', paypay_openings: 'PayPay月初余额',
   staff_shifts: '班表', staff_members: '现场管理名单', time_records: '打卡记录',
   timeclock_names: '打卡人名单', work_items: '工作内容', reminders: '定时提醒',
-  drive_files: '云盘文件',
+  drive_files: '云盘文件', jihuo_items: '集货（未完结）', jihuo_members: '集货人员名单',
 };
 
 const PAGE = 1000;

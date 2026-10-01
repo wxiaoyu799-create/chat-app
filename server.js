@@ -1341,8 +1341,29 @@ async function loadPaypayFromDB() {
     console.error('[加载 PayPay 充值记录失败]', err.message);
   }
 }
+// 每个账户每个月 1 日的"初期余额"：录一次就锁住，只有管理员能改（相当于月初对账的基准数）
+let paypayOpenings = []; // { account, month: 'YYYY-MM', balance, by, at }
+async function loadPaypayOpenings() {
+  if (!dbPool) return;
+  try {
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS paypay_openings (
+        account TEXT NOT NULL,
+        month TEXT NOT NULL,
+        balance BIGINT NOT NULL,
+        by_user TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (account, month)
+      );
+    `);
+    const { rows } = await dbPool.query('SELECT * FROM paypay_openings ORDER BY month ASC;');
+    paypayOpenings = rows.map((r) => ({ account: r.account, month: r.month, balance: Number(r.balance), by: r.by_user || '', at: new Date(r.updated_at).getTime() }));
+  } catch (err) {
+    console.error('[加载 PayPay 月初余额失败]', err.message);
+  }
+}
 function paypaySnapshot() {
-  return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, accountLimit: PAYPAY_ACCOUNT_LIMIT, accountWarn: PAYPAY_ACCOUNT_WARN };
+  return { type: 'paypay_data', accounts: PAYPAY_ACCOUNTS, records: paypayRecords, openings: paypayOpenings, accountLimit: PAYPAY_ACCOUNT_LIMIT, accountWarn: PAYPAY_ACCOUNT_WARN };
 }
 function broadcastPaypay() { broadcast(paypaySnapshot()); }
 // 日期只认 YYYY-MM-DD
@@ -2384,6 +2405,7 @@ wss.on('connection', (ws) => {
       paypay_update: { roles: STOCK_SIDE, err: 'paypay_error', what: '改充值记录' },
       paypay_delete: { roles: STOCK_SIDE, err: 'paypay_error', what: '删充值记录' },
       paypay_bulk: { roles: STOCK_SIDE, err: 'paypay_error', what: '导入充值历史' },
+      paypay_opening_set: { roles: STOCK_SIDE, err: 'paypay_error', what: '录月初余额' },
     };
     if (STATS_TYPES[data.type]) {
       const c = clients.get(ws);
@@ -2758,6 +2780,42 @@ wss.on('connection', (ws) => {
       return;
     }
     // 批量导入历史记录（从别处复制过来的明细，前端解析好再发过来）
+    // 月初（1日）初期余额：第一次录入谁都行（有记账权限的）；已经录过的只有管理员能改 / 清空
+    if (data.type === 'paypay_opening_set') {
+      const client = clients.get(ws);
+      const acc = PAYPAY_ACCOUNTS.find((x) => x.key === data.account);
+      const month = String(data.month || '');
+      if (!acc || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+      const existing = paypayOpenings.find((o) => o.account === acc.key && o.month === month);
+      if (existing && client.role !== 'admin') {
+        ws.send(JSON.stringify({ type: 'paypay_error', message: '月初余额录过就锁定了，要改请找管理员' }));
+        return;
+      }
+      const clear = data.balance === null || data.balance === '';
+      if (clear) {
+        if (!existing) return;
+        paypayOpenings = paypayOpenings.filter((o) => o !== existing);
+        if (dbPool) { try { await dbPool.query('DELETE FROM paypay_openings WHERE account=$1 AND month=$2;', [acc.key, month]); } catch (err) { console.error('[PayPay 月初余额删除失败]', err.message); } }
+      } else {
+        const balance = Math.round(Number(data.balance));
+        if (!Number.isFinite(balance) || balance < 0) { ws.send(JSON.stringify({ type: 'paypay_error', message: '月初余额要填数字' })); return; }
+        const rec = { account: acc.key, month, balance, by: client.username, at: Date.now() };
+        if (existing) Object.assign(existing, rec); else paypayOpenings.push(rec);
+        if (dbPool) {
+          try {
+            await dbPool.query(
+              `INSERT INTO paypay_openings (account, month, balance, by_user, updated_at) VALUES ($1,$2,$3,$4,now())
+               ON CONFLICT (account, month) DO UPDATE SET balance=EXCLUDED.balance, by_user=EXCLUDED.by_user, updated_at=now();`,
+              [acc.key, month, balance, client.username]
+            );
+          } catch (err) { console.error('[PayPay 月初余额写入失败]', err.message); }
+        }
+      }
+      broadcastPaypay();
+      ws.send(JSON.stringify({ type: 'paypay_opening_saved', cleared: clear }));
+      return;
+    }
+
     if (data.type === 'paypay_bulk') {
       const client = clients.get(ws);
       if (!client) return;
@@ -4727,6 +4785,7 @@ async function startServer() {
   await loadSpecialRequirementsFromDB();
   await loadMallFromDB();
   await loadPaypayFromDB();
+  await loadPaypayOpenings();
   await loadDriveIndexFromDB();
   await loadInspectionRulesFromDB();
   await loadProblemItemDataFromDB();

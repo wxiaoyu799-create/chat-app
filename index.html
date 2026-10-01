@@ -2193,9 +2193,13 @@
   .ppo-title { font-size: 13px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 4px; margin-bottom: 8px; }
   .ppo-title i { color: var(--accent); font-size: 16px; }
   .ppo-hint { font-size: 11.5px; font-weight: 400; color: var(--muted); margin-left: 8px; }
-  #ppo-cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  #ppo-cells { display: grid; grid-template-columns: minmax(0, 420px); gap: 8px; }
+  #ppo-month-input { width: 150px; flex: 0 0 auto; margin: 0; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 7px; padding: 3px 6px; font-size: 13px; font-weight: 700; font-family: inherit; }
+  #ppo-this-month { background: transparent; border: 1px solid var(--border); color: var(--accent); border-radius: 6px; font-size: 11.5px; padding: 2px 8px; cursor: pointer; font-family: inherit; }
+  .ppo-hist-item { background: transparent; border: none; padding: 0; color: var(--muted); font-size: 11.5px; cursor: pointer; font-family: inherit; }
+  .ppo-hist-item:hover { color: var(--accent); }
+  .ppo-hist-label { color: var(--muted); }
   .ppo-cell { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; position: relative; }
-  .ppo-cell.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .ppo-acc { font-size: 12.5px; font-weight: 600; color: var(--text); }
   .ppo-acc span { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
   .ppo-amount { font-size: 18px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; }
@@ -2212,6 +2216,7 @@
   #ppo-history:empty { display: none; }
   #ppo-history b { color: var(--text); }
   @media (max-width: 640px) { #ppo-cells { grid-template-columns: 1fr; } }
+  .ppo-title { flex-wrap: wrap; }
   #paypay-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
   #paypay-head-name { font-size: 18px; font-weight: 700; }
   #paypay-head-stats { font-size: 13px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; }
@@ -5047,7 +5052,13 @@
     <div id="paypay-content">
       <!-- 本月1日初期余额：三个账户一排，录一次就锁定（管理员可改） -->
       <div id="paypay-opening">
-        <div class="ppo-title"><i class="ti ti-calendar-dollar"></i> <span id="ppo-month"></span>1日 初期余额<span class="ppo-hint">录入后锁定，只有管理员能改</span></div>
+        <div class="ppo-title">
+          <i class="ti ti-calendar-dollar"></i>
+          <input type="month" id="ppo-month-input" title="换个月份看 / 补录" />
+          <span>1日 初期余额</span>
+          <button type="button" id="ppo-this-month" hidden>回到本月</button>
+          <span class="ppo-hint">录入后锁定，只有管理员能改</span>
+        </div>
         <div id="ppo-cells"></div>
         <div id="ppo-history"></div>
       </div>
@@ -11281,16 +11292,26 @@
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
   let ppoEditing = ''; // 管理员点了"修改"的那个账户
+  let ppoMonth = '';    // 正在看的月份，默认本月；可以切到别的月份补录/查看
+  const ppoMonthInput = document.getElementById('ppo-month-input');
+  const ppoThisMonthBtn = document.getElementById('ppo-this-month');
+  ppoMonthInput.addEventListener('change', () => {
+    if (/^\d{4}-\d{2}$/.test(ppoMonthInput.value)) { ppoMonth = ppoMonthInput.value; ppoEditing = ''; renderPaypayOpening(); }
+  });
+  ppoThisMonthBtn.addEventListener('click', () => { ppoMonth = thisMonthStr(); ppoEditing = ''; renderPaypayOpening(); });
   function renderPaypayOpening() {
-    const month = thisMonthStr();
+    if (!ppoMonth) ppoMonth = thisMonthStr();
+    const month = ppoMonth;
     const [y, m] = month.split('-');
-    document.getElementById('ppo-month').textContent = `${y}年${Number(m)}月`;
+    ppoMonthInput.value = month;
+    ppoThisMonthBtn.hidden = month === thisMonthStr();
     const cells = document.getElementById('ppo-cells');
     cells.innerHTML = '';
     const canEnter = canStockSide();
     const isAdmin = myRole === 'admin';
     const openings = paypayData.openings || [];
-    paypayData.accounts.forEach((acc) => {
+    // 只显示当前选中的这个账户
+    paypayData.accounts.filter((acc) => acc.key === paypayAccount).forEach((acc) => {
       const o = openings.find((x) => x.account === acc.key && x.month === month);
       const cell = document.createElement('div');
       cell.className = 'ppo-cell' + (acc.key === paypayAccount ? ' current' : '') + (o ? ' locked' : '');
@@ -11338,12 +11359,19 @@
       }
       cells.appendChild(cell);
     });
-    // 往月：当前账户最近 6 个月的初期余额，只看
+    // 其他月份：当前账户最近 6 个月的初期余额，点一下切过去
+    const histBox = document.getElementById('ppo-history');
     const hist = openings.filter((x) => x.account === paypayAccount && x.month !== month)
       .sort((a, b) => (a.month < b.month ? 1 : -1)).slice(0, 6);
-    document.getElementById('ppo-history').innerHTML = hist.length
-      ? '往月：' + hist.map((x) => `<span>${escapeHtml(x.month.replace('-', '年'))}月 <b>${yen(x.balance)}</b></span>`).join('')
-      : '';
+    histBox.innerHTML = hist.length ? '<span class="ppo-hist-label">其他月份：</span>' : '';
+    hist.forEach((x) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ppo-hist-item';
+      b.innerHTML = `${escapeHtml(x.month.replace('-', '年'))}月 <b>${yen(x.balance)}</b>`;
+      b.addEventListener('click', () => { ppoMonth = x.month; ppoEditing = ''; renderPaypayOpening(); });
+      histBox.appendChild(b);
+    });
   }
 
   function renderPaypay() {

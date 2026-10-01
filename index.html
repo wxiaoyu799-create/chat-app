@@ -2914,6 +2914,10 @@
   .pi-combo-item.selected { font-weight: 700; color: var(--accent); }
   .pi-combo-item.is-new { color: #2e9e5b; font-weight: 600; }
   .pi-combo-empty { padding: 8px 10px; font-size: 12.5px; color: var(--muted); }
+  .mid-head {
+    display: inline-block; margin-right: 5px; padding: 0 6px; border-radius: 5px; font-weight: 700;
+    background: rgba(229, 83, 75, 0.12); color: #d0453e; user-select: all;
+  }
   .problem-item-platform-chip {
     display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px;
     background: rgba(217, 138, 31, 0.14); color: #b8741a;
@@ -8865,6 +8869,22 @@
     return kind === 'tracking' ? '快递单号' : kind === 'rs' ? 'RS单号' : kind === 'm' ? 'M单号' : '订单ID';
   }
   function idKindAlnum(kind) { return kind === 'rs' || kind === 'm'; } // 这两种可以带字母
+  // M单号存的是"05m10755305523"，显示时把前面的"05"和后面的"m10755305523"分开（M单号可以单独双击选中复制）
+  function splitMercariId(id) {
+    const m = String(id || '').match(/^(0[24567])(.+)$/);
+    return m ? { head: m[1], rest: m[2] } : null;
+  }
+  // 卡片/表格里用：带高亮的 HTML
+  function orderIdHtml(kind, id, kw) {
+    const sp = kind === 'm' ? splitMercariId(id) : null;
+    if (!sp) return highlightCell(id, kw);
+    return `<span class="mid-head">${escapeHtml(sp.head)}</span>${highlightCell(sp.rest, kw)}`;
+  }
+  // 纯文字（引用到聊天等）：中间空一格
+  function orderIdText(kind, id) {
+    const sp = kind === 'm' ? splitMercariId(id) : null;
+    return sp ? `${sp.head} ${sp.rest}` : String(id || '');
+  }
   function updateProblemItemIdField() {
     const kind = currentIdKind();
     problemItemIdLabel.textContent = idKindLabel(kind);
@@ -9147,7 +9167,7 @@
         <td>${highlightCell(formatFinishedTime(r.resolvedAt), keyword)}</td>
         <td>${highlightCell(r.category, keyword)}${r.platform ? `<br><span class="finished-platform">${highlightCell(r.platform, keyword)}</span>` : ''}</td>
         <td>${highlightCell((r.issueTypes || []).join('、'), keyword)}</td>
-        <td>${r.orderId ? highlightCell(`${idKindLabel(r.idKind)}：${r.orderId}`, keyword) : ''}${r.itemId ? `<br>${highlightCell(`商品ID：${r.itemId}`, keyword)}` : ''}</td>
+        <td>${r.orderId ? `${escapeHtml(idKindLabel(r.idKind))}：${orderIdHtml(r.idKind, r.orderId, keyword)}` : ''}${r.itemId ? `<br>${highlightCell(`商品ID：${r.itemId}`, keyword)}` : ''}</td>
         <td class="col-note" title="${escapeHtml(note)}">${highlightCell(note, keyword)}</td>
         <td>${highlightCell((r.inspectorNames || []).join('、'), keyword)}</td>
         <td>${highlightCell(r.submittedBy, keyword)}</td>
@@ -9330,7 +9350,7 @@
       if (report.orderId) {
         const idRow = document.createElement('div');
         idRow.className = 'problem-item-card-id';
-        idRow.innerHTML = `${escapeHtml(idKindLabel(report.idKind))}：${highlightCell(report.orderId, problemItemSearchInput.value.trim())}`;
+        idRow.innerHTML = `${escapeHtml(idKindLabel(report.idKind))}：${orderIdHtml(report.idKind, report.orderId, problemItemSearchInput.value.trim())}`;
         card.appendChild(idRow);
       }
       if (report.itemId) {
@@ -9808,7 +9828,7 @@
     if (!execs.length && readOnly) refs.execs.textContent = '—';
 
     const metaBits = [
-      r.orderId ? `${idKindLabel(r.idKind)}：${escapeHtml(r.orderId)}` : '',
+      r.orderId ? `${idKindLabel(r.idKind)}：${orderIdHtml(r.idKind, r.orderId, '')}` : '',
       r.itemId ? `商品ID：${escapeHtml(r.itemId)}` : '',
       `检品：${escapeHtml((r.inspectorNames || []).join('、') || '未填写')} · 提交：${escapeHtml(r.submittedBy || '')} ${formatProblemItemTime(r.submittedAt)}`,
       r.handledBy ? `转任务：${escapeHtml(r.handledBy)}` : '',
@@ -10059,7 +10079,7 @@
       ? `${tagList.slice(0, 2).join('、')}等${tagList.length}项`
       : tagList.join('、');
     const tagPart = tagStr ? `[${tagStr}] ` : '';
-    const idText = report.orderId ? `${idKindLabel(report.idKind)}：${report.orderId}` : '';
+    const idText = report.orderId ? `${idKindLabel(report.idKind)}：${orderIdText(report.idKind, report.orderId)}` : '';
     const noteRaw = String(report.orderNote || '').replace(/\s+/g, ' ').trim();
     const note = [idText, noteRaw].filter(Boolean).join(' ');
     const room = Math.max(8, QUOTE_TOTAL_MAX - tagPart.length);

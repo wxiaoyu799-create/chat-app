@@ -2379,7 +2379,7 @@ wss.on('connection', (ws) => {
       case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
       special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
       inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
-      problem_item_result: 'problem_item_error',
+      problem_item_result: 'problem_item_error', problem_item_untransfer: 'problem_item_error',
       problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
       problem_item_options_update: 'problem_item_options_error',
       reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
@@ -3095,6 +3095,32 @@ wss.on('connection', (ws) => {
         broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
         if (ok !== true) broadcast({ type: 'problem_item_finished_added', record: ok });
       }
+      return;
+    }
+
+    // 转错了：从去向队列撤回原分类的待处理（任务详情、评论、进度都留着，再转回去还在）
+    if (data.type === 'problem_item_untransfer') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!report || !TRANSFER_STATUSES.includes(report.status)) return;
+      const from = report.status;
+      report.status = 'pending';
+      report.handledBy = '';
+      // 现场处理人是"谁转的算谁"，撤回后清掉，下次转的时候重新按转的人算
+      if (report.taskInfo && typeof report.taskInfo.siteHandler === 'string') {
+        const { siteHandler, ...rest } = report.taskInfo;
+        report.taskInfo = rest;
+        await saveTaskColumn(report.id, 'task_info', report.taskInfo);
+      }
+      if (dbPool && !String(report.id).startsWith('mem-')) {
+        try {
+          await dbPool.query('UPDATE problem_item_reports SET status = $1, resolved_by = NULL, resolved_at = NULL WHERE id = $2;', ['pending', report.id]);
+        } catch (err) { console.error('[撤销转出失败]', err.message); }
+      }
+      console.log(`[问题件] ${client.username} 撤销了转出（${problemItemStatusLabel(from)}）：${category} #${report.id}`);
+      broadcast({ type: 'problem_item_report_status_changed', category, reportId: report.id, status: 'pending', report });
       return;
     }
 

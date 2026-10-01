@@ -3230,6 +3230,13 @@
     padding: 12px 14px;
   }
   .problem-item-card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .undo-transfer-btn {
+    margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 2px;
+    background: transparent; border: none; color: var(--muted); font-size: 11.5px; font-family: inherit;
+    padding: 1px 4px; border-radius: 5px; cursor: pointer; opacity: 0.7;
+  }
+  .undo-transfer-btn i { font-size: 13px; }
+  .undo-transfer-btn:hover { opacity: 1; color: #e5534b; background: rgba(229, 83, 75, 0.08); }
   .problem-item-tag {
     display: inline-block;
     background: rgba(229, 83, 75, 0.12);
@@ -9380,6 +9387,23 @@
         warnTag.className = 'problem-item-photo-tag';
         warnTag.innerHTML = '<i class="ti ti-camera-exclamation"></i> 待补照片';
         tagsRow.appendChild(warnTag);
+      }
+      // 转错了：队列里的卡片右上角一个小小的"撤销"，撤回原分类的待处理
+      if (isQueue && (myRole === 'admin' || myRole === 'manager')) {
+        const fromCat = report._fromCategory || report.category;
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'undo-transfer-btn';
+        undo.innerHTML = '<i class="ti ti-arrow-back-up"></i>撤销';
+        undo.title = `转错了？撤回到「${fromCat}」待处理`;
+        undo.addEventListener('click', () => {
+          if (!window.confirm(`把这条撤回到「${fromCat}」待处理？
+（任务详情、评论、进度都会保留）`)) return;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'problem_item_untransfer', category: fromCat, reportId: report.id }));
+          }
+        });
+        tagsRow.appendChild(undo);
       }
       card.appendChild(tagsRow);
 

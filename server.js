@@ -1661,9 +1661,11 @@ const PROBLEM_ITEM_CATEGORIES = ['代购', '代拍', '煤炉'];
 // 代拍工单：代拍的问题单独转到这里，用法跟代购代拍任务一样（详情+评论，最后点已完结）
 // 代购日志：代购转出来的，用法跟煤炉反查一样（已入库 / 已补（换）发入库 / 已取消）
 const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购日志': 'transferred_log', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
-const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
+const TASK_QUEUE_STATUSES = ['transferred_task']; // 代拍工单改成跟代购日志一样的"处理结果"队列，不再是任务
 const TRANSFER_STATUSES = ['transferred_merchant', 'transferred_log', 'transferred_task', 'transferred_bulk'];
-const RESULT_QUEUE_STATUSES = ['transferred_merchant', 'transferred_log']; // 这两条队列用三种处理结果
+const RESULT_QUEUE_STATUSES = ['transferred_merchant', 'transferred_log', 'transferred_bulk']; // 这几条队列用三种处理结果
+// 代购日志、代拍工单：卡片上一小块"跟进记录"，还能直接转成代购代拍任务
+const WORK_ORDER_STATUSES = ['transferred_log', 'transferred_bulk'];
 const DEFAULT_ISSUE_TYPES = ['破损', '脏污', '特典', '少货', '多货', '商品错误', '找不到订单'];
 // 代购问题件的"平台"下拉：默认几个常用网站，提交时也能直接输入新的加进来（option_type='buy_platform'）
 const DEFAULT_BUY_PLATFORMS = ['亚马逊', '乐天', '雅虎购物', '骏河屋', 'ZOZOTOWN', '官网'];
@@ -2379,7 +2381,7 @@ wss.on('connection', (ws) => {
       case_update: 'case_error', case_add: 'case_error', case_delete: 'case_error', case_reveal_order: 'case_error',
       special_req_update: 'special_req_error', special_req_add: 'special_req_error', special_req_delete: 'special_req_error',
       inspection_rule_update: 'inspection_rule_error', inspection_rule_delete_history: 'inspection_rule_error',
-      problem_item_result: 'problem_item_error', problem_item_untransfer: 'problem_item_error',
+      problem_item_result: 'problem_item_error', problem_item_untransfer: 'problem_item_error', problem_item_to_task: 'problem_item_error',
       problem_item_transfer: 'problem_item_error', problem_item_resolve: 'problem_item_error',
       problem_item_options_update: 'problem_item_options_error',
       reminder_update: 'reminder_error', reminder_add: 'reminder_error', reminder_delete: 'reminder_error',
@@ -3095,6 +3097,38 @@ wss.on('connection', (ws) => {
         broadcast({ type: 'problem_item_report_removed', category, reportId: data.reportId });
         if (ok !== true) broadcast({ type: 'problem_item_finished_added', record: ok });
       }
+      return;
+    }
+
+    // 代购日志 / 代拍工单 → 转成代购代拍任务（谁点的就算谁转的，执行人按任务的默认规则补上）
+    if (data.type === 'problem_item_to_task') {
+      const client = clients.get(ws);
+      if (!client) return;
+      const category = String(data.category || '');
+      const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!report || !WORK_ORDER_STATUSES.includes(report.status)) return;
+      report.status = 'transferred_task';
+      report.handledBy = client.username;
+      applyDefaultTaskExecutors(report);
+      if (dbPool && !String(report.id).startsWith('mem-')) {
+        try {
+          await dbPool.query('UPDATE problem_item_reports SET status = $1, resolved_by = $2, resolved_at = now() WHERE id = $3;', ['transferred_task', client.username, report.id]);
+        } catch (err) { console.error('[转代购代拍任务失败]', err.message); }
+      }
+      broadcast({ type: 'problem_item_report_status_changed', category, reportId: report.id, status: 'transferred_task', report });
+      return;
+    }
+    // 代购日志 / 代拍工单的"跟进记录"：一小块备注，管理员 / 仓库现场 / 代购都能写
+    if (data.type === 'problem_follow_note') {
+      const client = clients.get(ws);
+      if (!client) return;
+      if (!['admin', 'manager', 'buyer'].includes(client.role)) { ws.send(JSON.stringify({ type: 'problem_item_error', message: '跟进记录只有管理员、仓库现场、代购能写' })); return; }
+      const category = String(data.category || '');
+      const report = (problemItemReports[category] || []).find((r) => String(r.id) === String(data.reportId));
+      if (!report || !WORK_ORDER_STATUSES.includes(report.status)) return;
+      report.taskInfo = { ...(report.taskInfo || {}), followNote: { text: cleanTaskText(data.text, 500), by: client.username, at: Date.now() } };
+      await saveTaskColumn(report.id, 'task_info', report.taskInfo);
+      broadcast({ type: 'problem_item_report_updated', category, report });
       return;
     }
 

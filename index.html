@@ -3284,6 +3284,16 @@
   .pi-site-handler select.empty { color: var(--muted); font-weight: 400; }
   .pi-site-handler .pi-sh-value { color: var(--text); font-weight: 600; }
   .pi-site-handler .pi-sh-value.empty { color: var(--muted); font-weight: 400; }
+  /* 代购日志 / 代拍工单：小块跟进记录 */
+  .pi-follow-note {
+    display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; padding: 4px 8px;
+    border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 7px; background: var(--bg);
+  }
+  .pi-follow-note:focus-within { border-color: var(--accent); }
+  .pi-fn-label { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--accent); white-space: nowrap; padding-top: 3px; }
+  .pi-fn-label i { font-size: 13px; }
+  .pi-follow-note .pi-progress-input { flex: 1; min-height: 20px; font-size: 12.5px; padding: 2px 0; }
+  .pi-fn-by { font-size: 10.5px; color: var(--muted); white-space: nowrap; padding-top: 4px; }
   /* 煤炉反查：现场 / 代购 两栏进度 */
   .pi-progress { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .pi-progress-box { border-radius: 8px; padding: 6px 8px 4px; border: 1px solid var(--border); background: var(--bg); }
@@ -8481,7 +8491,8 @@
   // 代拍工单：代拍的问题单独转到这里，用法和代购代拍任务一样（详情+评论，最后点已完结）
   // 代购日志：代购转出来的，用法跟煤炉反查一样（三种处理结果）
   const PROBLEM_ITEM_QUEUES = { '煤炉反查': 'transferred_merchant', '代购日志': 'transferred_log', '代购代拍任务': 'transferred_task', '代拍工单': 'transferred_bulk' };
-  const TASK_QUEUE_STATUSES = ['transferred_task', 'transferred_bulk'];
+  const TASK_QUEUE_STATUSES = ['transferred_task']; // 代拍工单跟代购日志一样用"处理结果"，不是任务
+  const WORK_ORDER_STATUSES = ['transferred_log', 'transferred_bulk']; // 代购日志、代拍工单：跟进记录 + 转代购代拍任务
   function isQueueCategory(cat) { return Object.prototype.hasOwnProperty.call(PROBLEM_ITEM_QUEUES, cat); }
   // 人名视图：待处理里按"谁转出去的"再切一遍，名单由服务器给（问题件处理人）
   let problemItemHandlers = [];
@@ -9466,6 +9477,8 @@
       if (isQueue) card.appendChild(buildSiteHandlerRow(report));
       // 煤炉反查：现场 / 代购 两栏处理进度，直接写在卡片上，不用点进详情
       if (isQueue && report.status === 'transferred_merchant') card.appendChild(buildProgressBoxes(report));
+      // 代购日志 / 代拍工单：一小块跟进记录
+      if (isQueue && WORK_ORDER_STATUSES.includes(report.status)) card.appendChild(buildFollowNote(report));
 
       const actions = document.createElement('div');
       actions.className = 'problem-item-card-actions';
@@ -9498,6 +9511,17 @@
           });
           actions.appendChild(btn);
         });
+        if (WORK_ORDER_STATUSES.includes(report.status)) {
+          const toTask = document.createElement('button');
+          toTask.className = 'transfer-btn';
+          toTask.innerHTML = '<i class="ti ti-subtask"></i> 转代购代拍任务';
+          toTask.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'problem_item_to_task', category: report._fromCategory || report.category, reportId: report.id }));
+            }
+          });
+          actions.appendChild(toTask);
+        }
       } else {
         const resolveBtn = document.createElement('button');
         resolveBtn.className = 'resolve-btn';
@@ -9566,6 +9590,8 @@
 
       problemItemList.appendChild(card);
     });
+    // 进度框 / 跟进记录要等卡片真正放进页面、有了宽度再量高度，不然会被撑得很高
+    problemItemList.querySelectorAll('.pi-progress-input').forEach(autoGrow);
     if (typing) {
       const again = problemItemList.querySelector(`.pi-progress-input[data-key="${typing.key}"]`);
       if (again && !again.disabled) {
@@ -9604,6 +9630,33 @@
       row.appendChild(v);
     }
     return row;
+  }
+
+  // ===== 代购日志 / 代拍工单：一小块跟进记录（管理员 / 仓库现场 / 代购能写，点出框就保存） =====
+  function buildFollowNote(report) {
+    const cur = (report.taskInfo && report.taskInfo.followNote) || {};
+    const canWrite = ['admin', 'manager', 'buyer'].includes(myRole);
+    const box = document.createElement('div');
+    box.className = 'pi-follow-note';
+    box.innerHTML = '<span class="pi-fn-label"><i class="ti ti-notes"></i>跟进记录</span>';
+    const ta = document.createElement('textarea');
+    ta.className = 'pi-progress-input';
+    ta.dataset.key = `${report.id}-follow`;
+    ta.rows = 1;
+    ta.value = cur.text || '';
+    ta.disabled = !canWrite;
+    ta.placeholder = canWrite ? '写一句跟进到哪了…' : '（还没写）';
+    ta.addEventListener('input', () => autoGrow(ta));
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ta.blur(); } });
+    ta.addEventListener('blur', () => {
+      if (!canWrite || ta.value.trim() === String(cur.text || '').trim()) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'problem_follow_note', category: report._fromCategory || report.category, reportId: report.id, text: ta.value }));
+    });
+    box.appendChild(ta);
+    if (cur.by) box.insertAdjacentHTML('beforeend', `<span class="pi-fn-by">${escapeHtml(cur.by)} · ${formatTaskTime(cur.at)}</span>`);
+    requestAnimationFrame(() => autoGrow(ta));
+    return box;
   }
 
   // ===== 煤炉反查：现场 / 代购 两栏处理进度 =====
@@ -9650,7 +9703,7 @@
   function taskHaystack(r) {
     const t = r.taskInfo || {};
     const pg = t.progress || {};
-    return [t.content, t.contact, t.followUp, t.siteHandler, pg.site && pg.site.text, pg.buyer && pg.buyer.text, (t.executors || []).join(' '),
+    return [t.content, t.contact, t.followUp, t.siteHandler, t.followNote && t.followNote.text, pg.site && pg.site.text, pg.buyer && pg.buyer.text, (t.executors || []).join(' '),
       (r.taskComments || []).map((c) => `${c.by} ${c.text}`).join(' ')].join(' ');
   }
   function formatTaskTime(ts) {
@@ -9716,7 +9769,15 @@
     return true;
   }
   function patchTask(patch) { if (sendTask('problem_task_update', { patch })) showTaskDetailMsg('已保存，大家那边同步更新'); }
-  function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  // 窗口最小化 / 还没显示出来时宽度是 0，量出来的高度会大得离谱：这时先不量，等能看见了再量
+  function autoGrow(ta) {
+    if (!ta.clientWidth) { ta.style.height = ''; return; }
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  const regrowAllProgress = () => document.querySelectorAll('.pi-progress-input').forEach(autoGrow);
+  window.addEventListener('resize', regrowAllProgress);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') regrowAllProgress(); });
 
   async function uploadTaskImage(file) {
     const fd = new FormData();

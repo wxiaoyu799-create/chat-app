@@ -2943,8 +2943,8 @@
   .pi-combo-item.is-new { color: #2e9e5b; font-weight: 600; }
   .pi-combo-empty { padding: 8px 10px; font-size: 12.5px; color: var(--muted); }
   .mid-head {
-    display: inline-block; margin-right: 5px; padding: 0 6px; border-radius: 5px; font-weight: 700;
-    background: rgba(229, 83, 75, 0.12); color: #d0453e; user-select: all;
+    display: inline-block; margin-right: 1px; padding: 0 6px; border-radius: 5px; font-weight: 700;
+    background: rgba(229, 83, 75, 0.12); color: #d0453e;
   }
   .problem-item-platform-chip {
     display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px;
@@ -8938,7 +8938,8 @@
   function orderIdHtml(kind, id, kw) {
     const sp = kind === 'm' ? splitMercariId(id) : null;
     if (!sp) return highlightCell(id, kw);
-    return `<span class="mid-head">${escapeHtml(sp.head)}</span>${highlightCell(sp.rest, kw)}`;
+    // 中间放一个真正的空格：视觉上的间距不算断词，双击会把 05 和 m 号连在一起选中
+    return `<span class="mid-head">${escapeHtml(sp.head)}</span> <span class="mid-rest">${highlightCell(sp.rest, kw)}</span>`;
   }
   // 纯文字（引用到聊天等）：中间空一格
   function orderIdText(kind, id) {
